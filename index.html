@@ -576,7 +576,13 @@ function boothFrame(b){
 
   let overallDot = 'ok', overallLabel = 'Online';
   if(!online){ overallDot = 'alert'; overallLabel = 'Offline'; }
-  else if(badPrograms.length){ overallDot = 'alert'; overallLabel = badPrograms.some(p => !p.running) ? 'Software not running' : 'Software needs attention'; }
+  else if(badPrograms.length){
+    overallDot = 'alert';
+    const badSoftware = badPrograms.filter(p => !p.device), badDevices = badPrograms.filter(p => p.device);
+    overallLabel = badSoftware.length
+      ? (badSoftware.some(p => !p.running) ? 'Software not running' : 'Software needs attention')
+      : (badDevices.length === 1 ? badDevices[0].name + ' problem' : 'Hardware problem');
+  }
   else if(rollState !== 'ok'){ overallDot = 'warn'; overallLabel = rollState === 'alert' ? 'Out of prints' : 'Low on prints'; }
 
   // While the booth is offline the program list is the last thing it reported, so grey it out.
@@ -595,7 +601,7 @@ function boothFrame(b){
             ${p.title ? `<div class="title" title="${esc(p.title)}">${esc(p.title)}</div>` : ''}
             ${detailRows(p)}
             ${p.ok ? '' : `<span class="note">${esc(p.note || 'Problem')}</span>`}
-            <button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>
+            ${p.device ? '' : `<button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>`}
           </span>
         </div>`).join('');
 
