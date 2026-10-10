@@ -1384,6 +1384,18 @@ function drawSettings(){
       <h2>Booth details</h2>
       <p class="help">Name, location, and whether a booth is <b>live</b> or in <b>build</b> (being set up or tested, so its sessions and prints are left out of the Company page). "Test" booths get new agent versions first. Auto-restart brings crashed booth software back by itself.</p>
       <div class="tbl-wrap"><table class="tbl"><tbody>${detailRows}</tbody></table></div>
+    </section>
+
+    <section class="panel" id="p-watch">
+      <h2>What each booth watches</h2>
+      <p class="help">Untick anything a booth does not have, or cannot be checked on, such as a thermal printer, a webcam or no card machine. BoothWatch then ignores it: no alerts and nothing shown on the card. Takes effect within a minute on agent 0.8.2 or newer.</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Booth</th><th>Printer</th><th>Camera</th><th>Payment software (MDB)</th></tr></thead>
+        <tbody>${booths.map(b => { const w = (b.config && b.config.watch) || {}; const on = k => w[k] === false ? '' : 'checked'; return `<tr data-watch="${esc(b.id)}"><td>${esc(b.name)}</td>
+          <td><input type="checkbox" data-w="printer" ${on('printer')} aria-label="Watch printer on ${esc(b.name)}"/></td>
+          <td><input type="checkbox" data-w="camera" ${on('camera')} aria-label="Watch camera on ${esc(b.name)}"/></td>
+          <td><input type="checkbox" data-w="payment" ${on('payment')} aria-label="Watch payment software on ${esc(b.name)}"/></td></tr>`; }).join('')}</tbody></table></div>
+      <div class="save-row"><button class="btn-primary" id="save-watch">Save</button><span class="save-msg" id="msg-watch"></span></div>
     </section>` : ''}
 
     <section class="panel" id="p-add">
@@ -1532,6 +1544,20 @@ function wireSettings(booths, targets){
       await refreshCache(); toast('Saved ' + name);
     };
   });
+
+  // what to watch
+  if($('save-watch')) $('save-watch').onclick = async () => {
+    $('save-watch').disabled = true;
+    try {
+      for(const tr of document.querySelectorAll('[data-watch]')){
+        const w = {}; tr.querySelectorAll('[data-w]').forEach(i => { w[i.dataset.w] = i.checked; });
+        const { error } = await sb.rpc('update_booth_config', { p_booth_id: tr.dataset.watch, p_patch: { watch: w } });
+        if(error) throw error;
+      }
+      await refreshCache(); msg('msg-watch', 'Saved');
+    } catch(e){ msg('msg-watch', e.message, true); }
+    $('save-watch').disabled = false;
+  };
 
   // add booth
   if($('copy-cmd')) $('copy-cmd').onclick = async () => {

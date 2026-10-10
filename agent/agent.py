@@ -52,7 +52,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.8.1"
+VERSION = "0.8.2"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -205,6 +205,16 @@ def in_opening_hours(hours, now=None):
     return False
 
 
+def is_payment_program(prog):
+    name = str(prog.get("name", "")).lower()
+    return "payment" in name or "mdb" in name
+
+
+def watching(cfg, what):
+    """False when this booth has been told (on the dashboard) not to watch its printer, camera or payment software."""
+    return (cfg.get("watch") or {}).get(what, True) is not False
+
+
 def effective_config(local, remote):
     """Local config.json, with the settings you changed on the dashboard on top.
     Restart commands never come from the dashboard, only from config.json."""
@@ -237,7 +247,13 @@ def effective_config(local, remote):
             merged.append(q)
         if merged:
             cfg["programs"] = merged
-    return apply_defaults(cfg)
+    cfg = apply_defaults(cfg)
+    watch = remote.get("watch")
+    if isinstance(watch, dict):
+        cfg["watch"] = {k: watch.get(k) is not False for k in ("printer", "camera", "payment")}
+        if not cfg["watch"]["payment"]:
+            cfg["programs"] = [p for p in cfg["programs"] if not is_payment_program(p)]
+    return cfg
 
 
 def load_state():
@@ -1144,7 +1160,12 @@ def check_camera(cfg, procs):
 
 def check_devices(cfg, procs):
     rows = []
-    for fn in (lambda: check_printer(cfg), lambda: check_camera(cfg, procs)):
+    fns = []
+    if watching(cfg, "printer"):
+        fns.append(lambda: check_printer(cfg))
+    if watching(cfg, "camera"):
+        fns.append(lambda: check_camera(cfg, procs))
+    for fn in fns:
         try:
             row = fn()
         except Exception as e:
@@ -1773,7 +1794,7 @@ def main():
                     paper_state["warned"] = time.time()
                     log.info("Paper read is due but the booth looks busy, waiting for a quiet moment")
                 if paper is None and ((local_cfg.get("printer") or {}).get("read_paper_left", True) is not False
-                        and due and idle_now):
+                        and watching(cfg, "printer") and due and idle_now):
                     paper_state["last"] = time.time()
                     try:
                         paper = read_paper_left(local_cfg)
