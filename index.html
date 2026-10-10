@@ -837,10 +837,12 @@ function boothFrame(b){
   if(online && st.folder_found === false) warns += `<div class="warn-line">Session counting: today's photo folder was not found on the booth (normal until the first session of the day).</div>`;
   if(online && !isClosed && st.counter_seen === false) warns += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
 
-  const badge = manualClosed ? '<span class="badge-closed">Closed</span>'
+  const buildBadge = cfg.stage === 'build' ? '<span class="badge-closed" title="Left out of the Company figures">Build</span>' : '';
+  const badge = buildBadge + (manualClosed ? '<span class="badge-closed">Closed</span>'
     : schedClosed ? '<span class="badge-closed">Closed · hours</span>'
-    : (hrs && !hrs.open ? '<span class="badge-closed">Outside hours</span>' : '');
+    : (hrs && !hrs.open ? '<span class="badge-closed">Outside hours</span>' : ''));
   const modeText = { none: '', pause_alerts: 'alerts pause outside hours', auto_close: 'closes itself outside hours' }[(cfg.hours && cfg.hours.mode) || 'none'];
+  const paperLine = b.paper_left != null ? `<div class="agent-info">Printer said ${b.paper_left} pages left · read ${esc(fmtAgo(b.paper_left_at))}</div>` : '';
   const hoursLine = hrs ? `<div class="agent-info">${esc(hrs.text)} · ${esc(modeText)}</div>` : '';
 
   // One button that does the right thing for the booth's state
@@ -888,6 +890,7 @@ function boothFrame(b){
           </div>
           ${cmdLine}
           ${warns}
+          ${paperLine}
           ${hoursLine}
           <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'} · ${esc(b.channel || 'live')} channel</div>
         </div>
@@ -1130,14 +1133,15 @@ async function refreshBooths(){
 
   const onlineCount = booths.filter(isOnline).length;
   const attentionCount = booths.filter(needsAttention).length;
-  const printsToday = booths.reduce((s,b) => s + (b.prints_today||0), 0);
-  const sessionsToday = booths.reduce((s,b) => s + (b.sessions_today||0), 0);
+  const counted = booths.filter(b => !(b.config && b.config.stage === 'build'));
+  const printsToday = counted.reduce((s,b) => s + (b.prints_today||0), 0);
+  const sessionsToday = counted.reduce((s,b) => s + (b.sessions_today||0), 0);
 
   document.getElementById('summary').innerHTML = `
     <div class="tile hero"><div class="tile-label">Online</div><div class="tile-num">${onlineCount}/${booths.length}</div><div class="tile-sub">booths checking in</div></div>
     <div class="tile ${attentionCount ? 'dark' : ''}"><div class="tile-label">Need attention</div><div class="tile-num">${attentionCount}</div><div class="tile-sub">${attentionCount ? 'open the cards below' : 'all clear'}</div></div>
-    <div class="tile"><div class="tile-label">Sessions today</div><div class="tile-num">${sessionsToday}</div><div class="tile-sub">all booths</div></div>
-    <div class="tile"><div class="tile-label">Prints today</div><div class="tile-num">${printsToday}</div><div class="tile-sub">all booths</div></div>`;
+    <div class="tile"><div class="tile-label">Sessions today</div><div class="tile-num">${sessionsToday}</div><div class="tile-sub">live booths</div></div>
+    <div class="tile"><div class="tile-label">Prints today</div><div class="tile-num">${printsToday}</div><div class="tile-sub">live booths</div></div>`;
 
   fleetBeats = booths.filter(b => b.last_heartbeat_at).map(b => ({ t: new Date(b.last_heartbeat_at).getTime(), iv: checkInterval(b) }));
   const framesEl = document.getElementById('frames');
@@ -1319,6 +1323,7 @@ function drawSettings(){
     <tr data-bd="${esc(b.id)}">
       <td><input type="text" data-bd-name value="${esc(b.name)}" aria-label="Name"/></td>
       <td><input type="text" data-bd-loc value="${esc(b.location || '')}" placeholder="Location" aria-label="Location"/></td>
+      <td><select data-bd-stage aria-label="Live or build"><option value="live" ${(b.config && b.config.stage) === 'build' ? '' : 'selected'}>live</option><option value="build" ${(b.config && b.config.stage) === 'build' ? 'selected' : ''}>build</option></select></td>
       <td><select data-bd-channel aria-label="Update channel"><option value="live" ${b.channel === 'live' ? 'selected' : ''}>live</option><option value="test" ${b.channel === 'test' ? 'selected' : ''}>test</option></select></td>
       <td><label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-bd-auto ${b.config && b.config.auto_restart ? 'checked' : ''}/> Auto-restart</label></td>
       <td><button class="btn-sm" data-bd-save>Save</button></td>
@@ -1377,7 +1382,7 @@ function drawSettings(){
 
     <section class="panel" id="p-booths">
       <h2>Booth details</h2>
-      <p class="help">Name, location and how each booth updates. "Test" booths get new agent versions first. Auto-restart brings crashed booth software back by itself.</p>
+      <p class="help">Name, location, and whether a booth is <b>live</b> or in <b>build</b> (being set up or tested, so its sessions and prints are left out of the Company page). "Test" booths get new agent versions first. Auto-restart brings crashed booth software back by itself.</p>
       <div class="tbl-wrap"><table class="tbl"><tbody>${detailRows}</tbody></table></div>
     </section>` : ''}
 
@@ -1521,7 +1526,7 @@ function wireSettings(booths, targets){
       const location = tr.querySelector('[data-bd-loc]').value.trim() || null;
       const channel = tr.querySelector('[data-bd-channel]').value;
       const r1 = await sb.from('booths').update({ name, location, channel }).eq('id', id);
-      const r2 = await sb.rpc('update_booth_config', { p_booth_id: id, p_patch: { auto_restart: tr.querySelector('[data-bd-auto]').checked } });
+      const r2 = await sb.rpc('update_booth_config', { p_booth_id: id, p_patch: { auto_restart: tr.querySelector('[data-bd-auto]').checked, stage: tr.querySelector('[data-bd-stage]').value } });
       btn.disabled = false;
       if(r1.error || r2.error){ alert((r1.error || r2.error).message); return; }
       await refreshCache(); toast('Saved ' + name);
@@ -1694,9 +1699,11 @@ async function renderCompanyPage(){
 }
 
 function drawCompany(){
-  const booths = boothCache, rows = statsCache.rows, S = companyState;
+  const allBooths = boothCache, rows = statsCache.rows, S = companyState;
+  const booths = allBooths.filter(b => !(b.config && b.config.stage === 'build'));
+  const buildCount = allBooths.length - booths.length;
   const body = document.getElementById('company-body');
-  if(!booths.length){ body.innerHTML = '<div class="empty">No booths yet. Add one in Settings.</div>'; return; }
+  if(!booths.length){ body.innerHTML = `<div class="empty">${allBooths.length ? 'Every booth is in build mode, so there is nothing to total up. Switch a booth to live in Settings.' : 'No booths yet. Add one in Settings.'}</div>`; return; }
 
   const cur = periodRange(S.period, [S.customFrom, S.customTo]);
   const cmp = compareRange(S.compare, S.period, cur, [S.cmpFrom, S.cmpTo]);
@@ -1730,6 +1737,7 @@ function drawCompany(){
       ${S.compare === 'custom' ? `<label>Compare from<input type="date" id="c-cfrom" value="${esc(S.cmpFrom || '')}"/></label><label>Compare to<input type="date" id="c-cto" value="${esc(S.cmpTo || '')}"/></label>` : ''}
     </div>
     <div class="page-sub" style="margin:-6px 0 14px"><b>${esc(fmtRange(cur))}</b>${cmp ? ` compared with <b>${esc(cmpLabel)}</b>` : ''}</div>
+    ${buildCount ? `<div class="banner">${buildCount} booth${buildCount > 1 ? 's are' : ' is'} in build mode and left out of these figures.</div>` : ''}
     ${price0.length ? `<div class="banner">${price0.length === booths.length ? 'No price per session is set yet' : esc(price0.map(b => b.name).join(', ')) + ' has no price per session'}, so sales and profit will read as £0 there. <a href="#/settings">Set prices and costs</a>.</div>` : ''}
     <div class="summary">
       ${tile('sales')}

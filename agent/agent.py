@@ -52,7 +52,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -1356,11 +1356,21 @@ PAPER_READ_SECONDS = 20 * 60
 _forced_paper = {"value": None}      # a reading taken by the dashboard button, sent with the next report
 
 
+_screen_seen = {"sig": None, "since": time.time()}
+
+
 def booth_idle(results, closed_shown):
-    """True when nobody is in the middle of a session (the booth is on its welcome screen, or closed)."""
+    """True when nobody is in the middle of a session: closed, on the welcome screen, or the booth has
+    sat on the same screen for 3 minutes (a real session keeps changing screens)."""
+    sig = "|".join(str(r.get("screen", "")) for r in results)
+    if sig != _screen_seen["sig"]:
+        _screen_seen["sig"] = sig
+        _screen_seen["since"] = time.time()
     if closed_shown:
         return True
-    return any(str(r.get("screen", "")).lower() == "welcome" for r in results)
+    if any(str(r.get("screen", "")).lower() == "welcome" for r in results):
+        return True
+    return time.time() - _screen_seen["since"] >= 180
 
 
 def show_paper_left(local_cfg):
@@ -1757,9 +1767,13 @@ def main():
 
                 paper = _forced_paper["value"]
                 _forced_paper["value"] = None
+                idle_now = booth_idle(results, closed_shown)      # call every beat so it can track screen changes
+                due = time.time() - paper_state["last"] >= PAPER_READ_SECONDS
+                if due and not idle_now and time.time() - paper_state.get("warned", 0) > 600:
+                    paper_state["warned"] = time.time()
+                    log.info("Paper read is due but the booth looks busy, waiting for a quiet moment")
                 if paper is None and ((local_cfg.get("printer") or {}).get("read_paper_left", True) is not False
-                        and time.time() - paper_state["last"] >= PAPER_READ_SECONDS
-                        and booth_idle(results, closed_shown)):
+                        and due and idle_now):
                     paper_state["last"] = time.time()
                     try:
                         paper = read_paper_left(local_cfg)
