@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BoothWatch</title>
+
+<!--
+  ═══════════════════════════════════════════════════════════════
+  SETUP — do this once, then this file just works.
+
+  1. Create a free project at https://supabase.com
+  2. Project Settings → SQL Editor → run schema.sql (the file next
+     to this one)
+  3. Project Settings → API → copy your Project URL and anon key
+     into the two lines below
+  4. Project Settings → Authentication → add yourself as a user
+     (Authentication → Users → Add user), or enable email signup
+  5. Open this file in a browser, or host it anywhere static
+     (Netlify/Vercel/GitHub Pages all have free tiers)
+  ═══════════════════════════════════════════════════════════════
+-->
+<script>
+  const CONFIG = {
+    SUPABASE_URL: "https://mfsxkomjbhlvufgosrtp.supabase.co",
+    SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mc3hrb21qYmhsdnVmZ29zcnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0ODI4NjYsImV4cCI6MjEwNzA1ODg2Nn0.GpoF2YbXOmHrMaPnES8aVp87l-yJ8Ri6qFTYdSQxVd4",
+  };
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Archivo:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg: #1B1712;
+    --panel: #23201A;
+    --panel-line: #3A342A;
+    --cream: #EFE7DA;
+    --muted: #9C9082;
+    --amber: #E0A537;
+    --ok: #85A672;
+    --warn: #D19A4A;
+    --alert: #C05B45;
+  }
+
+  *{ box-sizing: border-box; }
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--cream);
+    font-family: 'Archivo', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* film sprocket strip — the one deliberate ornament, top and bottom only */
+  .sprockets{
+    height: 14px;
+    background-image: repeating-linear-gradient(
+      90deg, var(--panel-line) 0 6px, transparent 6px 20px
+    );
+    background-position: center;
+    background-size: 20px 6px;
+    background-repeat: repeat-x;
+    opacity: 0.5;
+  }
+
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding: 28px clamp(20px, 5vw, 56px) 8px;
+  }
+  header h1{
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 28px;
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  header .tag{ color: var(--muted); font-size: 14px; }
+  header button{
+    background:none; border:1px solid var(--panel-line); color:var(--muted);
+    padding:8px 14px; font-family:inherit; font-size:13px; cursor:pointer;
+  }
+  header button:hover{ color:var(--cream); border-color:var(--amber); }
+
+  main{ padding: 8px clamp(20px, 5vw, 56px) 60px; max-width:1200px; margin:0 auto; }
+
+  /* ── login ── */
+  .login-wrap{ display:flex; justify-content:center; padding-top:10vh; }
+  .login-card{
+    background: var(--panel); border:1px solid var(--panel-line);
+    padding: 40px; width: 340px;
+  }
+  .login-card h2{ font-family:'Fraunces', serif; font-weight:500; margin:0 0 4px; font-size:22px; }
+  .login-card p{ color:var(--muted); font-size:14px; margin:0 0 24px; }
+  .login-card input{
+    width:100%; padding:10px 12px; margin-bottom:12px;
+    background:var(--bg); border:1px solid var(--panel-line); color:var(--cream);
+    font-family:inherit; font-size:14px;
+  }
+  .login-card button{
+    width:100%; padding:11px; background:var(--amber); color:#1B1712;
+    border:none; font-family:inherit; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  .error{ color: var(--alert); font-size:13px; margin-top:10px; min-height: 1em; }
+
+  /* ── summary strip ── */
+  .summary{
+    display:flex; gap: 40px; padding: 20px 0 32px;
+    border-bottom: 1px solid var(--panel-line);
+    flex-wrap: wrap;
+  }
+  .summary .stat .num{ font-family:'Fraunces', serif; font-size:34px; line-height:1; }
+  .summary .stat .label{ color:var(--muted); font-size:13px; margin-top:4px; }
+  .summary .stat.ok .num{ color: var(--ok); }
+  .summary .stat.warn .num{ color: var(--warn); }
+
+  /* ── pairing ── */
+  .pair-row{ display:flex; gap:10px; padding: 20px 0; align-items:center; flex-wrap:wrap; }
+  .pair-row input{
+    background:var(--panel); border:1px solid var(--panel-line); color:var(--cream);
+    padding:9px 12px; font-family:inherit; font-size:14px; letter-spacing: 2px;
+    width: 140px;
+  }
+  .pair-row button{
+    background:none; border:1px solid var(--amber); color:var(--amber);
+    padding:9px 16px; font-family:inherit; font-size:14px; cursor:pointer;
+  }
+  .pair-row button:hover{ background:var(--amber); color:#1B1712; }
+  .pair-note{ color:var(--muted); font-size:13px; }
+
+  /* ── booth frames (filmstrip cards, deliberately not rounded SaaS cards) ── */
+  .frames{
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px; padding-top: 8px;
+  }
+  .frame{
+    background: var(--panel); border:1px solid var(--panel-line);
+    padding: 20px;
+    position:relative;
+  }
+  .frame::before, .frame::after{
+    content:""; position:absolute; left:16px; right:16px; height:1px;
+    background: var(--panel-line);
+  }
+  .frame::before{ top:0; } .frame::after{ display:none; }
+
+  .frame-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 18px; }
+  .frame-name{ font-family:'Fraunces', serif; font-size:19px; font-weight:500; }
+  .frame-loc{ color:var(--muted); font-size:13px; margin-top:2px; }
+
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:7px; }
+  .dot.ok{ background: var(--ok); }
+  .dot.warn{ background: var(--warn); }
+  .dot.alert{ background: var(--alert); }
+  .status-line{ font-size:13px; color: var(--muted); display:flex; align-items:center; margin-bottom:6px; }
+  .status-line b{ color: var(--cream); font-weight:600; margin-left: 3px; }
+
+  .programs{ margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--panel-line); }
+  .program{ font-size:13px; display:flex; align-items:flex-start; margin-bottom:6px; color: var(--cream); }
+  .program .dot{ margin-top:5px; flex:none; }
+  .program .note{ color: var(--alert); display:block; font-size:12px; margin-top:1px; }
+  .program.stale{ color: var(--muted); }
+  .frame-name.editable{ cursor:pointer; }
+  .frame-name.editable:hover{ color: var(--amber); }
+
+  .program-main{ flex:1; min-width:0; }
+  .program-head{ display:flex; justify-content:space-between; gap:10px; }
+  .program .state{ color: var(--muted); font-size:12px; flex:none; }
+  .program .title{ color: var(--muted); font-size:12px; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .program .detail{ color: var(--muted); font-size:12px; margin-top:2px; line-height:1.35; overflow-wrap:anywhere; }
+  .program .detail b{ color: var(--cream); font-weight:500; margin-right:4px; }
+  .program .detail.screen{ color: var(--cream); font-size:14px; margin-top:3px; }
+
+  .controls{
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px;
+    margin-top:16px; padding-top:12px; border-top:1px solid var(--panel-line);
+    font-size:12px; color: var(--muted);
+  }
+  .controls label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .controls select{
+    background:var(--bg); color:var(--cream); border:1px solid var(--panel-line);
+    font-family:inherit; font-size:12px; padding:3px 6px;
+  }
+  .controls button, .releases button, .shot-close{
+    background:none; border:1px solid var(--panel-line); color:var(--cream);
+    font-family:inherit; font-size:12px; padding:5px 10px; cursor:pointer;
+  }
+  .controls button:hover, .releases button:hover, .shot-close:hover{ border-color:var(--amber); color:var(--amber); }
+  .controls button:disabled{ opacity:.55; cursor:default; border-color:var(--panel-line); color:var(--muted); }
+  .controls button.danger:hover{ border-color:var(--alert); color:var(--alert); }
+  .prog-btn{ margin-top:6px; font-size:11px !important; padding:3px 8px !important;
+    background:none; border:1px solid var(--panel-line); color:var(--cream); font-family:inherit; cursor:pointer; }
+  .prog-btn:hover{ border-color:var(--amber); color:var(--amber); }
+  .prog-btn:disabled{ opacity:.55; cursor:default; border-color:var(--panel-line); color:var(--muted); }
+  .badge-closed{ display:inline-block; background:var(--alert); color:#fff; font-size:11px; letter-spacing:.06em;
+    text-transform:uppercase; padding:2px 8px; margin-left:8px; vertical-align:middle; }
+  .cmd-line{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.4; overflow-wrap:anywhere; }
+  .cmd-line.bad{ color:var(--alert); }
+  .warn-line{ font-size:12px; color:var(--warn); margin-top:6px; line-height:1.4; }
+  .agent-info{ font-size:12px; color: var(--muted); margin-top:10px; }
+
+  .releases{ margin: 6px 0 22px; font-size:13px; color: var(--muted); }
+  .releases summary{ cursor:pointer; padding:6px 0; }
+  .releases .rel-body{
+    background: var(--panel); border:1px solid var(--panel-line); padding:16px; margin-top:6px;
+    display:flex; flex-direction:column; gap:10px; max-width:560px;
+  }
+  .releases .rel-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .releases .rel-row b{ color: var(--cream); font-weight:600; }
+  .releases input[type=file]{ color: var(--muted); font-size:12px; max-width:100%; }
+  .rel-help{ font-size:12px; line-height:1.5; }
+
+  .shot-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:10;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px;
+  }
+  .shot-overlay img{ max-width:100%; max-height:80vh; border:1px solid var(--panel-line); background:#000; }
+  .shot-overlay .shot-meta{ color: var(--cream); font-size:13px; }
+
+  .frame-metrics{ display:flex; gap:22px; margin: 16px 0; }
+  .metric .num{ font-family:'Fraunces', serif; font-size:26px; }
+  .metric .label{ color:var(--muted); font-size:12px; margin-top:2px; }
+
+  .roll-bar{ height:5px; background:var(--bg); border:1px solid var(--panel-line); margin-top:14px; }
+  .roll-fill{ height:100%; background: var(--ok); }
+  .roll-fill.warn{ background: var(--warn); }
+  .roll-fill.alert{ background: var(--alert); }
+  .roll-label{ font-size:12px; color:var(--muted); margin-top:6px; display:flex; justify-content:space-between; }
+  .roll-label button{
+    background:none; border:none; color:var(--amber); font-family:inherit; font-size:12px;
+    cursor:pointer; text-decoration: underline; padding:0;
+  }
+
+  .empty{
+    color: var(--muted); text-align:center; padding: 60px 20px;
+    font-size:14px; border:1px dashed var(--panel-line);
+  }
+</style>
+</head>
+<body>
+
+<div class="sprockets"></div>
+
+<div id="app"></div>
+<div id="fatal" style="color:#C05B45;padding:20px;font-family:sans-serif"></div>
+
+<div class="sprockets"></div>
+
+<script>
+window.addEventListener('error', e => { document.getElementById('fatal').textContent = 'Error: ' + e.message; });
+const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+  auth: { persistSession: false } // see note in file header re: artifact sandboxing
+});
+
+const app = document.getElementById('app');
+let currentUser = null;
+let pollTimer = null;
+
+function fmtAgo(iso){
+  if(!iso) return "never";
+  const s = Math.floor((Date.now() - new Date(iso).getTime())/1000);
+  if(s < 60) return s + "s ago";
+  if(s < 3600) return Math.floor(s/60) + "m ago";
+  return Math.floor(s/3600) + "h ago";
+}
+
+function isOnline(booth){
+  if(!booth.last_heartbeat_at) return false;
+  return (Date.now() - new Date(booth.last_heartbeat_at).getTime()) < 3 * 60 * 1000; // >3 missed heartbeats = offline
+}
+
+function renderLogin(errorMsg){
+  app.innerHTML = `
+    <div class="login-wrap">
+      <div class="login-card">
+        <h2>BoothWatch</h2>
+        <p>Sign in to see your fleet.</p>
+        <input id="email" type="email" placeholder="Email" />
+        <input id="password" type="password" placeholder="Password" />
+        <button id="signin">Sign in</button>
+        <div class="error">${errorMsg || ""}</div>
+      </div>
+    </div>`;
+  document.getElementById('signin').onclick = async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){ renderLogin(error.message); return; }
+    currentUser = data.user;
+    renderDashboard();
+  };
+}
+
+async function loadBooths(){
+  const { data, error } = await sb
+    .from('booths')
+    .select('*')
+    .order('name');
+  if(error){ console.error(error); return []; }
+  return data;
+}
+
+// Text from agents is shown on this page, so always escape it.
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function programList(b){
+  return Array.isArray(b.programs) ? b.programs : [];
+}
+
+function rollRemaining(b){
+  return Math.max(b.roll_capacity - b.prints_since_roll, 0);
+}
+
+function needsAttention(b){
+  if(!isOnline(b)) return true;
+  if(programList(b).some(p => !p.ok)) return true;
+  return rollRemaining(b) < b.roll_capacity * 0.15;
+}
+
+function boothFrame(b){
+  const online = isOnline(b);
+  const programs = programList(b);
+  const badPrograms = programs.filter(p => !p.ok);
+  const remaining = rollRemaining(b);
+  const pct = Math.max(0, Math.min(100, 100 * remaining / b.roll_capacity));
+  const rollState = remaining === 0 ? 'alert' : (remaining < b.roll_capacity * 0.15 ? 'warn' : 'ok');
+
+  let overallDot = 'ok', overallLabel = 'Online';
+  if(!online){ overallDot = 'alert'; overallLabel = 'Offline'; }
+  else if(badPrograms.length){ overallDot = 'alert'; overallLabel = badPrograms.some(p => !p.running) ? 'Software not running' : 'Software needs attention'; }
+  else if(rollState !== 'ok'){ overallDot = 'warn'; overallLabel = rollState === 'alert' ? 'Out of prints' : 'Low on prints'; }
+
+  // While the booth is offline the program list is the last thing it reported, so grey it out.
+  const detailRows = p => (p.details && typeof p.details === 'object')
+    ? Object.entries(p.details).map(([k, v]) => `<div class="detail"><b>${esc(k)}</b>${esc(v)}</div>`).join('')
+    : '';
+  const screenState = p => p.minimized ? 'Minimised' : (p.fullscreen === true ? 'Full screen' : (p.fullscreen === false ? 'Windowed' : ''));
+  const cmd = b.lastCommand;
+  const busy = !!cmd && (cmd.status === 'pending' || cmd.status === 'running');
+  const programRows = programs.map(p => `
+        <div class="program ${online ? '' : 'stale'}">
+          <span class="dot ${p.ok ? 'ok' : 'alert'}"></span>
+          <span class="program-main">
+            <span class="program-head"><span>${esc(p.name)}</span><span class="state">${esc(screenState(p))}</span></span>
+            ${p.screen ? `<div class="detail screen"><b>Screen</b>${esc(p.screen)}</div>` : ''}
+            ${p.title ? `<div class="title" title="${esc(p.title)}">${esc(p.title)}</div>` : ''}
+            ${detailRows(p)}
+            ${p.ok ? '' : `<span class="note">${esc(p.note || 'Problem')}</span>`}
+            <button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>
+          </span>
+        </div>`).join('');
+
+  const autoRestart = !!(b.config && b.config.auto_restart);
+  const waiting = waitingShots.has(b.id);
+  const isClosed = !!(b.config && b.config.closed);
+  const st = (b.status && typeof b.status === 'object') ? b.status : {};
+  const cmdNames = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program') };
+  let cmdLine = '';
+  if(cmd){
+    const label = typeof cmdNames[cmd.kind] === 'function' ? cmdNames[cmd.kind](cmd) : (cmdNames[cmd.kind] || cmd.kind);
+    const word = { pending: 'waiting for the booth to pick it up…', running: 'in progress…', done: 'done', failed: 'failed', expired: 'expired (booth did not pick it up)' }[cmd.status] || cmd.status;
+    cmdLine = `<div class="cmd-line ${cmd.status === 'failed' || cmd.status === 'expired' ? 'bad' : ''}">${esc(label)}: ${esc(word)} · ${esc(fmtAgo(cmd.completed_at || cmd.created_at))}${cmd.result && cmd.status !== 'done' ? '<br>' + esc(cmd.result) : (cmd.result ? '<br>' + esc(cmd.result) : '')}</div>`;
+  }
+  let closedWarn = '';
+  if(isClosed && online && st.closed_shown === false) closedWarn += `<div class="warn-line">The closed screen is not showing yet${st.closed_error ? ': ' + esc(st.closed_error) : '.'}</div>`;
+  if(online && st.folder_found === false) closedWarn += `<div class="warn-line">Session counting: today's photo folder was not found on the booth (normal until the first session of the day).</div>`;
+  if(online && st.counter_seen === false) closedWarn += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
+  const controls = `
+      <div class="controls">
+        <label><input type="checkbox" data-autorestart="${esc(b.id)}" ${autoRestart ? 'checked' : ''}/> Auto-restart</label>
+        <label>Updates
+          <select data-channel="${esc(b.id)}">
+            <option value="live" ${b.channel === 'live' ? 'selected' : ''}>live</option>
+            <option value="test" ${b.channel === 'test' ? 'selected' : ''}>test</option>
+          </select>
+        </label>
+        <button data-shot="${esc(b.id)}" ${waiting || !online ? 'disabled' : ''}>${waiting ? 'Waiting for booth…' : 'Screenshot'}</button>
+        <button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>${isClosed ? 'Reopen booth' : 'Close booth…'}</button>
+        <button class="danger" data-restart-pc="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart PC</button>
+      </div>
+      ${cmdLine}
+      ${closedWarn}
+      <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'}</div>`;
+
+  return `
+    <div class="frame">
+      <div class="frame-top">
+        <div>
+          <div class="frame-name editable" data-rename="${esc(b.id)}" title="Click to rename">${esc(b.name)}${isClosed ? '<span class="badge-closed">Closed</span>' : ''}</div>
+          <div class="frame-loc">${esc(b.location || "")}</div>
+        </div>
+      </div>
+
+      <div class="status-line"><span class="dot ${overallDot}"></span>${overallLabel}</div>
+      <div class="status-line">Last check-in <b>${fmtAgo(b.last_heartbeat_at)}</b></div>
+      ${programRows ? `<div class="programs">${programRows}</div>` : ''}
+
+      <div class="frame-metrics">
+        <div class="metric">
+          <div class="num">${b.prints_today ?? 0}</div>
+          <div class="label">prints today</div>
+        </div>
+        <div class="metric">
+          <div class="num">${b.sessions_today ?? 0}</div>
+          <div class="label">sessions today</div>
+        </div>
+      </div>
+
+      <div class="roll-bar"><div class="roll-fill ${rollState}" style="width:${pct}%"></div></div>
+      <div class="roll-label">
+        <span>${remaining} prints left on roll</span>
+        <button data-reset="${b.id}">roll changed</button>
+      </div>
+      ${controls}
+    </div>`;
+}
+
+// ── screenshots ──
+const waitingShots = new Set();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function showShot(data){
+  const old = document.getElementById('shot-overlay');
+  if(old) old.remove();
+  const el = document.createElement('div');
+  el.className = 'shot-overlay';
+  el.id = 'shot-overlay';
+  const taken = new Date(data.taken_at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  el.innerHTML = `
+    <img alt="Booth screen" src="data:image/jpeg;base64,${data.image_base64}" />
+    <div class="shot-meta">${esc(data.booth_name)}, taken at ${esc(taken)}</div>
+    <button class="shot-close">Close</button>`;
+  el.onclick = e => { if(e.target === el || e.target.classList.contains('shot-close')) el.remove(); };
+  document.body.appendChild(el);
+}
+
+async function requestScreenshot(booth, refresh){
+  waitingShots.add(booth.id);
+  refresh();
+  try{
+    const { data: before } = await sb.from('booth_screenshots').select('taken_at').eq('booth_id', booth.id).maybeSingle();
+    const prevTaken = before ? before.taken_at : null;
+    const { error } = await sb.rpc('request_screenshot', { p_booth_id: booth.id });
+    if(error){ alert(error.message); return; }
+
+    const deadline = Date.now() + 60000;
+    while(Date.now() < deadline){
+      await sleep(3000);
+      const { data } = await sb.from('booth_screenshots').select('taken_at, image_base64').eq('booth_id', booth.id).maybeSingle();
+      if(data && data.taken_at !== prevTaken){
+        showShot({ ...data, booth_name: booth.name });
+        return;
+      }
+    }
+    alert('No screenshot arrived. The booth may be offline, or the agent may need updating.');
+  } finally {
+    waitingShots.delete(booth.id);
+    refresh();
+  }
+}
+
+// ── agent releases (publish a new agent.py, promote test to live) ──
+function relDate(iso){
+  return iso ? new Date(iso).toLocaleString([], { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
+}
+
+async function refreshReleases(){
+  const el = document.getElementById('rel-status');
+  if(!el) return;
+  const { data, error } = await sb.rpc('agent_releases_info');
+  if(error){ el.textContent = 'Could not load releases: ' + error.message; return; }
+  const get = ch => (data || []).find(r => r.channel === ch);
+  const line = (label, r) => `<div class="rel-row"><span>${label}</span> <b>${r ? esc(r.version) : 'nothing published'}</b> <span>${r ? esc(relDate(r.published_at)) : ''}</span></div>`;
+  el.innerHTML = line('Test channel', get('test')) + line('Live channel', get('live'));
+}
+
+function wireReleases(){
+  const file = document.getElementById('rel-file');
+  document.getElementById('rel-publish').onclick = async () => {
+    const f = file.files[0];
+    if(!f){ alert('Choose agent.py first.'); return; }
+    const code = await f.text();
+    const m = code.match(/^VERSION\s*=\s*"([^"]+)"/m);
+    if(!m){ alert('This does not look like agent.py (no VERSION line found).'); return; }
+    if(!confirm(`Publish agent ${m[1]} to the TEST channel? Booths set to "test" will update within a few minutes.`)) return;
+    const { error } = await sb.rpc('publish_agent', { p_channel: 'test', p_version: m[1], p_code: code });
+    if(error){ alert(error.message); return; }
+    file.value = '';
+    refreshReleases();
+  };
+  document.getElementById('rel-promote').onclick = async () => {
+    if(!confirm('Copy the test version to LIVE? Every booth on the live channel will update within a few minutes.')) return;
+    const { error } = await sb.rpc('promote_agent');
+    if(error){ alert(error.message); return; }
+    refreshReleases();
+  };
+  refreshReleases();
+}
+
+async function loadTodayCounts(boothIds){
+  if(boothIds.length === 0) return {};
+  const today = new Date().toLocaleDateString('en-CA');   // YYYY-MM-DD in this computer's time zone
+  const { data, error } = await sb
+    .from('daily_stats')
+    .select('booth_id, sessions, prints')
+    .in('booth_id', boothIds)
+    .eq('day', today);
+  if(error){ console.error(error); return {}; }
+  const out = {};
+  for(const row of data){
+    out[row.booth_id] = { prints_today: row.prints, sessions_today: row.sessions };
+  }
+  return out;
+}
+
+async function loadLastCommands(boothIds){
+  if(boothIds.length === 0) return {};
+  const { data, error } = await sb
+    .from('booth_commands')
+    .select('id, booth_id, kind, args, status, result, created_at, completed_at')
+    .in('booth_id', boothIds)
+    .order('id', { ascending: false })
+    .limit(60);
+  if(error){ console.error(error); return {}; }
+  const out = {};
+  for(const row of data){ if(!out[row.booth_id]) out[row.booth_id] = row; }
+  return out;
+}
+
+async function renderDashboard(){
+  app.innerHTML = `
+    <header>
+      <div>
+        <h1>BoothWatch</h1>
+        <div class="tag">your fleet, at a glance</div>
+      </div>
+      <button id="signout">Sign out</button>
+    </header>
+    <main>
+      <div class="summary" id="summary"></div>
+      <div class="pair-row">
+        <input id="pairing-code" placeholder="Pairing code" maxlength="6" />
+        <button id="pair-btn">Add booth</button>
+        <span class="pair-note">Code is shown by the agent on first run at each booth.</span>
+      </div>
+      <details class="releases">
+        <summary>Agent versions</summary>
+        <div class="rel-body">
+          <div id="rel-status">Loading…</div>
+          <div class="rel-row">
+            <input type="file" id="rel-file" accept=".py" />
+            <button id="rel-publish">Publish to test</button>
+          </div>
+          <div class="rel-row"><button id="rel-promote">Promote test to live</button></div>
+          <div class="rel-help">New versions go to the test channel first. Booths set to "test" update within a few minutes. Once it works, promote it so booths on "live" get it too.</div>
+        </div>
+      </details>
+      <div class="frames" id="frames"></div>
+    </main>`;
+  wireReleases();
+
+  document.getElementById('signout').onclick = async () => {
+    await sb.auth.signOut();
+    if(pollTimer) clearInterval(pollTimer);
+    renderLogin();
+  };
+
+  document.getElementById('pair-btn').onclick = async () => {
+    const code = document.getElementById('pairing-code').value.trim();
+    if(code.length !== 6) return;
+    const { error } = await sb.rpc('claim_booth', { p_code: code });
+    if(error){ alert(error.message); return; }
+    document.getElementById('pairing-code').value = '';
+    refresh();
+  };
+
+  async function refresh(){
+    let booths = await loadBooths();
+    const ids = booths.map(b => b.id);
+    const [counts, lastCmds] = await Promise.all([loadTodayCounts(ids), loadLastCommands(ids)]);
+    booths = booths.map(b => ({ ...b, ...(counts[b.id] || { prints_today: 0, sessions_today: 0 }), lastCommand: lastCmds[b.id] || null }));
+
+    const onlineCount = booths.filter(isOnline).length;
+    const attentionCount = booths.filter(needsAttention).length;
+    const printsToday = booths.reduce((s,b) => s + (b.prints_today||0), 0);
+    const sessionsToday = booths.reduce((s,b) => s + (b.sessions_today||0), 0);
+
+    document.getElementById('summary').innerHTML = `
+      <div class="stat ok"><div class="num">${onlineCount}/${booths.length}</div><div class="label">online</div></div>
+      <div class="stat ${attentionCount ? 'warn' : ''}"><div class="num">${attentionCount}</div><div class="label">need attention</div></div>
+      <div class="stat"><div class="num">${sessionsToday}</div><div class="label">sessions today</div></div>
+      <div class="stat"><div class="num">${printsToday}</div><div class="label">prints today</div></div>`;
+
+    const framesEl = document.getElementById('frames');
+    framesEl.innerHTML = booths.length
+      ? booths.map(boothFrame).join('')
+      : `<div class="empty">No booths yet — enter a pairing code above once you've installed the agent on a booth PC.</div>`;
+
+    framesEl.querySelectorAll('[data-rename]').forEach(el => {
+      el.onclick = async () => {
+        const booth = booths.find(x => x.id === el.dataset.rename);
+        const name = prompt('Booth name', booth.name);
+        if(name === null) return;
+        const location = prompt('Location (optional)', booth.location || '');
+        if(location === null) return;
+        const { error } = await sb.from('booths')
+          .update({ name: name.trim() || booth.name, location: location.trim() || null })
+          .eq('id', booth.id);
+        if(error){ alert(error.message); return; }
+        refresh();
+      };
+    });
+
+    framesEl.querySelectorAll('[data-autorestart]').forEach(box => {
+      box.onchange = async () => {
+        const booth = booths.find(x => x.id === box.dataset.autorestart);
+        const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: { auto_restart: box.checked } });
+        if(error){ alert(error.message); }
+        refresh();
+      };
+    });
+
+    framesEl.querySelectorAll('[data-channel]').forEach(sel => {
+      sel.onchange = async () => {
+        const { error } = await sb.from('booths').update({ channel: sel.value }).eq('id', sel.dataset.channel);
+        if(error){ alert(error.message); }
+        refresh();
+      };
+    });
+
+    framesEl.querySelectorAll('[data-shot]').forEach(btn => {
+      btn.onclick = () => requestScreenshot(booths.find(x => x.id === btn.dataset.shot), refresh);
+    });
+
+    async function sendCommand(boothId, kind, args){
+      const { error } = await sb.rpc('queue_command', { p_booth_id: boothId, p_kind: kind, p_args: args || {} });
+      if(error){ alert(error.message); return; }
+      refresh();
+      setTimeout(refresh, 4000); setTimeout(refresh, 9000); setTimeout(refresh, 20000);   // see the result quickly
+    }
+
+    framesEl.querySelectorAll('[data-restart-prog]').forEach(btn => {
+      btn.onclick = () => {
+        const name = btn.dataset.restartProg;
+        if(!confirm(`Restart ${name} on this booth? Anyone using the booth will be interrupted.`)) return;
+        sendCommand(btn.dataset.booth, 'restart_program', { program: name });
+      };
+    });
+
+    framesEl.querySelectorAll('[data-restart-pc]').forEach(btn => {
+      btn.onclick = () => {
+        const booth = booths.find(x => x.id === btn.dataset.restartPc);
+        if(!confirm(`Restart the whole PC for "${booth.name}"? It will restart about 15 seconds after the booth receives this. Anyone using the booth will be interrupted.`)) return;
+        sendCommand(booth.id, 'restart_pc', {});
+      };
+    });
+
+    framesEl.querySelectorAll('[data-closed]').forEach(btn => {
+      btn.onclick = async () => {
+        const booth = booths.find(x => x.id === btn.dataset.closed);
+        const isClosed = !!(booth.config && booth.config.closed);
+        let patch;
+        if(isClosed){
+          patch = { closed: false };
+        } else {
+          const msg = prompt('Message to show on the booth screen:', (booth.config && booth.config.closed_message) || 'Sorry, this photo booth is closed right now.');
+          if(msg === null) return;
+          patch = { closed: true, closed_message: msg.trim() };
+        }
+        const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: patch });
+        if(error){ alert(error.message); return; }
+        refresh();
+        setTimeout(refresh, 12000);
+      };
+    });
+
+    framesEl.querySelectorAll('[data-reset]').forEach(btn => {
+      btn.onclick = async () => {
+        await sb.rpc('reset_roll', { p_booth_id: btn.dataset.reset });
+        refresh();
+      };
+    });
+  }
+
+  refresh();
+  pollTimer = setInterval(refresh, 15000); // realtime channel is a nice later upgrade; polling is simple and reliable
+}
+
+(async () => {
+  const { data } = await sb.auth.getUser();
+  if(data && data.user){ currentUser = data.user; renderDashboard(); }
+  else{ renderLogin(); }
+})();
+</script>
+
+</body>
+</html>
