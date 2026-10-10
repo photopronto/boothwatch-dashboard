@@ -4,6 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>BoothWatch</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#ffffff" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="BoothWatch" />
 
 <!--
   ═══════════════════════════════════════════════════════════════
@@ -22,6 +28,7 @@
 -->
 <script>
   const CONFIG = {
+    VAPID_PUBLIC_KEY: "BCALpqfJBmALnfvKiBdUbbtv669xuHfhLhxfvPzYmoKHkog8PreNXwhhdMT0HfelHRWIioKjif1eMDkK01Qrxjw",   // public half of the phone-notification key (safe to be here)
     SUPABASE_URL: "https://mfsxkomjbhlvufgosrtp.supabase.co",
     SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mc3hrb21qYmhsdnVmZ29zcnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0ODI4NjYsImV4cCI6MjEwNzA1ODg2Nn0.GpoF2YbXOmHrMaPnES8aVp87l-yJ8Ri6qFTYdSQxVd4",
   };
@@ -80,6 +87,34 @@
   #pair-btn:hover{ background: var(--accent); border-color: var(--accent); color:#fff; }
   .controls button:disabled{ opacity:.5; cursor:default; color: var(--muted); border-color: var(--line); }
   .controls button.danger:hover{ border-color: var(--ink); background: var(--ink); color:#fff; }
+
+  /* ── notifications bell ── */
+  .bell-wrap{ position:relative; }
+  .bell{ position:relative; width:42px; height:42px; padding:0 !important; display:inline-flex; align-items:center; justify-content:center; border-radius:50% !important; }
+  .bell svg{ width:20px; height:20px; }
+  .bell-count{ position:absolute; top:-4px; right:-4px; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background: var(--accent); color:#fff;
+    font-family: var(--mono); font-weight:600; font-size:11px; line-height:20px; text-align:center; }
+  .notif-panel{ position:absolute; right:0; top: calc(100% + 10px); width: min(420px, calc(100vw - 32px)); max-height: min(560px, calc(100vh - 120px)); overflow:auto;
+    background: var(--bg); border:1px solid var(--line); border-radius: 24px; box-shadow: 0 18px 50px rgba(10,10,11,.14); z-index: 20; padding: 8px; }
+  .np-head{ display:flex; justify-content:space-between; align-items:center; padding: 12px 12px 8px; font-weight:800; font-size:18px; }
+  .np-head button{ font-size:12px !important; padding: 5px 12px !important; }
+  .np-push{ margin: 4px; padding: 12px 14px; background: var(--tile); border-radius: 18px; font-size:12px; font-weight:500; line-height:1.5; display:flex; flex-direction:column; gap:10px; }
+  .np-push .row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .np-push button{ background: var(--inner); border:1px solid var(--line); border-radius:999px; padding: 6px 14px; font-weight:700; font-size:12px; cursor:pointer; }
+  .np-push button.primary{ background: var(--accent); border-color: var(--accent); color:#fff; }
+  .np-push button:hover{ border-color: var(--ink); }
+  .np-list{ display:flex; flex-direction:column; padding: 4px 0; }
+  .np-item{ display:flex; gap:12px; padding: 12px; border-radius: 16px; cursor:pointer; }
+  .np-item:hover{ background: var(--tile); }
+  .np-dot{ flex:none; width:10px; height:10px; border-radius:50%; margin-top:5px; border:1.5px solid var(--track); }
+  .np-item.unread .np-dot{ border:none; background: var(--ink); }
+  .np-item.unread.info .np-dot{ background: var(--accent); }
+  .np-title{ font-weight:700; font-size:14px; line-height:1.3; color: var(--muted); }
+  .np-item.unread .np-title{ font-weight:800; color: var(--ink); }
+  .np-body{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); margin-top:3px; line-height:1.45; overflow-wrap:anywhere; }
+  .np-time{ font-family: var(--mono); font-weight:500; font-size:11px; color: var(--muted); margin-top:4px; }
+  .np-empty{ padding: 28px 16px; text-align:center; color: var(--muted); font-weight:500; }
+  .frame.flash{ outline: 3px solid var(--accent); outline-offset: 2px; transition: outline-color .6s; }
 
   main{ padding: 8px clamp(16px, 4vw, 48px) 64px; max-width:1280px; margin:0 auto; }
 
@@ -208,7 +243,11 @@
   .empty{ color: var(--muted); text-align:center; padding: 60px 20px; font-size:14px; background: var(--tile); border-radius: 28px; font-weight:500; }
 
   @media (max-width: 700px){
-    .logo{ height: 46px; }
+    .logo{ height: 46px; margin-right:auto; }
+    header{ row-gap:12px; }
+    .head-actions{ display:contents; }
+    .bell-wrap{ order:1; }
+    .pair, #signout{ order:2; }
     .nowbar{ padding: 14px 0 16px; }
     .clockbox{ display:none; }
     .summary{ grid-template-columns: 1fr 1fr; gap:10px; }
@@ -226,6 +265,7 @@
     .frame:not(.open) .frame-body{ display:none; }
     .frame.open .frame-body{ margin-top: 14px; }
     .frame-top .right{ display:flex; align-items:center; gap:10px; }
+    .notif-panel{ position:fixed; left:16px; right:16px; width:auto; top: var(--np-top, 120px); max-height: calc(100vh - var(--np-top, 120px) - 16px); }
   }
   @media (prefers-reduced-motion: reduce){ .chev{ transition:none; } }
 </style>
@@ -307,6 +347,176 @@ function needsAttention(b){
   if(!isOnline(b)) return true;
   if(programList(b).some(p => !p.ok)) return true;
   return rollRemaining(b) < b.roll_capacity * 0.15;
+}
+
+// ── notifications bell and phone push ──
+let notifs = [];
+let notifPanelOpen = false;
+let pushState = { kind: 'checking' };
+
+async function loadNotifications(){
+  const { data, error } = await sb.from('notifications')
+    .select('id, booth_id, kind, title, body, severity, created_at, read_at')
+    .order('id', { ascending: false }).limit(40);
+  if(error){ console.error(error); return notifs; }
+  return data;
+}
+
+function urlBase64ToUint8Array(b64){
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+async function detectPush(){
+  if(!CONFIG.VAPID_PUBLIC_KEY){ return { kind: 'off' }; }
+  const canPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  if(!canPush){
+    return isIos && !isStandalone() ? { kind: 'ios-install' } : { kind: 'unsupported' };
+  }
+  if(Notification.permission === 'denied') return { kind: 'blocked' };
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    const sub = await reg.pushManager.getSubscription();
+    if(sub && Notification.permission === 'granted'){
+      saveSubscription(sub);     // keep the server's copy fresh
+      return { kind: 'on' };
+    }
+  } catch(e){ console.error(e); return { kind: 'unsupported' }; }
+  return { kind: 'ask' };
+}
+
+async function saveSubscription(sub){
+  const j = sub.toJSON();
+  const { error } = await sb.rpc('save_push_subscription', {
+    p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_label: navigator.userAgent.slice(0, 120)
+  });
+  if(error) throw new Error(error.message);
+}
+
+async function enablePush(){
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){ pushState = perm === 'denied' ? { kind: 'blocked' } : { kind: 'ask' }; renderNotifPanel(); return; }
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(CONFIG.VAPID_PUBLIC_KEY) });
+    await saveSubscription(sub);
+    pushState = { kind: 'on', note: 'Turned on for this device.' };
+  } catch(e){
+    console.error(e);
+    pushState = { kind: 'error', note: e.message || 'Could not turn on notifications.' };
+  }
+  renderNotifPanel();
+}
+
+async function disablePush(){
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
+    if(sub){ await sb.rpc('remove_push_subscription', { p_endpoint: sub.endpoint }); await sub.unsubscribe(); }
+    pushState = { kind: 'ask', note: 'Turned off for this device.' };
+  } catch(e){ pushState = { kind: 'error', note: e.message }; }
+  renderNotifPanel();
+}
+
+async function sendTest(){
+  const { error } = await sb.rpc('send_test_notification');
+  pushState = { kind: 'on', note: error ? error.message : 'Test sent. It should arrive in a few seconds.' };
+  renderNotifPanel();
+  setTimeout(refreshNotifs, 1500);
+}
+
+function pushBlockHtml(){
+  const st = pushState, note = st.note ? `<div>${esc(st.note)}</div>` : '';
+  switch(st.kind){
+    case 'on': return `<div><b>Phone notifications are on</b> for this device.</div>${note}<div class="row"><button data-np="test">Send a test</button><button data-np="off">Turn off</button></div>`;
+    case 'ask': return `<div>Get a notification on this device when a booth has a problem.</div>${note}<div class="row"><button class="primary" data-np="on">Turn on notifications</button></div>`;
+    case 'ios-install': return `<div><b>On iPhone:</b> tap the Share button, choose <b>Add to Home Screen</b>, then open BoothWatch from your home screen and come back here to turn notifications on.</div>`;
+    case 'blocked': return `<div>Notifications are blocked for this site. Allow them in your browser or phone settings, then reload.</div>`;
+    case 'unsupported': return `<div>This browser can't receive phone notifications. Alerts still appear in this list.</div>`;
+    case 'error': return `<div>${esc(st.note || 'Something went wrong.')}</div><div class="row"><button class="primary" data-np="on">Try again</button></div>`;
+    default: return '';
+  }
+}
+
+function renderBell(){
+  const unread = notifs.filter(n => !n.read_at).length;
+  const c = document.getElementById('bell-count');
+  if(c){ c.hidden = unread === 0; c.textContent = unread > 99 ? '99+' : unread; }
+  document.title = (unread ? `(${unread}) ` : '') + 'BoothWatch';
+}
+
+function renderNotifPanel(){
+  const panel = document.getElementById('notif-panel');
+  if(!panel) return;
+  const unread = notifs.some(n => !n.read_at);
+  const pb = pushBlockHtml();
+  const items = notifs.map(n => `
+    <div class="np-item ${n.read_at ? '' : 'unread'} ${n.severity === 'info' ? 'info' : ''}" data-notif="${n.id}" data-booth="${esc(n.booth_id || '')}" tabindex="0">
+      <span class="np-dot"></span>
+      <div style="min-width:0">
+        <div class="np-title">${esc(n.title)}</div>
+        ${n.body ? `<div class="np-body">${esc(n.body)}</div>` : ''}
+        <div class="np-time">${hms(new Date(n.created_at))} · ${esc(fmtAgo(n.created_at))}</div>
+      </div>
+    </div>`).join('');
+  panel.innerHTML = `
+    <div class="np-head"><span>Notifications</span>${unread ? '<button data-np="read-all">Mark all read</button>' : ''}</div>
+    ${pb ? `<div class="np-push">${pb}</div>` : ''}
+    <div class="np-list">${items || '<div class="np-empty">Nothing yet. Problems with your booths will show up here.</div>'}</div>`;
+
+  panel.querySelectorAll('[data-np]').forEach(btn => {
+    btn.onclick = async e => {
+      e.stopPropagation();
+      const a = btn.dataset.np;
+      if(a === 'on') await enablePush();
+      else if(a === 'off') await disablePush();
+      else if(a === 'test') await sendTest();
+      else if(a === 'read-all'){ await sb.rpc('mark_notifications_read', {}); refreshNotifs(); }
+    };
+  });
+  panel.querySelectorAll('[data-notif]').forEach(el => {
+    const go = async () => {
+      const id = Number(el.dataset.notif);
+      const n = notifs.find(x => x.id === id);
+      if(n && !n.read_at){ n.read_at = new Date().toISOString(); renderBell(); sb.rpc('mark_notifications_read', { p_id: id }); }
+      closeNotifPanel();
+      if(el.dataset.booth) showBooth(el.dataset.booth);
+    };
+    el.onclick = go;
+    el.onkeydown = e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } };
+  });
+}
+
+function showBooth(id){
+  if(isMobile()){ openBooths.add(id); saveOpen(); }
+  const card = document.querySelector(`[data-frame="${CSS.escape(id)}"]`);
+  if(!card) return;
+  card.classList.add('open');
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 1800);
+}
+
+function openNotifPanel(){
+  const panel = document.getElementById('notif-panel'), bell = document.getElementById('bell');
+  const r = bell.getBoundingClientRect();
+  panel.style.setProperty('--np-top', Math.round(r.bottom + 10) + 'px');
+  notifPanelOpen = true; panel.hidden = false; bell.setAttribute('aria-expanded', 'true');
+  renderNotifPanel();
+}
+function closeNotifPanel(){
+  const panel = document.getElementById('notif-panel'), bell = document.getElementById('bell');
+  if(!panel) return;
+  notifPanelOpen = false; panel.hidden = true; bell.setAttribute('aria-expanded', 'false');
+}
+async function refreshNotifs(){
+  notifs = await loadNotifications();
+  renderBell();
+  if(notifPanelOpen) renderNotifPanel();
 }
 
 // ── check-in timing, clock, mobile tabs ──
@@ -407,6 +617,7 @@ function boothFrame(b){
   const controls = `
       <div class="controls">
         <label><input type="checkbox" data-autorestart="${esc(b.id)}" ${autoRestart ? 'checked' : ''}/> Auto-restart</label>
+        <label title="No alerts or phone notifications for this booth (use for test or retired booths)"><input type="checkbox" data-mute="${esc(b.id)}" ${b.config && b.config.alerts_muted ? 'checked' : ''}/> Mute alerts</label>
         <label>Updates
           <select data-channel="${esc(b.id)}">
             <option value="live" ${b.channel === 'live' ? 'selected' : ''}>live</option>
@@ -582,6 +793,13 @@ async function renderDashboard(){
           <button id="pair-btn">Add booth</button>
         </div>
         <button id="signout">Sign out</button>
+        <div class="bell-wrap">
+          <button id="bell" class="bell" aria-label="Notifications" aria-expanded="false" aria-controls="notif-panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
+            <span class="bell-count" id="bell-count" hidden>0</span>
+          </button>
+          <div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notifications" hidden></div>
+        </div>
       </div>
     </header>
     <main>
@@ -633,6 +851,14 @@ async function renderDashboard(){
     renderLogin();
   };
 
+  document.getElementById('bell').onclick = e => { e.stopPropagation(); notifPanelOpen ? closeNotifPanel() : openNotifPanel(); };
+  document.addEventListener('click', e => { if(notifPanelOpen && !e.target.closest('.bell-wrap')) closeNotifPanel(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && notifPanelOpen) closeNotifPanel(); });
+  detectPush().then(st => { pushState = st; if(notifPanelOpen) renderNotifPanel(); });
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.addEventListener('message', e => { if(e.data && e.data.type === 'open-booth' && e.data.booth_id) showBooth(e.data.booth_id); });
+  }
+
   document.getElementById('pair-btn').onclick = async () => {
     const code = document.getElementById('pairing-code').value.trim();
     if(code.length !== 6) return;
@@ -644,6 +870,7 @@ async function renderDashboard(){
 
   async function refresh(){
     let booths = await loadBooths();
+    refreshNotifs();
     const ids = booths.map(b => b.id);
     const [counts, lastCmds] = await Promise.all([loadTodayCounts(ids), loadLastCommands(ids)]);
     booths = booths.map(b => ({ ...b, ...(counts[b.id] || { prints_today: 0, sessions_today: 0 }), lastCommand: lastCmds[b.id] || null }));
@@ -699,6 +926,14 @@ async function renderDashboard(){
       box.onchange = async () => {
         const booth = booths.find(x => x.id === box.dataset.autorestart);
         const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: { auto_restart: box.checked } });
+        if(error){ alert(error.message); }
+        refresh();
+      };
+    });
+
+    framesEl.querySelectorAll('[data-mute]').forEach(box => {
+      box.onchange = async () => {
+        const { error } = await sb.rpc('update_booth_config', { p_booth_id: box.dataset.mute, p_patch: { alerts_muted: box.checked } });
         if(error){ alert(error.message); }
         refresh();
       };
