@@ -609,7 +609,7 @@ function boothFrame(b){
   const waiting = waitingShots.has(b.id);
   const isClosed = !!(b.config && b.config.closed);
   const st = (b.status && typeof b.status === 'object') ? b.status : {};
-  const cmdNames = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program') };
+  const cmdNames = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program'), read_paper: 'Read paper left' };
   let cmdLine = '';
   if(cmd){
     const label = typeof cmdNames[cmd.kind] === 'function' ? cmdNames[cmd.kind](cmd) : (cmdNames[cmd.kind] || cmd.kind);
@@ -632,6 +632,7 @@ function boothFrame(b){
         </label>
         <button data-rename-btn="${esc(b.id)}">Rename</button>
         <button data-shot="${esc(b.id)}" ${waiting || !online ? 'disabled' : ''}>${waiting ? 'Waiting for booth…' : 'Screenshot'}</button>
+        <button data-readpaper="${esc(b.id)}" ${busy || !online ? 'disabled' : ''} title="Ask the printer how many pages are left on the roll. Safe while the booth is running.">Read paper now</button>
         <button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>${isClosed ? 'Reopen booth' : 'Close booth…'}</button>
         <button class="danger" data-restart-pc="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart PC</button>
       </div>
@@ -970,6 +971,10 @@ async function renderDashboard(){
         if(!confirm(`Restart ${name} on this booth? Anyone using the booth will be interrupted.`)) return;
         sendCommand(btn.dataset.booth, 'restart_program', { program: name });
       };
+    });
+
+    framesEl.querySelectorAll('[data-readpaper]').forEach(btn => {
+      btn.onclick = () => sendCommand(btn.dataset.readpaper, 'read_paper', {});
     });
 
     framesEl.querySelectorAll('[data-restart-pc]').forEach(btn => {
