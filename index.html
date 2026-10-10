@@ -600,7 +600,7 @@ function boothFrame(b){
             ${p.screen ? `<div class="detail screen"><b>Screen</b>${esc(p.screen)}</div>` : ''}
             ${p.title ? `<div class="title" title="${esc(p.title)}">${esc(p.title)}</div>` : ''}
             ${detailRows(p)}
-            ${p.ok ? '' : `<span class="note">${esc(p.note || 'Problem')}</span>`}
+            ${p.ok ? (p.note ? `<div class="detail"><b>Status</b>${esc(p.note)}</div>` : '') : `<span class="note">${esc(p.note || 'Problem')}</span>`}
             ${p.device ? '' : `<button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>`}
           </span>
         </div>`).join('');
@@ -619,7 +619,7 @@ function boothFrame(b){
   let closedWarn = '';
   if(isClosed && online && st.closed_shown === false) closedWarn += `<div class="warn-line">The closed screen is not showing yet${st.closed_error ? ': ' + esc(st.closed_error) : '.'}</div>`;
   if(online && st.folder_found === false) closedWarn += `<div class="warn-line">Session counting: today's photo folder was not found on the booth (normal until the first session of the day).</div>`;
-  if(online && st.counter_seen === false) closedWarn += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
+  if(online && !isClosed && st.counter_seen === false) closedWarn += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
   const controls = `
       <div class="controls">
         <label><input type="checkbox" data-autorestart="${esc(b.id)}" ${autoRestart ? 'checked' : ''}/> Auto-restart</label>
