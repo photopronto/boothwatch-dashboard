@@ -30,222 +30,181 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Archivo:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@500;700;800&display=swap');
 
+  /* Layout: white page, light-grey rounded tiles, one blue hero tile, black only for "needs attention". */
   :root{
-    --bg: #1B1712;
-    --panel: #23201A;
-    --panel-line: #3A342A;
-    --cream: #EFE7DA;
-    --muted: #9C9082;
-    --amber: #E0A537;
-    --ok: #85A672;
-    --warn: #D19A4A;
-    --alert: #C05B45;
+    --accent: #0078FF;
+    --accent-soft: #E5F0FF;
+    --ink: #0A0A0B;
+    --muted: #6B7078;
+    --bg: #FFFFFF;
+    --tile: #F2F3F5;
+    --inner: #FFFFFF;
+    --line: #E1E3E8;
+    --track: #DDE0E6;
+    --display: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   }
 
   *{ box-sizing: border-box; }
   body{
-    margin:0;
-    background: var(--bg);
-    color: var(--cream);
-    font-family: 'Archivo', sans-serif;
+    margin:0; background: var(--bg); color: var(--ink);
+    font-family: var(--display); font-weight: 700; font-size: 14px;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
-
-  /* film sprocket strip — the one deliberate ornament, top and bottom only */
-  .sprockets{
-    height: 14px;
-    background-image: repeating-linear-gradient(
-      90deg, var(--panel-line) 0 6px, transparent 6px 20px
-    );
-    background-position: center;
-    background-size: 20px 6px;
-    background-repeat: repeat-x;
-    opacity: 0.5;
-  }
+  button, input, select{ font-family: inherit; }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
 
   header{
-    display:flex; align-items:baseline; justify-content:space-between;
-    padding: 28px clamp(20px, 5vw, 56px) 8px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px 24px; flex-wrap:wrap;
+    padding: 24px clamp(16px, 4vw, 48px) 8px; max-width: 1280px; margin: 0 auto;
   }
-  header h1{
-    font-family: 'Fraunces', serif;
-    font-weight: 500;
-    font-size: 28px;
-    margin: 0;
-    letter-spacing: 0.2px;
+  .logo{ height: 40px; width:auto; display:block; }
+  .head-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .pair{ display:flex; gap:8px; }
+  .pair input{
+    width: 150px; padding: 10px 16px; border-radius: 999px; border:1px solid var(--line); background: var(--tile);
+    font-family: var(--mono); font-weight:500; font-size:13px; letter-spacing: 2px; color: var(--ink);
   }
-  header .tag{ color: var(--muted); font-size: 14px; }
-  header button{
-    background:none; border:1px solid var(--panel-line); color:var(--muted);
-    padding:8px 14px; font-family:inherit; font-size:13px; cursor:pointer;
-  }
-  header button:hover{ color:var(--cream); border-color:var(--amber); }
+  .pair input::placeholder{ letter-spacing: 0; color: var(--muted); }
 
-  main{ padding: 8px clamp(20px, 5vw, 56px) 60px; max-width:1200px; margin:0 auto; }
+  .btn, header button, .controls button, .releases button, .shot-close{
+    background: var(--inner); color: var(--ink); border:1px solid var(--line); border-radius: 999px;
+    font-weight: 700; font-size: 13px; padding: 9px 16px; cursor:pointer;
+  }
+  .btn:hover, header button:hover, .controls button:hover, .releases button:hover, .shot-close:hover{ border-color: var(--accent); color: var(--accent); }
+  #pair-btn{ background: var(--ink); color:#fff; border-color: var(--ink); }
+  #pair-btn:hover{ background: var(--accent); border-color: var(--accent); color:#fff; }
+  .controls button:disabled{ opacity:.5; cursor:default; color: var(--muted); border-color: var(--line); }
+  .controls button.danger:hover{ border-color: var(--ink); background: var(--ink); color:#fff; }
+
+  main{ padding: 8px clamp(16px, 4vw, 48px) 64px; max-width:1280px; margin:0 auto; }
+
+  .title-row{ display:flex; align-items:flex-end; justify-content:space-between; gap:8px 24px; flex-wrap:wrap; padding: 24px 0 20px; }
+  h1{ font-weight:800; font-size: clamp(32px, 6vw, 52px); line-height:1.02; letter-spacing:-.02em; margin:0; }
+  .title-sub{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); }
 
   /* ── login ── */
-  .login-wrap{ display:flex; justify-content:center; padding-top:10vh; }
-  .login-card{
-    background: var(--panel); border:1px solid var(--panel-line);
-    padding: 40px; width: 340px;
-  }
-  .login-card h2{ font-family:'Fraunces', serif; font-weight:500; margin:0 0 4px; font-size:22px; }
-  .login-card p{ color:var(--muted); font-size:14px; margin:0 0 24px; }
+  .login-wrap{ display:flex; justify-content:center; padding: 12vh 16px 0; }
+  .login-card{ background: var(--tile); border-radius: 28px; padding: 36px; width: min(380px, 100%); }
+  .login-card .logo{ height: 44px; margin-bottom: 28px; }
+  .login-card h2{ font-weight:800; font-size: 26px; margin:0 0 4px; letter-spacing:-.01em; }
+  .login-card p{ color: var(--muted); font-size: 14px; margin: 0 0 24px; font-weight:500; }
   .login-card input{
-    width:100%; padding:10px 12px; margin-bottom:12px;
-    background:var(--bg); border:1px solid var(--panel-line); color:var(--cream);
-    font-family:inherit; font-size:14px;
+    width:100%; padding: 13px 16px; margin-bottom: 10px; border-radius: 14px; border:1px solid var(--line);
+    background: var(--inner); color: var(--ink); font-size:14px; font-weight:500;
   }
   .login-card button{
-    width:100%; padding:11px; background:var(--amber); color:#1B1712;
-    border:none; font-family:inherit; font-weight:600; font-size:14px; cursor:pointer;
+    width:100%; padding: 14px; margin-top: 6px; border-radius: 999px; border:none;
+    background: var(--accent); color:#fff; font-weight:800; font-size:15px; cursor:pointer;
   }
-  .error{ color: var(--alert); font-size:13px; margin-top:10px; min-height: 1em; }
+  .login-card button:hover{ background: var(--ink); }
+  .error{ color: var(--ink); font-size:13px; margin-top:12px; min-height: 1em; font-weight:700; }
 
-  /* ── summary strip ── */
-  .summary{
-    display:flex; gap: 40px; padding: 20px 0 32px;
-    border-bottom: 1px solid var(--panel-line);
-    flex-wrap: wrap;
-  }
-  .summary .stat .num{ font-family:'Fraunces', serif; font-size:34px; line-height:1; }
-  .summary .stat .label{ color:var(--muted); font-size:13px; margin-top:4px; }
-  .summary .stat.ok .num{ color: var(--ok); }
-  .summary .stat.warn .num{ color: var(--warn); }
+  /* ── summary tiles ── */
+  .summary{ display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .tile{ background: var(--tile); border-radius: 24px; padding: 20px 22px 18px; min-width:0; }
+  .tile .tile-label{ font-weight:700; font-size:14px; color: var(--muted); }
+  .tile .tile-num{ font-weight:800; font-size: clamp(40px, 5vw, 56px); line-height:1; margin: 18px 0 10px; letter-spacing:-.02em; font-variant-numeric: tabular-nums; }
+  .tile .tile-sub{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); }
+  .tile.hero{ background: var(--accent); color:#fff; }
+  .tile.hero .tile-label, .tile.hero .tile-sub{ color: rgba(255,255,255,.82); }
+  .tile.dark{ background: var(--ink); color:#fff; }
+  .tile.dark .tile-label, .tile.dark .tile-sub{ color: rgba(255,255,255,.72); }
 
-  /* ── pairing ── */
-  .pair-row{ display:flex; gap:10px; padding: 20px 0; align-items:center; flex-wrap:wrap; }
-  .pair-row input{
-    background:var(--panel); border:1px solid var(--panel-line); color:var(--cream);
-    padding:9px 12px; font-family:inherit; font-size:14px; letter-spacing: 2px;
-    width: 140px;
-  }
-  .pair-row button{
-    background:none; border:1px solid var(--amber); color:var(--amber);
-    padding:9px 16px; font-family:inherit; font-size:14px; cursor:pointer;
-  }
-  .pair-row button:hover{ background:var(--amber); color:#1B1712; }
-  .pair-note{ color:var(--muted); font-size:13px; }
-
-  /* ── booth frames (filmstrip cards, deliberately not rounded SaaS cards) ── */
-  .frames{
-    display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 18px; padding-top: 8px;
-  }
-  .frame{
-    background: var(--panel); border:1px solid var(--panel-line);
-    padding: 20px;
-    position:relative;
-  }
-  .frame::before, .frame::after{
-    content:""; position:absolute; left:16px; right:16px; height:1px;
-    background: var(--panel-line);
-  }
-  .frame::before{ top:0; } .frame::after{ display:none; }
-
-  .frame-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 18px; }
-  .frame-name{ font-family:'Fraunces', serif; font-size:19px; font-weight:500; }
-  .frame-loc{ color:var(--muted); font-size:13px; margin-top:2px; }
-
-  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:7px; }
-  .dot.ok{ background: var(--ok); }
-  .dot.warn{ background: var(--warn); }
-  .dot.alert{ background: var(--alert); }
-  .status-line{ font-size:13px; color: var(--muted); display:flex; align-items:center; margin-bottom:6px; }
-  .status-line b{ color: var(--cream); font-weight:600; margin-left: 3px; }
-
-  .programs{ margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--panel-line); }
-  .program{ font-size:13px; display:flex; align-items:flex-start; margin-bottom:6px; color: var(--cream); }
-  .program .dot{ margin-top:5px; flex:none; }
-  .program .note{ color: var(--alert); display:block; font-size:12px; margin-top:1px; }
-  .program.stale{ color: var(--muted); }
-  .frame-name.editable{ cursor:pointer; }
-  .frame-name.editable:hover{ color: var(--amber); }
-
-  .program-main{ flex:1; min-width:0; }
-  .program-head{ display:flex; justify-content:space-between; gap:10px; }
-  .program .state{ color: var(--muted); font-size:12px; flex:none; }
-  .program .title{ color: var(--muted); font-size:12px; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .program .detail{ color: var(--muted); font-size:12px; margin-top:2px; line-height:1.35; overflow-wrap:anywhere; }
-  .program .detail b{ color: var(--cream); font-weight:500; margin-right:4px; }
-  .program .detail.screen{ color: var(--cream); font-size:14px; margin-top:3px; }
-
-  .controls{
-    display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px;
-    margin-top:16px; padding-top:12px; border-top:1px solid var(--panel-line);
-    font-size:12px; color: var(--muted);
-  }
-  .controls label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
-  .controls select{
-    background:var(--bg); color:var(--cream); border:1px solid var(--panel-line);
-    font-family:inherit; font-size:12px; padding:3px 6px;
-  }
-  .controls button, .releases button, .shot-close{
-    background:none; border:1px solid var(--panel-line); color:var(--cream);
-    font-family:inherit; font-size:12px; padding:5px 10px; cursor:pointer;
-  }
-  .controls button:hover, .releases button:hover, .shot-close:hover{ border-color:var(--amber); color:var(--amber); }
-  .controls button:disabled{ opacity:.55; cursor:default; border-color:var(--panel-line); color:var(--muted); }
-  .controls button.danger:hover{ border-color:var(--alert); color:var(--alert); }
-  .prog-btn{ margin-top:6px; font-size:11px !important; padding:3px 8px !important;
-    background:none; border:1px solid var(--panel-line); color:var(--cream); font-family:inherit; cursor:pointer; }
-  .prog-btn:hover{ border-color:var(--amber); color:var(--amber); }
-  .prog-btn:disabled{ opacity:.55; cursor:default; border-color:var(--panel-line); color:var(--muted); }
-  .badge-closed{ display:inline-block; background:var(--alert); color:#fff; font-size:11px; letter-spacing:.06em;
-    text-transform:uppercase; padding:2px 8px; margin-left:8px; vertical-align:middle; }
-  .cmd-line{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.4; overflow-wrap:anywhere; }
-  .cmd-line.bad{ color:var(--alert); }
-  .warn-line{ font-size:12px; color:var(--warn); margin-top:6px; line-height:1.4; }
-  .agent-info{ font-size:12px; color: var(--muted); margin-top:10px; }
-
-  .releases{ margin: 6px 0 22px; font-size:13px; color: var(--muted); }
-  .releases summary{ cursor:pointer; padding:6px 0; }
-  .releases .rel-body{
-    background: var(--panel); border:1px solid var(--panel-line); padding:16px; margin-top:6px;
-    display:flex; flex-direction:column; gap:10px; max-width:560px;
-  }
+  /* ── agent versions ── */
+  .releases{ margin: 6px 0 28px; }
+  .releases summary{ cursor:pointer; padding: 8px 0; font-weight:700; color: var(--muted); }
+  .releases summary:hover{ color: var(--accent); }
+  .releases .rel-body{ background: var(--tile); border-radius: 24px; padding: 20px; margin-top: 6px; display:flex; flex-direction:column; gap:12px; max-width: 580px; }
   .releases .rel-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .releases .rel-row b{ color: var(--cream); font-weight:600; }
-  .releases input[type=file]{ color: var(--muted); font-size:12px; max-width:100%; }
-  .rel-help{ font-size:12px; line-height:1.5; }
+  .releases b{ font-weight:800; }
+  #rel-status{ font-family: var(--mono); font-weight:500; font-size:12px; line-height:1.6; }
+  .releases input[type=file]{ font-family: var(--mono); font-size:12px; max-width:100%; color: var(--muted); }
+  .rel-help{ font-size:12px; line-height:1.5; color: var(--muted); font-weight:500; }
 
-  .shot-overlay{
-    position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:10;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px;
-  }
-  .shot-overlay img{ max-width:100%; max-height:80vh; border:1px solid var(--panel-line); background:#000; }
-  .shot-overlay .shot-meta{ color: var(--cream); font-size:13px; }
+  /* ── booth cards ── */
+  .frames{ display:grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 14px; }
+  .frame{ background: var(--tile); border-radius: 28px; padding: 22px; min-width:0; display:flex; flex-direction:column; gap: 14px; }
 
-  .frame-metrics{ display:flex; gap:22px; margin: 16px 0; }
-  .metric .num{ font-family:'Fraunces', serif; font-size:26px; }
-  .metric .label{ color:var(--muted); font-size:12px; margin-top:2px; }
+  .frame-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .frame-top > div:first-child{ flex:1; min-width:0; }
+  .checkin{ white-space:nowrap; }
+  .frame-name{ font-weight:800; font-size: 24px; line-height:1.1; letter-spacing:-.01em; overflow-wrap:anywhere; }
+  .frame-name.editable{ cursor:pointer; }
+  .frame-name.editable:hover{ color: var(--accent); }
+  .frame-loc{ color: var(--muted); font-size:13px; margin-top:4px; font-weight:500; }
+  .checkin{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); margin-top:6px; }
+  .checkin b{ color: var(--ink); font-weight:600; }
 
-  .roll-bar{ height:5px; background:var(--bg); border:1px solid var(--panel-line); margin-top:14px; }
-  .roll-fill{ height:100%; background: var(--ok); }
-  .roll-fill.warn{ background: var(--warn); }
-  .roll-fill.alert{ background: var(--alert); }
-  .roll-label{ font-size:12px; color:var(--muted); margin-top:6px; display:flex; justify-content:space-between; }
-  .roll-label button{
-    background:none; border:none; color:var(--amber); font-family:inherit; font-size:12px;
-    cursor:pointer; text-decoration: underline; padding:0;
-  }
+  .pill{ flex:none; display:inline-flex; align-items:center; gap:7px; border-radius:999px; padding: 6px 12px; font-size:12px; font-weight:800; white-space:nowrap; }
+  .pill::before{ content:""; width:7px; height:7px; border-radius:50%; background: currentColor; }
+  .pill.ok{ background: var(--accent); color:#fff; }
+  .pill.alert{ background: var(--ink); color:#fff; }
+  .pill.off{ background: var(--inner); color: var(--muted); border:1px solid var(--line); }
+  .badge-closed{ display:inline-block; vertical-align:middle; margin-left:8px; font-size:11px; font-weight:800; letter-spacing:.04em;
+    text-transform:uppercase; color: var(--accent); background: var(--accent-soft); border-radius:999px; padding: 3px 9px; }
 
-  .empty{
-    color: var(--muted); text-align:center; padding: 60px 20px;
-    font-size:14px; border:1px dashed var(--panel-line);
+  .frame-metrics{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .metric{ background: var(--inner); border-radius: 18px; padding: 14px 16px; }
+  .metric .num{ font-weight:800; font-size: 36px; line-height:1; letter-spacing:-.02em; font-variant-numeric: tabular-nums; }
+  .metric .label{ color: var(--muted); font-size:12px; margin-top:6px; font-weight:700; }
+
+  .roll-bar{ height: 10px; background: var(--track); border-radius: 999px; overflow:hidden; }
+  .roll-fill{ height:100%; background: var(--accent); border-radius: 999px; }
+  .roll-fill.warn, .roll-fill.alert{ background: var(--ink); }
+  .roll-label{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:-4px; }
+  .roll-label button{ background:none; border:none; color: var(--accent); font-family: var(--display); font-weight:700; font-size:12px; cursor:pointer; padding:0; text-decoration: underline; }
+
+  .programs{ background: var(--inner); border-radius: 18px; padding: 6px 16px; }
+  .program{ display:flex; align-items:flex-start; gap:12px; padding: 12px 0; border-bottom:1px solid var(--line); }
+  .program:last-child{ border-bottom:none; }
+  .program .dot{ width:10px; height:10px; border-radius:50%; margin-top:4px; flex:none; background: var(--accent); }
+  .program .dot.alert{ background: var(--ink); }
+  .program.stale .dot{ background: var(--track); }
+  .program.stale{ color: var(--muted); }
+  .program-main{ flex:1; min-width:0; }
+  .program-head{ display:flex; justify-content:space-between; gap:10px; font-weight:800; font-size:15px; }
+  .program .state{ font-family: var(--mono); font-weight:500; color: var(--muted); font-size:12px; flex:none; padding-top:2px; }
+  .program .title{ font-family: var(--mono); font-weight:500; color: var(--muted); font-size:11px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .program .detail{ font-family: var(--mono); font-weight:500; color: var(--muted); font-size:12px; margin-top:4px; line-height:1.4; overflow-wrap:anywhere; }
+  .program .detail b{ color: var(--ink); font-weight:600; margin-right:6px; }
+  .program .detail.screen{ font-family: var(--display); font-weight:800; color: var(--accent); font-size:18px; margin-top:4px; text-transform: capitalize; }
+  .program .detail.screen b{ font-family: var(--mono); font-weight:500; font-size:11px; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-right:8px; }
+  .program .note{ display:block; font-size:13px; margin-top:4px; color: var(--ink); font-weight:800; }
+  .prog-btn{ margin-top:8px; font-size:11px; font-weight:700; padding: 4px 12px; border-radius:999px; background: var(--tile); border:1px solid var(--line); color: var(--ink); cursor:pointer; }
+  .prog-btn:hover{ border-color: var(--accent); color: var(--accent); }
+  .prog-btn:disabled{ opacity:.5; cursor:default; color: var(--muted); }
+
+  .controls{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .controls label{ display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; cursor:pointer; margin-right:6px; }
+  .controls input[type=checkbox]{ accent-color: var(--accent); width:16px; height:16px; }
+  .controls select{ background: var(--inner); color: var(--ink); border:1px solid var(--line); border-radius: 999px; padding: 6px 10px; font-size:12px; font-weight:700; }
+
+  .cmd-line{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); line-height:1.5; overflow-wrap:anywhere; }
+  .cmd-line.bad{ color: var(--ink); font-weight:600; }
+  .warn-line{ font-family: var(--mono); font-weight:500; font-size:12px; line-height:1.5; background: var(--inner); border-radius: 12px; padding: 9px 12px; }
+  .agent-info{ font-family: var(--mono); font-weight:500; font-size:11px; color: var(--muted); }
+
+  .shot-overlay{ position:fixed; inset:0; background:rgba(10,10,11,.86); z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px; }
+  .shot-overlay img{ max-width:100%; max-height:80vh; border-radius: 12px; background:#000; }
+  .shot-overlay .shot-meta{ color:#fff; font-family: var(--mono); font-size:12px; }
+
+  .empty{ color: var(--muted); text-align:center; padding: 60px 20px; font-size:14px; background: var(--tile); border-radius: 28px; font-weight:500; }
+
+  @media (max-width: 520px){
+    .frame{ padding: 18px; border-radius: 24px; }
+    .frame-name{ font-size: 21px; }
+    .pair input{ width: 130px; }
   }
 </style>
 </head>
 <body>
 
-<div class="sprockets"></div>
-
 <div id="app"></div>
 <div id="fatal" style="color:#C05B45;padding:20px;font-family:sans-serif"></div>
-
-<div class="sprockets"></div>
 
 <script>
 window.addEventListener('error', e => { document.getElementById('fatal').textContent = 'Error: ' + e.message; });
@@ -274,8 +233,9 @@ function renderLogin(errorMsg){
   app.innerHTML = `
     <div class="login-wrap">
       <div class="login-card">
+        <img class="logo" src="logo.png" alt="Photo Pronto" />
         <h2>BoothWatch</h2>
-        <p>Sign in to see your fleet.</p>
+        <p>Sign in to see your booths.</p>
         <input id="email" type="email" placeholder="Email" />
         <input id="password" type="password" placeholder="Password" />
         <button id="signin">Sign in</button>
@@ -391,11 +351,10 @@ function boothFrame(b){
         <div>
           <div class="frame-name editable" data-rename="${esc(b.id)}" title="Click to rename">${esc(b.name)}${isClosed ? '<span class="badge-closed">Closed</span>' : ''}</div>
           <div class="frame-loc">${esc(b.location || "")}</div>
+          <div class="checkin">Last check-in <b>${fmtAgo(b.last_heartbeat_at)}</b></div>
         </div>
+        <span class="pill ${online ? (overallDot === 'ok' ? 'ok' : 'alert') : 'off'}">${overallLabel}</span>
       </div>
-
-      <div class="status-line"><span class="dot ${overallDot}"></span>${overallLabel}</div>
-      <div class="status-line">Last check-in <b>${fmtAgo(b.last_heartbeat_at)}</b></div>
       ${programRows ? `<div class="programs">${programRows}</div>` : ''}
 
       <div class="frame-metrics">
@@ -533,19 +492,21 @@ async function loadLastCommands(boothIds){
 async function renderDashboard(){
   app.innerHTML = `
     <header>
-      <div>
-        <h1>BoothWatch</h1>
-        <div class="tag">your fleet, at a glance</div>
+      <img class="logo" src="logo.png" alt="Photo Pronto" />
+      <div class="head-actions">
+        <div class="pair">
+          <input id="pairing-code" placeholder="Pairing code" maxlength="6" aria-label="Pairing code from a new booth" />
+          <button id="pair-btn">Add booth</button>
+        </div>
+        <button id="signout">Sign out</button>
       </div>
-      <button id="signout">Sign out</button>
     </header>
     <main>
-      <div class="summary" id="summary"></div>
-      <div class="pair-row">
-        <input id="pairing-code" placeholder="Pairing code" maxlength="6" />
-        <button id="pair-btn">Add booth</button>
-        <span class="pair-note">Code is shown by the agent on first run at each booth.</span>
+      <div class="title-row">
+        <h1>Booth fleet</h1>
+        <div class="title-sub" id="today-label"></div>
       </div>
+      <div class="summary" id="summary"></div>
       <details class="releases">
         <summary>Agent versions</summary>
         <div class="rel-body">
@@ -560,6 +521,7 @@ async function renderDashboard(){
       </details>
       <div class="frames" id="frames"></div>
     </main>`;
+  document.getElementById('today-label').textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   wireReleases();
 
   document.getElementById('signout').onclick = async () => {
@@ -589,10 +551,10 @@ async function renderDashboard(){
     const sessionsToday = booths.reduce((s,b) => s + (b.sessions_today||0), 0);
 
     document.getElementById('summary').innerHTML = `
-      <div class="stat ok"><div class="num">${onlineCount}/${booths.length}</div><div class="label">online</div></div>
-      <div class="stat ${attentionCount ? 'warn' : ''}"><div class="num">${attentionCount}</div><div class="label">need attention</div></div>
-      <div class="stat"><div class="num">${sessionsToday}</div><div class="label">sessions today</div></div>
-      <div class="stat"><div class="num">${printsToday}</div><div class="label">prints today</div></div>`;
+      <div class="tile hero"><div class="tile-label">Online</div><div class="tile-num">${onlineCount}/${booths.length}</div><div class="tile-sub">booths checking in</div></div>
+      <div class="tile ${attentionCount ? 'dark' : ''}"><div class="tile-label">Need attention</div><div class="tile-num">${attentionCount}</div><div class="tile-sub">${attentionCount ? 'open the cards below' : 'all clear'}</div></div>
+      <div class="tile"><div class="tile-label">Sessions today</div><div class="tile-num">${sessionsToday}</div><div class="tile-sub">all booths</div></div>
+      <div class="tile"><div class="tile-label">Prints today</div><div class="tile-num">${printsToday}</div><div class="tile-sub">all booths</div></div>`;
 
     const framesEl = document.getElementById('frames');
     framesEl.innerHTML = booths.length
