@@ -263,11 +263,146 @@
     .chev{ display:block; flex:none; width:22px; height:22px; transition: transform .15s; color: var(--muted); }
     .frame.open .chev{ transform: rotate(180deg); }
     .frame:not(.open) .frame-body{ display:none; }
+    .frame.open .frame-mini{ display:none; }
     .frame.open .frame-body{ margin-top: 14px; }
     .frame-top .right{ display:flex; align-items:center; gap:10px; }
     .notif-panel{ position:fixed; left:16px; right:16px; width:auto; top: var(--np-top, 120px); max-height: calc(100vh - var(--np-top, 120px) - 16px); }
   }
   @media (prefers-reduced-motion: reduce){ .chev{ transition:none; } }
+
+  /* ── navigation ── */
+  .tabs{ display:flex; gap:4px; background: var(--tile); border-radius:999px; padding:4px; }
+  .tabs a{ padding: 8px 18px; border-radius:999px; font-weight:800; font-size:14px; color: var(--muted); text-decoration:none; }
+  .tabs a:hover{ color: var(--ink); }
+  .tabs a.on{ background: var(--ink); color:#fff; }
+  .page-title{ font-weight:800; font-size: 32px; letter-spacing:-.02em; margin: 18px 0 4px; }
+  .page-sub{ color: var(--muted); font-weight:500; font-size:14px; margin: 0 0 20px; max-width: 640px; line-height:1.5; }
+
+  /* ── compact booth cards ── */
+  .stats{ display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
+  .stat{ background: var(--inner); border-radius:16px; padding: 12px 14px; min-width:0; }
+  .stat b{ display:block; font-weight:800; font-size:28px; line-height:1; letter-spacing:-.02em; font-variant-numeric: tabular-nums; }
+  .stat span{ display:block; color: var(--muted); font-size:12px; margin-top:5px; font-weight:700; }
+  .stat.warn b, .stat.alert b{ color: var(--ink); }
+  .stat.alert{ background: var(--ink); } .stat.alert b, .stat.alert span{ color:#fff; }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ display:inline-flex; align-items:center; gap:6px; background: var(--inner); border-radius:999px; padding: 5px 11px; font-size:12px; font-weight:700; }
+  .chip em{ font-style:normal; color: var(--muted); font-weight:500; }
+  .chip.bad{ background: var(--ink); color:#fff; } .chip.bad em{ color: rgba(255,255,255,.7); }
+  .chip.stale{ opacity:.55; }
+  .chip .dot{ width:8px; height:8px; border-radius:50%; background: var(--accent); display:inline-block; }
+  .chip .dot.alert{ background:#fff; }
+  .bad-line{ font-family: var(--mono); font-weight:600; font-size:12px; line-height:1.4; }
+  .actions{ display:flex; flex-wrap:wrap; gap:8px; }
+  .actions button, .controls button, .btn-sm{ background: var(--inner); color: var(--ink); border:1px solid var(--line); border-radius:999px; font-weight:700; font-size:12px; padding: 7px 14px; cursor:pointer; }
+  .actions button:hover, .controls button:hover, .btn-sm:hover{ border-color: var(--accent); color: var(--accent); }
+  .actions button:disabled, .controls button:disabled{ opacity:.5; cursor:default; color: var(--muted); border-color: var(--line); }
+  .actions .more{ margin-left:auto; }
+  .actions .more .caret{ display:inline-block; transition: transform .15s; }
+  .actions .more.on .caret{ transform: rotate(180deg); }
+  .details{ display:flex; flex-direction:column; gap:12px; border-top:1px solid var(--line); padding-top:14px; }
+  .details[hidden]{ display:none; }
+
+  .toast{ position:fixed; left:50%; bottom:24px; transform: translate(-50%, 20px); background: var(--ink); color:#fff; padding: 11px 20px; border-radius:999px; font-weight:700; font-size:13px;
+    opacity:0; pointer-events:none; transition: opacity .2s, transform .2s; z-index:40; max-width: calc(100vw - 32px); }
+  .toast.show{ opacity:1; transform: translate(-50%, 0); }
+  .modal{ position:fixed; inset:0; background: rgba(10,10,11,.5); z-index:30; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal-card{ background: var(--bg); border-radius: 24px; padding: 22px; width: min(340px, 100%); display:flex; flex-direction:column; gap:8px; }
+  .modal-card h3{ margin:0 0 6px; font-size:18px; font-weight:800; }
+  .modal-card button{ background: var(--tile); border:none; border-radius:14px; padding: 13px 16px; font-weight:800; font-size:14px; cursor:pointer; text-align:left; }
+  .modal-card button:hover{ background: var(--accent); color:#fff; }
+  .modal-card .cancel{ background:none; color: var(--muted); text-align:center; }
+  .modal-card .cancel:hover{ background:none; color: var(--ink); }
+
+  /* ── settings ── */
+  .panel{ background: var(--tile); border-radius: 28px; padding: 24px; margin-bottom: 14px; }
+  .panel h2{ margin:0 0 4px; font-size:20px; font-weight:800; letter-spacing:-.01em; }
+  .panel .help{ color: var(--muted); font-weight:500; font-size:13px; line-height:1.5; margin: 0 0 16px; max-width: 680px; }
+  .panel-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+  .scope{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; background: var(--accent-soft); border-radius: 20px; padding: 12px 16px; margin-bottom: 14px; font-weight:700; }
+  .field-in, .scope select, .panel select, .panel input[type=text], .panel input[type=number], .panel input[type=time], .panel input[type=date], .company-controls select, .company-controls input{
+    background: var(--inner); color: var(--ink); border:1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size:14px; font-weight:700; min-width:0; }
+  .panel input[type=number]{ width: 84px; font-family: var(--mono); font-weight:600; }
+  .panel input[type=time]{ font-family: var(--mono); font-weight:600; }
+  .panel input[type=checkbox], .panel input[type=radio]{ accent-color: var(--accent); width:18px; height:18px; flex:none; }
+  .set-row{ display:grid; grid-template-columns: 1fr auto; gap:6px 16px; align-items:center; padding: 13px 0; border-top:1px solid var(--line); }
+  .set-row:first-of-type{ border-top:none; }
+  .set-row .name{ font-weight:800; font-size:15px; }
+  .set-row .desc{ color: var(--muted); font-weight:500; font-size:12px; margin-top:2px; line-height:1.4; }
+  .set-ctl{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; font-size:13px; }
+  .set-ctl label.sw{ display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .set-ctl .unit{ color: var(--muted); font-weight:700; }
+  .set-ctl.off .after{ opacity:.35; pointer-events:none; }
+  .save-row{ display:flex; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap; }
+  .btn-primary{ background: var(--accent); color:#fff; border:none; border-radius:999px; padding: 11px 22px; font-weight:800; font-size:14px; cursor:pointer; }
+  .btn-primary:hover{ background: var(--ink); }
+  .btn-primary:disabled{ opacity:.5; cursor:default; }
+  .save-msg{ font-weight:700; font-size:13px; color: var(--muted); }
+  .mode{ display:flex; gap:10px; align-items:flex-start; padding: 10px 0; cursor:pointer; }
+  .mode b{ display:block; font-weight:800; font-size:15px; }
+  .mode span{ display:block; color: var(--muted); font-weight:500; font-size:12px; margin-top:2px; line-height:1.4; }
+  .week{ display:grid; grid-template-columns: 110px 70px auto; gap:8px 12px; align-items:center; margin-top:8px; }
+  .week .times{ display:flex; align-items:center; gap:8px; }
+  .week .times.off{ opacity:.35; pointer-events:none; }
+  .week .dayname{ font-weight:800; }
+  .tbl-wrap{ overflow-x:auto; -webkit-overflow-scrolling: touch; }
+  table.tbl{ border-collapse: collapse; width:100%; font-size:13px; }
+  table.tbl th{ text-align:left; font-weight:700; font-size:12px; color: var(--muted); padding: 6px 10px 8px 0; white-space:nowrap; }
+  table.tbl td{ padding: 8px 10px 8px 0; border-top:1px solid var(--line); vertical-align:middle; font-weight:700; }
+  table.tbl td.num, table.tbl th.num{ text-align:right; font-family: var(--mono); font-weight:600; font-variant-numeric: tabular-nums; }
+  table.tbl tfoot td{ font-weight:800; }
+  table.tbl input[type=text]{ width: 150px; }
+  .money-in{ display:inline-flex; align-items:center; gap:4px; }
+  .money-in i{ font-style:normal; color: var(--muted); font-weight:700; }
+  .cmd-box{ display:flex; gap:8px; align-items:stretch; margin: 6px 0 10px; }
+  .cmd-box code{ flex:1; min-width:0; background: var(--inner); border:1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-family: var(--mono); font-weight:500; font-size:12px; overflow-x:auto; white-space:nowrap; }
+  .steps{ margin: 0 0 14px; padding-left: 20px; font-weight:500; font-size:14px; line-height:1.7; }
+  .steps b{ font-weight:800; }
+  .panel .releases-in{ display:flex; flex-direction:column; gap:12px; max-width: 580px; }
+  .panel .rel-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .panel .rel-row button{ background: var(--inner); border:1px solid var(--line); border-radius:999px; font-weight:700; font-size:13px; padding: 9px 16px; cursor:pointer; }
+  .panel .rel-row button:hover{ border-color: var(--accent); color: var(--accent); }
+  .panel #rel-status{ font-family: var(--mono); font-weight:500; font-size:12px; line-height:1.6; }
+  .panel .rel-help{ font-size:12px; line-height:1.5; color: var(--muted); font-weight:500; }
+  .panel input[type=file]{ font-family: var(--mono); font-size:12px; max-width:100%; color: var(--muted); }
+
+  /* ── company ── */
+  .company-controls{ display:flex; flex-wrap:wrap; gap:10px 18px; align-items:flex-end; margin-bottom: 18px; }
+  .company-controls label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; color: var(--muted); }
+  .company-controls select, .company-controls input{ font-size:14px; }
+  .summary .tile-num.co{ font-size: clamp(30px, 3.4vw, 42px); }
+  .delta{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); margin-top:2px; }
+  .delta b{ font-weight:600; color: var(--ink); }
+  .tile.hero .delta, .tile.hero .delta b{ color: rgba(255,255,255,.85); }
+  .banner{ background: var(--accent-soft); border-radius: 18px; padding: 14px 18px; font-weight:700; font-size:13px; margin-bottom: 14px; line-height:1.5; }
+  .banner a{ color: var(--accent); }
+  .chart-card{ background: var(--tile); border-radius:28px; padding: 22px; margin-bottom:14px; }
+  .chart-head{ display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px 20px; margin-bottom: 12px; }
+  .chart-head h2{ margin:0; font-size:18px; font-weight:800; }
+  .seg{ display:inline-flex; background: var(--inner); border-radius:999px; padding:3px; gap:2px; flex-wrap:wrap; }
+  .seg button{ border:none; background:none; border-radius:999px; padding: 6px 13px; font-weight:800; font-size:12px; color: var(--muted); cursor:pointer; }
+  .seg button.on{ background: var(--ink); color:#fff; }
+  .legend{ display:flex; flex-wrap:wrap; gap:6px 18px; font-size:12px; font-weight:700; margin-bottom:6px; }
+  .legend i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:-1px; }
+  .chart-box{ position:relative; width:100%; }
+  .chart-box svg{ display:block; width:100%; overflow:visible; }
+  .chart-box text{ font-family: var(--mono); font-size:11px; fill: var(--muted); }
+  .chart-tip{ position:absolute; pointer-events:none; background: var(--ink); color:#fff; border-radius:14px; padding: 10px 14px; font-size:12px; font-weight:700; line-height:1.6; white-space:nowrap; z-index:5; box-shadow: 0 8px 24px rgba(10,10,11,.2); }
+  .chart-tip .k{ color: rgba(255,255,255,.7); font-weight:500; font-family: var(--mono); }
+  .chart-tip[hidden]{ display:none; }
+  .no-data{ color: var(--muted); font-weight:500; text-align:center; padding: 40px 10px; }
+
+  @media (max-width: 700px){
+    .tabs{ order:3; width:100%; justify-content:space-between; }
+    .tabs a{ flex:1; text-align:center; padding: 9px 6px; }
+    .page-title{ font-size:26px; }
+    .panel{ padding: 18px; border-radius:24px; }
+    .set-row{ grid-template-columns: 1fr; }
+    .set-ctl{ justify-content:flex-start; }
+    .chart-card{ padding: 16px; border-radius:24px; }
+    .stat b{ font-size:24px; }
+    .actions .more{ margin-left:0; }
+  }
 </style>
 </head>
 <body>
@@ -344,6 +479,8 @@ function rollRemaining(b){
 }
 
 function needsAttention(b){
+  const hrs = b.config && b.config.hours;
+  if(hrs && ['auto_close', 'pause_alerts'].includes(hrs.mode) && !inOpeningHours(hrs)) return false;   // not meant to be on right now
   if(!isOnline(b)) return true;
   if(programList(b).some(p => !p.ok)) return true;
   return rollRemaining(b) < b.roll_capacity * 0.15;
@@ -492,6 +629,7 @@ function renderNotifPanel(){
 }
 
 function showBooth(id){
+  if(view !== 'booths'){ pendingFocus = id; goPage('booths'); return; }
   if(isMobile()){ openBooths.add(id); saveOpen(); }
   const card = document.querySelector(`[data-frame="${CSS.escape(id)}"]`);
   if(!card) return;
@@ -535,11 +673,12 @@ function saveOpen(){ try { localStorage.setItem('bw-open', JSON.stringify([...op
 function tick(){
   const now = new Date();
   const t = document.getElementById('clock-time');
-  if(!t) return;
-  t.textContent = hms(now);
-  const sec = now.getSeconds() + now.getMilliseconds()/1000, min = now.getMinutes() + sec/60, hr = (now.getHours() % 12) + min/60;
-  const set = (id, deg) => { const el = document.getElementById(id); if(el) el.setAttribute('transform', `rotate(${deg} 24 24)`); };
-  set('hand-h', hr * 30); set('hand-m', min * 6); set('hand-s', Math.floor(now.getSeconds()) * 6);
+  if(t){
+    t.textContent = hms(now);
+    const sec = now.getSeconds() + now.getMilliseconds()/1000, min = now.getMinutes() + sec/60, hr = (now.getHours() % 12) + min/60;
+    const set = (id, deg) => { const el = document.getElementById(id); if(el) el.setAttribute('transform', `rotate(${deg} 24 24)`); };
+    set('hand-h', hr * 30); set('hand-m', min * 6); set('hand-s', Math.floor(now.getSeconds()) * 6);
+  }
 
   const nowMs = now.getTime();
   const nextText = (lastMs, iv, online) => {
@@ -565,6 +704,74 @@ function tick(){
     nextEl.textContent = !live.length ? '—' : (dues.length ? 'in ' + secs((Math.min(...dues) - nowMs)/1000) : 'due now');
   }
 }
+// ── opening hours (mirror of the database's booth_in_hours) ──
+const DAY_KEYS = ['mon','tue','wed','thu','fri','sat','sun'];
+const DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const toMin = t => { const [h, m] = String(t).split(':'); return (+h) * 60 + (+m || 0); };
+function parseStamp(s){ return new Date(String(s).trim().replace(' ', 'T').replace(/([+-]\d\d)$/, '$1:00')); }
+
+function inOpeningHours(hours, d = new Date()){
+  if(!hours || !['auto_close', 'pause_alerts'].includes(hours.mode)) return true;
+  try { if(hours.open_until && parseStamp(hours.open_until) > d) return true; } catch(e){}
+  const dow = (d.getDay() + 6) % 7, t = d.getHours() * 60 + d.getMinutes();
+  const win = i => { const x = hours.days && hours.days[DAY_KEYS[(i + 7) % 7]]; return Array.isArray(x) && x.length === 2 ? [toMin(x[0]), toMin(x[1])] : null; };
+  const today = win(dow);
+  if(today){ const [o, c] = today; if(c > o){ if(t >= o && t < c) return true; } else if(t >= o) return true; }
+  const prev = win(dow - 1);
+  if(prev){ const [o, c] = prev; if(c <= o && t < c) return true; }
+  return false;
+}
+
+// "Open until 18:00" / "Opens Tue 09:00", or null when the booth has no opening hours.
+function hoursSummary(hours, now = new Date()){
+  if(!hours || !['auto_close', 'pause_alerts'].includes(hours.mode)) return null;
+  const open = inOpeningHours(hours, now);
+  const base = Math.ceil(now.getTime() / 900000) * 900000;
+  for(let i = 0; i <= 8 * 96; i++){
+    const t = new Date(base + i * 900000);
+    if(inOpeningHours(hours, t) !== open){
+      const sameDay = t.toDateString() === now.toDateString();
+      const label = (sameDay ? '' : t.toLocaleDateString('en-GB', { weekday: 'short' }) + ' ') + t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      return { open, at: t, text: (open ? 'Open until ' : 'Opens ') + label };
+    }
+  }
+  return { open, at: null, text: open ? 'Open' : 'Closed' };
+}
+
+// ── small helpers: toast and choice dialog ──
+function toast(msg){
+  let el = document.getElementById('toast');
+  if(!el){ el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function askChoice(title, choices){
+  return new Promise(resolve => {
+    const el = document.createElement('div');
+    el.className = 'modal';
+    el.innerHTML = `<div class="modal-card" role="dialog" aria-label="${esc(title)}"><h3>${esc(title)}</h3>
+      ${choices.map((c, i) => `<button data-i="${i}">${esc(c.label)}</button>`).join('')}
+      <button class="cancel" data-cancel="1">Cancel</button></div>`;
+    el.onclick = e => {
+      const b = e.target.closest('button');
+      if(e.target === el || (b && b.dataset.cancel)){ el.remove(); resolve(null); }
+      else if(b){ el.remove(); resolve(choices[+b.dataset.i].value); }
+    };
+    document.body.appendChild(el);
+  });
+}
+
+const money = n => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(Number.isFinite(n) ? n : 0);
+const money0 = n => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(Number.isFinite(n) ? n : 0);
+
+// ── dashboard preferences (kept in this browser only) ──
+const PREF_DEFAULTS = { startPage: 'booths', showClock: true, openDetails: false };
+function getPrefs(){ try { return { ...PREF_DEFAULTS, ...JSON.parse(localStorage.getItem('bw-prefs') || '{}') }; } catch(e){ return { ...PREF_DEFAULTS }; } }
+function setPrefs(p){ try { localStorage.setItem('bw-prefs', JSON.stringify({ ...getPrefs(), ...p })); } catch(e){} }
+
+const openDetails = new Set((() => { try { return JSON.parse(localStorage.getItem('bw-details') || '[]'); } catch(e){ return []; } })());
+function saveDetails(){ try { localStorage.setItem('bw-details', JSON.stringify([...openDetails])); } catch(e){} }
 
 function boothFrame(b){
   const online = isOnline(b);
@@ -573,6 +780,12 @@ function boothFrame(b){
   const remaining = rollRemaining(b);
   const pct = Math.max(0, Math.min(100, 100 * remaining / b.roll_capacity));
   const rollState = remaining === 0 ? 'alert' : (remaining < b.roll_capacity * 0.15 ? 'warn' : 'ok');
+  const cfg = b.config || {};
+  const st = (b.status && typeof b.status === 'object') ? b.status : {};
+  const manualClosed = !!cfg.closed;
+  const schedClosed = !manualClosed && !!st.closed_scheduled;
+  const isClosed = manualClosed || schedClosed;
+  const hrs = hoursSummary(cfg.hours);
 
   let overallDot = 'ok', overallLabel = 'Online';
   if(!online){ overallDot = 'alert'; overallLabel = 'Offline'; }
@@ -585,13 +798,19 @@ function boothFrame(b){
   }
   else if(rollState !== 'ok'){ overallDot = 'warn'; overallLabel = rollState === 'alert' ? 'Out of prints' : 'Low on prints'; }
 
-  // While the booth is offline the program list is the last thing it reported, so grey it out.
   const detailRows = p => (p.details && typeof p.details === 'object')
     ? Object.entries(p.details).map(([k, v]) => `<div class="detail"><b>${esc(k)}</b>${esc(v)}</div>`).join('')
     : '';
   const screenState = p => p.minimized ? 'Minimised' : (p.fullscreen === true ? 'Full screen' : (p.fullscreen === false ? 'Windowed' : ''));
   const cmd = b.lastCommand;
   const busy = !!cmd && (cmd.status === 'pending' || cmd.status === 'running');
+
+  // Compact status chips, always visible
+  const chips = programs.map(p => `<span class="chip ${p.ok ? '' : 'bad'} ${online ? '' : 'stale'}"><i class="dot ${p.ok ? 'ok' : 'alert'}"></i>${esc(p.name)}${p.screen ? `<em>${esc(p.screen)}</em>` : ''}</span>`).join('');
+  const firstBad = badPrograms[0];
+  const badLine = online && firstBad ? `<div class="bad-line">${esc(firstBad.name)}: ${esc(firstBad.note || 'Problem')}${badPrograms.length > 1 ? ` (+${badPrograms.length - 1} more)` : ''}</div>` : '';
+
+  // Full detail, behind "Details"
   const programRows = programs.map(p => `
         <div class="program ${online ? '' : 'stale'}">
           <span class="dot ${p.ok ? 'ok' : 'alert'}"></span>
@@ -605,46 +824,38 @@ function boothFrame(b){
           </span>
         </div>`).join('');
 
-  const autoRestart = !!(b.config && b.config.auto_restart);
   const waiting = waitingShots.has(b.id);
-  const isClosed = !!(b.config && b.config.closed);
-  const st = (b.status && typeof b.status === 'object') ? b.status : {};
   const cmdNames = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program'), read_paper: 'Read paper left' };
   let cmdLine = '';
   if(cmd){
     const label = typeof cmdNames[cmd.kind] === 'function' ? cmdNames[cmd.kind](cmd) : (cmdNames[cmd.kind] || cmd.kind);
     const word = { pending: 'waiting for the booth to pick it up…', running: 'in progress…', done: 'done', failed: 'failed', expired: 'expired (booth did not pick it up)' }[cmd.status] || cmd.status;
-    cmdLine = `<div class="cmd-line ${cmd.status === 'failed' || cmd.status === 'expired' ? 'bad' : ''}">${esc(label)}: ${esc(word)} · ${esc(fmtAgo(cmd.completed_at || cmd.created_at))}${cmd.result && cmd.status !== 'done' ? '<br>' + esc(cmd.result) : (cmd.result ? '<br>' + esc(cmd.result) : '')}</div>`;
+    cmdLine = `<div class="cmd-line ${cmd.status === 'failed' || cmd.status === 'expired' ? 'bad' : ''}">${esc(label)}: ${esc(word)} · ${esc(fmtAgo(cmd.completed_at || cmd.created_at))}${cmd.result ? '<br>' + esc(cmd.result) : ''}</div>`;
   }
-  let closedWarn = '';
-  if(isClosed && online && st.closed_shown === false) closedWarn += `<div class="warn-line">The closed screen is not showing yet${st.closed_error ? ': ' + esc(st.closed_error) : '.'}</div>`;
-  if(online && st.folder_found === false) closedWarn += `<div class="warn-line">Session counting: today's photo folder was not found on the booth (normal until the first session of the day).</div>`;
-  if(online && !isClosed && st.counter_seen === false) closedWarn += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
-  const controls = `
-      <div class="controls">
-        <label><input type="checkbox" data-autorestart="${esc(b.id)}" ${autoRestart ? 'checked' : ''}/> Auto-restart</label>
-        <label title="No alerts or phone notifications for this booth (use for test or retired booths)"><input type="checkbox" data-mute="${esc(b.id)}" ${b.config && b.config.alerts_muted ? 'checked' : ''}/> Mute alerts</label>
-        <label>Updates
-          <select data-channel="${esc(b.id)}">
-            <option value="live" ${b.channel === 'live' ? 'selected' : ''}>live</option>
-            <option value="test" ${b.channel === 'test' ? 'selected' : ''}>test</option>
-          </select>
-        </label>
-        <button data-rename-btn="${esc(b.id)}">Rename</button>
-        <button data-shot="${esc(b.id)}" ${waiting || !online ? 'disabled' : ''}>${waiting ? 'Waiting for booth…' : 'Screenshot'}</button>
-        <button data-readpaper="${esc(b.id)}" ${busy || !online ? 'disabled' : ''} title="Ask the printer how many pages are left on the roll. Safe while the booth is running.">Read paper now</button>
-        <button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>${isClosed ? 'Reopen booth' : 'Close booth…'}</button>
-        <button class="danger" data-restart-pc="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart PC</button>
-      </div>
-      ${cmdLine}
-      ${closedWarn}
-      <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'}</div>`;
+  let warns = '';
+  if(isClosed && online && st.closed_shown === false) warns += `<div class="warn-line">The closed screen is not showing yet${st.closed_error ? ': ' + esc(st.closed_error) : '.'}</div>`;
+  if(online && st.folder_found === false) warns += `<div class="warn-line">Session counting: today's photo folder was not found on the booth (normal until the first session of the day).</div>`;
+  if(online && !isClosed && st.counter_seen === false) warns += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
+
+  const badge = manualClosed ? '<span class="badge-closed">Closed</span>'
+    : schedClosed ? '<span class="badge-closed">Closed · hours</span>'
+    : (hrs && !hrs.open ? '<span class="badge-closed">Outside hours</span>' : '');
+  const modeText = { none: '', pause_alerts: 'alerts pause outside hours', auto_close: 'closes itself outside hours' }[(cfg.hours && cfg.hours.mode) || 'none'];
+  const hoursLine = hrs ? `<div class="agent-info">${esc(hrs.text)} · ${esc(modeText)}</div>` : '';
+
+  // One button that does the right thing for the booth's state
+  let closeBtn;
+  if(manualClosed) closeBtn = `<button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>Reopen booth</button>`;
+  else if(schedClosed) closeBtn = `<button data-open-now="${esc(b.id)}" ${online ? '' : 'disabled'}>Open now…</button>`;
+  else closeBtn = `<button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>Close booth…</button>`;
+
+  const detailsOpen = openDetails.has(b.id) !== !!getPrefs().openDetails;
 
   return `
     <div class="frame ${openBooths.has(b.id) ? 'open' : ''}" data-frame="${esc(b.id)}">
       <div class="frame-top" data-toggle="${esc(b.id)}">
         <div>
-          <div class="frame-name editable" data-rename="${esc(b.id)}" title="Click to rename">${esc(b.name)}${isClosed ? '<span class="badge-closed">Closed</span>' : ''}</div>
+          <div class="frame-name">${esc(b.name)}${badge}</div>
           <div class="frame-loc">${esc(b.location || "")}</div>
           <div class="frame-mini">${b.sessions_today ?? 0} sessions · ${b.prints_today ?? 0} prints today</div>
           <div class="checkin" data-hb="${esc(b.last_heartbeat_at || '')}" data-iv="${checkInterval(b)}" data-online="${online ? 1 : 0}"></div>
@@ -655,28 +866,35 @@ function boothFrame(b){
         </div>
       </div>
       <div class="frame-body">
-      ${programRows ? `<div class="programs">${programRows}</div>` : ''}
-
-      <div class="frame-metrics">
-        <div class="metric">
-          <div class="num">${b.prints_today ?? 0}</div>
-          <div class="label">prints today</div>
+        <div class="stats">
+          <div class="stat"><b>${b.sessions_today ?? 0}</b><span>sessions today</span></div>
+          <div class="stat"><b>${b.prints_today ?? 0}</b><span>prints today</span></div>
+          <div class="stat ${rollState}"><b>${remaining}</b><span>prints left</span></div>
         </div>
-        <div class="metric">
-          <div class="num">${b.sessions_today ?? 0}</div>
-          <div class="label">sessions today</div>
+        <div class="roll-bar" title="${Math.round(pct)}% of the roll left"><div class="roll-fill ${rollState}" style="width:${pct}%"></div></div>
+        ${chips ? `<div class="chips">${chips}</div>` : ''}
+        ${badLine}
+        <div class="actions">
+          <button data-shot="${esc(b.id)}" ${waiting || !online ? 'disabled' : ''}>${waiting ? 'Waiting for booth…' : 'Screenshot'}</button>
+          ${closeBtn}
+          <button class="more ${detailsOpen ? 'on' : ''}" data-details="${esc(b.id)}" aria-expanded="${detailsOpen}">Details <span class="caret">▾</span></button>
         </div>
-      </div>
-
-      <div class="roll-bar"><div class="roll-fill ${rollState}" style="width:${pct}%"></div></div>
-      <div class="roll-label">
-        <span>${remaining} prints left on roll</span>
-        <button data-reset="${b.id}">roll changed</button>
-      </div>
-      ${controls}
+        <div class="details" ${detailsOpen ? '' : 'hidden'}>
+          ${programRows ? `<div class="programs">${programRows}</div>` : ''}
+          <div class="controls">
+            <button data-readpaper="${esc(b.id)}" ${busy || !online ? 'disabled' : ''} title="Ask the printer how many pages are left on the roll. Safe while the booth is running.">Read paper now</button>
+            <button data-reset="${esc(b.id)}" title="Use after fitting a new roll, if the printer reading has not picked it up">Roll changed</button>
+            <button class="danger" data-restart-pc="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart PC</button>
+          </div>
+          ${cmdLine}
+          ${warns}
+          ${hoursLine}
+          <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'} · ${esc(b.channel || 'live')} channel</div>
+        </div>
       </div>
     </div>`;
 }
+
 
 // ── screenshots ──
 const waitingShots = new Set();
@@ -789,16 +1007,24 @@ async function loadLastCommands(boothIds){
   for(const row of data){ if(!out[row.booth_id]) out[row.booth_id] = row; }
   return out;
 }
+// ═══════════════ app shell, pages and router ═══════════════
+let view = null;                 // 'booths' | 'company' | 'settings'
+let currentRefresh = null;       // called every few seconds while a page that needs live data is open
+let pendingFocus = null;         // booth to scroll to once the Booths page has drawn
+let boothCache = [];
+const PAGES = ['booths', 'company', 'settings'];
+const mainEl = () => document.getElementById('view');
 
-async function renderDashboard(){
+function renderApp(){
   app.innerHTML = `
     <header>
       <img class="logo" src="logo.png" alt="Photo Pronto" />
+      <nav class="tabs" aria-label="Pages">
+        <a href="#/booths" data-tab="booths">Booths</a>
+        <a href="#/company" data-tab="company">Company</a>
+        <a href="#/settings" data-tab="settings">Settings</a>
+      </nav>
       <div class="head-actions">
-        <div class="pair">
-          <input id="pairing-code" placeholder="Pairing code" maxlength="6" aria-label="Pairing code from a new booth" />
-          <button id="pair-btn">Add booth</button>
-        </div>
         <button id="signout">Sign out</button>
         <div class="bell-wrap">
           <button id="bell" class="bell" aria-label="Notifications" aria-expanded="false" aria-controls="notif-panel">
@@ -809,217 +1035,851 @@ async function renderDashboard(){
         </div>
       </div>
     </header>
-    <main>
-      <div class="nowbar">
-        <div class="fleet-checkin">
-          <div><span class="k">Last check-in</span><b id="fleet-last">—</b></div>
-          <div><span class="k">Next check-in</span><b id="fleet-next">—</b></div>
-        </div>
-        <div class="clockbox">
-          <div class="clock-text">
-            <div class="title-sub" id="today-label"></div>
-            <div class="clock-time" id="clock-time">00:00:00</div>
-          </div>
-          <svg class="clock-svg" viewBox="0 0 48 48" role="img" aria-label="Analogue clock">
-            <circle class="face" cx="24" cy="24" r="21.5"/>
-            <line class="tick" x1="24" y1="5" x2="24" y2="8.5"/><line class="tick" x1="43" y1="24" x2="39.5" y2="24"/>
-            <line class="tick" x1="24" y1="43" x2="24" y2="39.5"/><line class="tick" x1="5" y1="24" x2="8.5" y2="24"/>
-            <g id="hand-h"><line class="hand" x1="24" y1="24" x2="24" y2="14" stroke-width="1.4"/></g>
-            <g id="hand-m"><line class="hand" x1="24" y1="24" x2="24" y2="9" stroke-width="1.1"/></g>
-            <g id="hand-s"><line class="sec" x1="24" y1="26" x2="24" y2="7" stroke-width="0.7"/></g>
-            <circle class="pin" cx="24" cy="24" r="1.4"/>
-          </svg>
-        </div>
-      </div>
-      <div class="summary" id="summary"></div>
-      <details class="releases">
-        <summary>Agent versions</summary>
-        <div class="rel-body">
-          <div id="rel-status">Loading…</div>
-          <div class="rel-row">
-            <input type="file" id="rel-file" accept=".py" />
-            <button id="rel-publish">Publish to test</button>
-          </div>
-          <div class="rel-row"><button id="rel-promote">Promote test to live</button></div>
-          <div class="rel-help">New versions go to the test channel first. Booths set to "test" update within a few minutes. Once it works, promote it so booths on "live" get it too.</div>
-        </div>
-      </details>
-      <div class="frames" id="frames"></div>
-    </main>`;
-  document.getElementById('today-label').textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-  if(window.clockTimer) clearInterval(window.clockTimer);
-  window.clockTimer = setInterval(tick, 1000);
-  tick();
-  wireReleases();
+    <main id="view"></main>`;
 
   document.getElementById('signout').onclick = async () => {
     await sb.auth.signOut();
     if(pollTimer) clearInterval(pollTimer);
+    currentRefresh = null; view = null;
     renderLogin();
   };
-
   document.getElementById('bell').onclick = e => { e.stopPropagation(); notifPanelOpen ? closeNotifPanel() : openNotifPanel(); };
-  document.addEventListener('click', e => { if(notifPanelOpen && !e.target.closest('.bell-wrap')) closeNotifPanel(); });
-  document.addEventListener('keydown', e => { if(e.key === 'Escape' && notifPanelOpen) closeNotifPanel(); });
-  detectPush().then(st => { pushState = st; if(notifPanelOpen) renderNotifPanel(); });
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.addEventListener('message', e => { if(e.data && e.data.type === 'open-booth' && e.data.booth_id) showBooth(e.data.booth_id); });
+  if(!window.__bwGlobals){
+    window.__bwGlobals = true;
+    document.addEventListener('click', e => { if(notifPanelOpen && !e.target.closest('.bell-wrap')) closeNotifPanel(); });
+    document.addEventListener('keydown', e => { if(e.key === 'Escape' && notifPanelOpen) closeNotifPanel(); });
+    window.addEventListener('hashchange', () => showPage(routeFromHash()));
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.addEventListener('message', e => { if(e.data && e.data.type === 'open-booth' && e.data.booth_id) showBooth(e.data.booth_id); });
+    }
   }
+  detectPush().then(st => { pushState = st; if(notifPanelOpen) renderNotifPanel(); });
 
-  document.getElementById('pair-btn').onclick = async () => {
-    const code = document.getElementById('pairing-code').value.trim();
-    if(code.length !== 6) return;
-    const { error } = await sb.rpc('claim_booth', { p_code: code });
-    if(error){ alert(error.message); return; }
-    document.getElementById('pairing-code').value = '';
-    refresh();
+  if(window.clockTimer) clearInterval(window.clockTimer);
+  window.clockTimer = setInterval(tick, 1000);
+  if(pollTimer) clearInterval(pollTimer);
+  const every = Math.max(5, Number(getPrefs().refreshSeconds) || 10) * 1000;
+  pollTimer = setInterval(() => { refreshNotifs(); if(currentRefresh) currentRefresh(); }, every);
+  refreshNotifs();
+  showPage(routeFromHash());
+}
+
+function routeFromHash(){
+  const h = (location.hash || '').replace(/^#\/?/, '');
+  return PAGES.includes(h) ? h : getPrefs().startPage;
+}
+function goPage(p){ if(location.hash === '#/' + p) showPage(p); else location.hash = '#/' + p; }
+
+function showPage(p){
+  if(!PAGES.includes(p)) p = 'booths';
+  view = p;
+  currentRefresh = null;
+  document.querySelectorAll('.tabs a').forEach(a => { a.classList.toggle('on', a.dataset.tab === p); if(a.dataset.tab === p) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  window.scrollTo(0, 0);
+  ({ booths: renderBoothsPage, company: renderCompanyPage, settings: renderSettingsPage })[p]();
+}
+
+// ═══════════════ Booths page ═══════════════
+function renderBoothsPage(){
+  const prefs = getPrefs();
+  const el = mainEl();
+  el.innerHTML = `
+    <div class="nowbar">
+      <div class="fleet-checkin">
+        <div><span class="k">Last check-in</span><b id="fleet-last">—</b></div>
+        <div><span class="k">Next check-in</span><b id="fleet-next">—</b></div>
+      </div>
+      ${prefs.showClock ? `
+      <div class="clockbox">
+        <div class="clock-text">
+          <div class="title-sub" id="today-label"></div>
+          <div class="clock-time" id="clock-time">00:00:00</div>
+        </div>
+        <svg class="clock-svg" viewBox="0 0 48 48" role="img" aria-label="Analogue clock">
+          <circle class="face" cx="24" cy="24" r="21.5"/>
+          <line class="tick" x1="24" y1="5" x2="24" y2="8.5"/><line class="tick" x1="43" y1="24" x2="39.5" y2="24"/>
+          <line class="tick" x1="24" y1="43" x2="24" y2="39.5"/><line class="tick" x1="5" y1="24" x2="8.5" y2="24"/>
+          <g id="hand-h"><line class="hand" x1="24" y1="24" x2="24" y2="14" stroke-width="1.4"/></g>
+          <g id="hand-m"><line class="hand" x1="24" y1="24" x2="24" y2="9" stroke-width="1.1"/></g>
+          <g id="hand-s"><line class="sec" x1="24" y1="26" x2="24" y2="7" stroke-width="0.7"/></g>
+          <circle class="pin" cx="24" cy="24" r="1.4"/>
+        </svg>
+      </div>` : ''}
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="frames" id="frames"></div>`;
+  const lbl = document.getElementById('today-label');
+  if(lbl) lbl.textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  tick();
+  lastFramesHtml = null;
+  currentRefresh = refreshBooths;
+  refreshBooths();
+}
+
+let lastFramesHtml = null;
+
+async function refreshBooths(){
+  if(view !== 'booths') return;
+  let booths = await loadBooths();
+  if(view !== 'booths') return;
+  boothCache = booths;
+  const ids = booths.map(b => b.id);
+  const [counts, lastCmds] = await Promise.all([loadTodayCounts(ids), loadLastCommands(ids)]);
+  if(view !== 'booths') return;
+  booths = booths.map(b => ({ ...b, ...(counts[b.id] || { prints_today: 0, sessions_today: 0 }), lastCommand: lastCmds[b.id] || null }));
+
+  const onlineCount = booths.filter(isOnline).length;
+  const attentionCount = booths.filter(needsAttention).length;
+  const printsToday = booths.reduce((s,b) => s + (b.prints_today||0), 0);
+  const sessionsToday = booths.reduce((s,b) => s + (b.sessions_today||0), 0);
+
+  document.getElementById('summary').innerHTML = `
+    <div class="tile hero"><div class="tile-label">Online</div><div class="tile-num">${onlineCount}/${booths.length}</div><div class="tile-sub">booths checking in</div></div>
+    <div class="tile ${attentionCount ? 'dark' : ''}"><div class="tile-label">Need attention</div><div class="tile-num">${attentionCount}</div><div class="tile-sub">${attentionCount ? 'open the cards below' : 'all clear'}</div></div>
+    <div class="tile"><div class="tile-label">Sessions today</div><div class="tile-num">${sessionsToday}</div><div class="tile-sub">all booths</div></div>
+    <div class="tile"><div class="tile-label">Prints today</div><div class="tile-num">${printsToday}</div><div class="tile-sub">all booths</div></div>`;
+
+  fleetBeats = booths.filter(b => b.last_heartbeat_at).map(b => ({ t: new Date(b.last_heartbeat_at).getTime(), iv: checkInterval(b) }));
+  const framesEl = document.getElementById('frames');
+  const html = booths.length
+    ? booths.map(boothFrame).join('')
+    : `<div class="empty">No booths yet. Open <a href="#/settings">Settings</a> and use "Add a booth" to install the agent on a booth PC.</div>`;
+  if(html !== lastFramesHtml){
+    lastFramesHtml = html;
+    framesEl.innerHTML = html;
+    wireBoothCards(framesEl, booths);
+  }
+  tick();
+  if(pendingFocus){ const id = pendingFocus; pendingFocus = null; showBooth(id); }
+}
+
+async function sendCommand(boothId, kind, args){
+  const { error } = await sb.rpc('queue_command', { p_booth_id: boothId, p_kind: kind, p_args: args || {} });
+  if(error){ alert(error.message); return; }
+  refreshBooths();
+  setTimeout(refreshBooths, 4000); setTimeout(refreshBooths, 9000); setTimeout(refreshBooths, 20000);   // see the result quickly
+}
+
+function wireBoothCards(framesEl, booths){
+  const find = id => booths.find(x => x.id === id);
+  framesEl.querySelectorAll('[data-toggle]').forEach(el => {
+    el.onclick = () => {
+      if(!isMobile()) return;
+      const id = el.dataset.toggle;
+      if(openBooths.has(id)) openBooths.delete(id); else openBooths.add(id);
+      saveOpen();
+      el.closest('.frame').classList.toggle('open', openBooths.has(id));
+    };
+  });
+  framesEl.querySelectorAll('[data-details]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.details;
+      const box = btn.closest('.frame').querySelector('.details');
+      const nowOpen = box.hidden;
+      box.hidden = !nowOpen;
+      btn.classList.toggle('on', nowOpen); btn.setAttribute('aria-expanded', String(nowOpen));
+      if(openDetails.has(id)) openDetails.delete(id); else openDetails.add(id);
+      saveDetails();
+      lastFramesHtml = null;   // next refresh redraws with the new state
+    };
+  });
+  framesEl.querySelectorAll('[data-shot]').forEach(btn => {
+    btn.onclick = () => requestScreenshot(find(btn.dataset.shot), () => { lastFramesHtml = null; refreshBooths(); });
+  });
+  framesEl.querySelectorAll('[data-restart-prog]').forEach(btn => {
+    btn.onclick = () => {
+      const name = btn.dataset.restartProg;
+      if(!confirm(`Restart ${name} on this booth? Anyone using the booth will be interrupted.`)) return;
+      sendCommand(btn.dataset.booth, 'restart_program', { program: name });
+    };
+  });
+  framesEl.querySelectorAll('[data-readpaper]').forEach(btn => {
+    btn.onclick = () => { toast('Asking the booth to read the paper left…'); sendCommand(btn.dataset.readpaper, 'read_paper', {}); };
+  });
+  framesEl.querySelectorAll('[data-restart-pc]').forEach(btn => {
+    btn.onclick = () => {
+      const booth = find(btn.dataset.restartPc);
+      if(!confirm(`Restart the whole PC for "${booth.name}"? It will restart about 15 seconds after the booth receives this. Anyone using the booth will be interrupted.`)) return;
+      sendCommand(booth.id, 'restart_pc', {});
+    };
+  });
+  framesEl.querySelectorAll('[data-closed]').forEach(btn => {
+    btn.onclick = async () => {
+      const booth = find(btn.dataset.closed);
+      const isClosed = !!(booth.config && booth.config.closed);
+      let patch;
+      if(isClosed){
+        patch = { closed: false };
+      } else {
+        const msg = prompt('Message to show on the booth screen:', (booth.config && booth.config.closed_message) || 'Sorry, this photo booth is closed right now.');
+        if(msg === null) return;
+        patch = { closed: true, closed_message: msg.trim() };
+      }
+      const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: patch });
+      if(error){ alert(error.message); return; }
+      lastFramesHtml = null; refreshBooths();
+      setTimeout(() => { lastFramesHtml = null; refreshBooths(); }, 12000);
+    };
+  });
+  framesEl.querySelectorAll('[data-open-now]').forEach(btn => {
+    btn.onclick = async () => {
+      const booth = find(btn.dataset.openNow);
+      const mid = new Date(); mid.setHours(24, 0, 0, 0);
+      const mins = Math.max(15, Math.round((mid - new Date()) / 60000));
+      const choice = await askChoice('Open this booth now', [
+        { label: 'For 1 hour', value: 60 }, { label: 'For 3 hours', value: 180 },
+        { label: 'Until midnight', value: mins }, { label: 'For 24 hours', value: 1440 }]);
+      if(!choice) return;
+      const until = new Date(Date.now() + choice * 60000).toISOString();
+      const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: { hours_open_until: until } });
+      if(error){ alert(error.message); return; }
+      toast('Opening ' + booth.name + '…');
+      lastFramesHtml = null; refreshBooths();
+      setTimeout(() => { lastFramesHtml = null; refreshBooths(); }, 12000);
+    };
+  });
+  framesEl.querySelectorAll('[data-reset]').forEach(btn => {
+    btn.onclick = async () => {
+      if(!confirm('Mark the paper roll as replaced? The prints-left counter goes back to a full roll.')) return;
+      await sb.rpc('reset_roll', { p_booth_id: btn.dataset.reset });
+      lastFramesHtml = null; refreshBooths();
+    };
+  });
+}
+
+// ═══════════════ Settings page ═══════════════
+let settingsScope = 'all';
+const ALERT_DEFAULTS = { offline: 3, software: 2, device: 1, low_prints: 15 };
+
+function cfgAlert(cfg, kind){
+  const a = (cfg.alerts && cfg.alerts[kind]) || {};
+  return {
+    on: typeof a.on === 'boolean' ? a.on : true,
+    delay: Number.isFinite(Number(a.delay)) && a.delay != null ? Number(a.delay) : ALERT_DEFAULTS[kind],
+    threshold: Number.isFinite(Number(a.threshold)) && a.threshold != null ? Number(a.threshold) : ALERT_DEFAULTS.low_prints,
+  };
+}
+
+function installBase(){ return new URL('agent/', location.href.split('#')[0].replace(/[^/]*$/, '')).href; }
+
+async function renderSettingsPage(){
+  const el = mainEl();
+  el.innerHTML = `<h1 class="page-title">Settings</h1><div class="empty">Loading…</div>`;
+  const booths = await loadBooths();
+  if(view !== 'settings') return;
+  boothCache = booths;
+  if(settingsScope !== 'all' && !booths.find(b => b.id === settingsScope)) settingsScope = 'all';
+  drawSettings();
+}
+
+function drawSettings(){
+  const el = mainEl(), booths = boothCache, prefs = getPrefs();
+  const targets = () => settingsScope === 'all' ? booths : booths.filter(b => b.id === settingsScope);
+  const first = targets()[0] || booths[0];
+  const cfg = (first && first.config) || {};
+  const hrs = cfg.hours || {};
+  const mode = ['pause_alerts', 'auto_close'].includes(hrs.mode) ? hrs.mode : 'none';
+  const A = k => cfgAlert(cfg, k);
+  const num = (v, d = 2) => (v == null || v === '') ? '' : String(Number(v).toFixed(d)).replace(/\.?0+$/, '');
+  const many = settingsScope === 'all' && booths.length > 1;
+  const installUrl = installBase() + 'install.ps1';
+  const cmd = `irm ${installUrl} | iex`;
+
+  const alertRow = (kind, name, desc, extra) => `
+    <div class="set-row" data-kind="${kind}">
+      <div><div class="name">${name}</div><div class="desc">${desc}</div></div>
+      <div class="set-ctl ${A(kind).on ? '' : 'off'}">
+        ${extra || ''}
+        <label class="sw"><input type="checkbox" data-a-on="${kind}" ${A(kind).on ? 'checked' : ''}/> On</label>
+      </div>
+    </div>`;
+  const delayCtl = kind => `<span class="after">after <input type="number" min="1" max="180" step="1" data-a-delay="${kind}" value="${A(kind).delay}" aria-label="Minutes before alerting"/> <span class="unit">min</span></span>`;
+
+  const days = DAY_KEYS.map((k, i) => {
+    const w = hrs.days && Array.isArray(hrs.days[k]) ? hrs.days[k] : null;
+    return `<div class="dayname">${DAY_NAMES[i]}</div>
+      <label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-h-open="${k}" ${w ? 'checked' : ''}/> Open</label>
+      <div class="times ${w ? '' : 'off'}" data-h-times="${k}">
+        <input type="time" data-h-from="${k}" value="${w ? w[0] : '09:00'}"/> <span class="unit">to</span> <input type="time" data-h-to="${k}" value="${w ? w[1] : '18:00'}"/>
+      </div>`;
+  }).join('');
+
+  const moneyRows = booths.map(b => {
+    const m = (b.config && b.config.money) || {};
+    return `<tr data-money="${esc(b.id)}">
+      <td>${esc(b.name)}</td>
+      <td><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-m="price" value="${num(m.price)}" placeholder="0.00" aria-label="Price per session for ${esc(b.name)}"/></span></td>
+      <td><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-m="cost_per_print" value="${num(m.cost_per_print)}" placeholder="0.00" aria-label="Cost per print for ${esc(b.name)}"/></span></td>
+      <td><span class="money-in"><i>£</i><input type="number" min="0" step="1" data-m="monthly_cost" value="${num(m.monthly_cost)}" placeholder="0" aria-label="Monthly running cost for ${esc(b.name)}"/></span></td>
+      <td><span class="money-in"><input type="number" min="0" max="100" step="0.01" data-m="card_fee_pct" value="${num(m.card_fee_pct)}" placeholder="0" aria-label="Card fee percent for ${esc(b.name)}"/><i>%</i></span></td>
+    </tr>`;
+  }).join('');
+
+  const detailRows = booths.map(b => `
+    <tr data-bd="${esc(b.id)}">
+      <td><input type="text" data-bd-name value="${esc(b.name)}" aria-label="Name"/></td>
+      <td><input type="text" data-bd-loc value="${esc(b.location || '')}" placeholder="Location" aria-label="Location"/></td>
+      <td><select data-bd-channel aria-label="Update channel"><option value="live" ${b.channel === 'live' ? 'selected' : ''}>live</option><option value="test" ${b.channel === 'test' ? 'selected' : ''}>test</option></select></td>
+      <td><label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-bd-auto ${b.config && b.config.auto_restart ? 'checked' : ''}/> Auto-restart</label></td>
+      <td><button class="btn-sm" data-bd-save>Save</button></td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    <h1 class="page-title">Settings</h1>
+    <p class="page-sub">Choose which alerts each booth sends, when each booth is open, and what your sessions cost and earn. Changes reach the booths within a minute.</p>
+
+    ${booths.length ? `
+    <div class="scope"><span>Alerts and opening hours apply to</span>
+      <select id="scope" aria-label="Which booth">
+        <option value="all" ${settingsScope === 'all' ? 'selected' : ''}>All booths (${booths.length})</option>
+        ${booths.map(b => `<option value="${esc(b.id)}" ${settingsScope === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+      </select>
+      ${many ? `<span class="help" style="margin:0;font-weight:500;font-size:12px">Showing ${esc(first.name)}'s values. Saving sets them on every booth.</span>` : ''}
+    </div>
+
+    <section class="panel" id="p-alerts">
+      <h2>Alerts and notifications</h2>
+      <p class="help">Switch each kind of alert on or off and choose how long a problem must last before you are told. A longer wait means fewer false alarms from short blips.</p>
+      ${alertRow('offline', 'Booth offline', 'The booth PC stops checking in (off, no internet, or the agent stopped).', delayCtl('offline'))}
+      ${alertRow('software', 'Booth software problem', 'DSLR Remote Pro or MDB Payment is not running, not full screen, or shows an error.', delayCtl('software'))}
+      ${alertRow('device', 'Camera or printer problem', 'Camera disconnected, printer off, door open, out of ribbon or paper, print stuck.', delayCtl('device'))}
+      ${alertRow('low_prints', 'Low on prints', 'Warn when the roll is nearly used up.', `<span class="after">at <input type="number" min="1" max="90" step="1" data-a-threshold value="${A('low_prints').threshold}" aria-label="Percent of roll left"/> <span class="unit">% left</span></span>`)}
+      ${alertRow('out_of_prints', 'Out of prints', 'The roll has run out.', '')}
+      ${alertRow('command_failed', 'A button press fails', 'Restart, screenshot or paper read did not work on the booth.', '')}
+      <div class="set-row">
+        <div><div class="name">Mute everything</div><div class="desc">No alerts or phone notifications at all. Good for a test booth or one that is put away.</div></div>
+        <div class="set-ctl"><label class="sw"><input type="checkbox" id="a-muted" ${cfg.alerts_muted ? 'checked' : ''}/> Muted</label></div>
+      </div>
+      <div class="save-row"><button class="btn-primary" id="save-alerts">Save alerts</button><span class="save-msg" id="msg-alerts"></span></div>
+    </section>
+
+    <section class="panel" id="p-hours">
+      <h2>Opening hours</h2>
+      <p class="help">Tell BoothWatch when each booth is meant to be on. Times are the booth's own clock (UK).</p>
+      <label class="mode"><input type="radio" name="hmode" value="none" ${mode === 'none' ? 'checked' : ''}/><div><b>Always on</b><span>No schedule. Alerts any time of day.</span></div></label>
+      <label class="mode"><input type="radio" name="hmode" value="pause_alerts" ${mode === 'pause_alerts' ? 'checked' : ''}/><div><b>Only pause alerts outside opening hours</b><span>The booth stays as it is, but you are not alerted about it when it is meant to be off.</span></div></label>
+      <label class="mode"><input type="radio" name="hmode" value="auto_close" ${mode === 'auto_close' ? 'checked' : ''}/><div><b>Close and open by itself</b><span>Outside opening hours the closed screen shows and the card machine is switched off. It opens again at the next opening time.</span></div></label>
+      <div id="week-wrap" ${mode === 'none' ? 'style="opacity:.4;pointer-events:none"' : ''}>
+        <div class="week">${days}</div>
+        <div class="save-row" style="margin-top:12px"><button class="btn-sm" id="copy-mon">Copy Monday to every day</button></div>
+      </div>
+      <div class="save-row"><button class="btn-primary" id="save-hours">Save opening hours</button><span class="save-msg" id="msg-hours"></span></div>
+    </section>
+
+    <section class="panel" id="p-money">
+      <h2>Prices and costs</h2>
+      <p class="help">Used by the Company page to work out sales and profit. Sales are sessions × price per session. Costs are prints × cost per print, plus card fees, plus the monthly running cost (spread evenly over each day). Changes apply to all dates, past and future.</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Booth</th><th>Price per session</th><th>Cost per print</th><th>Running cost per month</th><th>Card fee</th></tr></thead>
+        <tbody>${moneyRows}</tbody></table></div>
+      <div class="save-row"><button class="btn-primary" id="save-money">Save prices and costs</button>${booths.length > 1 ? '<button class="btn-sm" id="copy-money">Copy first booth to all</button>' : ''}<span class="save-msg" id="msg-money"></span></div>
+    </section>
+
+    <section class="panel" id="p-booths">
+      <h2>Booth details</h2>
+      <p class="help">Name, location and how each booth updates. "Test" booths get new agent versions first. Auto-restart brings crashed booth software back by itself.</p>
+      <div class="tbl-wrap"><table class="tbl"><tbody>${detailRows}</tbody></table></div>
+    </section>` : ''}
+
+    <section class="panel" id="p-add">
+      <h2>Add a booth</h2>
+      <p class="help">Installing on a new booth PC takes one paste.</p>
+      <ol class="steps">
+        <li>On the booth PC, right-click the Start button and choose <b>Terminal (Admin)</b> or <b>Windows PowerShell (Admin)</b>.</li>
+        <li>Paste this and press Enter. It installs everything and shows a 6-character pairing code.</li>
+      </ol>
+      <div class="cmd-box"><code id="inst-cmd">${esc(cmd)}</code><button class="btn-sm" id="copy-cmd">Copy</button></div>
+      <p class="help" style="margin-bottom:14px">Prefer a file? <a href="${esc(installBase() + 'BoothWatch-Install.bat')}" download>Download the installer</a>, copy it to the booth PC and double-click it.</p>
+      <ol class="steps" start="3"><li>Type the code here:</li></ol>
+      <div class="save-row" style="margin-top:0">
+        <input type="text" id="pairing-code" placeholder="Pairing code" maxlength="6" autocomplete="off" style="font-family:var(--mono);letter-spacing:2px;width:160px" aria-label="Pairing code from a new booth"/>
+        <button class="btn-primary" id="pair-btn">Add booth</button><span class="save-msg" id="msg-pair"></span>
+      </div>
+    </section>
+
+    <section class="panel" id="p-agent">
+      <h2>Agent versions</h2>
+      <p class="help">New versions go to the test channel first. Booths set to "test" update within a few minutes. Once it works, promote it so booths on "live" get it too.</p>
+      <div class="releases-in">
+        <div id="rel-status">Loading…</div>
+        <div class="rel-row"><input type="file" id="rel-file" accept=".py" /><button id="rel-publish">Publish to test</button></div>
+        <div class="rel-row"><button id="rel-promote">Promote test to live</button></div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-prefs">
+      <h2>This dashboard</h2>
+      <p class="help">Saved in this browser only, so your phone and computer can differ.</p>
+      <div class="set-row"><div><div class="name">Page to open first</div></div><div class="set-ctl"><select id="pref-start"><option value="booths">Booths</option><option value="company">Company</option><option value="settings">Settings</option></select></div></div>
+      <div class="set-row"><div><div class="name">Show the clock</div><div class="desc">The date and clock at the top of the Booths page.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="pref-clock" ${prefs.showClock ? 'checked' : ''}/> On</label></div></div>
+      <div class="set-row"><div><div class="name">Open booth details by default</div><div class="desc">Show the full program list and extra buttons on every card.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="pref-details" ${prefs.openDetails ? 'checked' : ''}/> On</label></div></div>
+      <div class="set-row"><div><div class="name">Refresh every</div><div class="desc">How often the Booths page asks for fresh data.</div></div><div class="set-ctl"><select id="pref-refresh"><option value="10">10 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option></select></div></div>
+    </section>`;
+
+  wireSettings(booths, targets);
+  document.getElementById('pref-start').value = prefs.startPage;
+  document.getElementById('pref-refresh').value = String(prefs.refreshSeconds || 10);
+}
+
+function wireSettings(booths, targets){
+  const $ = id => document.getElementById(id);
+  const msg = (id, text, bad) => { const m = $(id); if(m){ m.textContent = text; m.style.color = bad ? 'var(--ink)' : 'var(--accent)'; clearTimeout(m._t); if(text) m._t = setTimeout(() => { m.textContent = ''; }, 4000); } };
+  const saveToAll = async (list, patchFor) => {
+    for(const b of list){
+      const { error } = await sb.rpc('update_booth_config', { p_booth_id: b.id, p_patch: patchFor(b) });
+      if(error) throw error;
+    }
+  };
+  const refreshCache = async () => { boothCache = await loadBooths(); };
+
+  if($('scope')) $('scope').onchange = e => { settingsScope = e.target.value; drawSettings(); };
+
+  // alerts
+  document.querySelectorAll('[data-a-on]').forEach(box => {
+    box.onchange = () => box.closest('.set-ctl').classList.toggle('off', !box.checked);
+  });
+  if($('save-alerts')) $('save-alerts').onclick = async () => {
+    const alerts = {};
+    for(const kind of ['offline', 'software', 'device', 'low_prints', 'out_of_prints', 'command_failed']){
+      const o = { on: document.querySelector(`[data-a-on="${kind}"]`).checked };
+      const d = document.querySelector(`[data-a-delay="${kind}"]`);
+      if(d && d.value !== '') o.delay = Number(d.value);
+      if(kind === 'low_prints'){ const t = document.querySelector('[data-a-threshold]'); if(t && t.value !== '') o.threshold = Number(t.value); }
+      alerts[kind] = o;
+    }
+    const patch = { alerts, alerts_muted: $('a-muted').checked };
+    $('save-alerts').disabled = true;
+    try { await saveToAll(targets(), () => patch); await refreshCache(); msg('msg-alerts', 'Saved'); }
+    catch(e){ msg('msg-alerts', e.message, true); }
+    $('save-alerts').disabled = false;
   };
 
-  async function refresh(){
-    let booths = await loadBooths();
-    refreshNotifs();
-    const ids = booths.map(b => b.id);
-    const [counts, lastCmds] = await Promise.all([loadTodayCounts(ids), loadLastCommands(ids)]);
-    booths = booths.map(b => ({ ...b, ...(counts[b.id] || { prints_today: 0, sessions_today: 0 }), lastCommand: lastCmds[b.id] || null }));
-
-    const onlineCount = booths.filter(isOnline).length;
-    const attentionCount = booths.filter(needsAttention).length;
-    const printsToday = booths.reduce((s,b) => s + (b.prints_today||0), 0);
-    const sessionsToday = booths.reduce((s,b) => s + (b.sessions_today||0), 0);
-
-    document.getElementById('summary').innerHTML = `
-      <div class="tile hero"><div class="tile-label">Online</div><div class="tile-num">${onlineCount}/${booths.length}</div><div class="tile-sub">booths checking in</div></div>
-      <div class="tile ${attentionCount ? 'dark' : ''}"><div class="tile-label">Need attention</div><div class="tile-num">${attentionCount}</div><div class="tile-sub">${attentionCount ? 'open the cards below' : 'all clear'}</div></div>
-      <div class="tile"><div class="tile-label">Sessions today</div><div class="tile-num">${sessionsToday}</div><div class="tile-sub">all booths</div></div>
-      <div class="tile"><div class="tile-label">Prints today</div><div class="tile-num">${printsToday}</div><div class="tile-sub">all booths</div></div>`;
-
-    fleetBeats = booths.filter(b => b.last_heartbeat_at).map(b => ({ t: new Date(b.last_heartbeat_at).getTime(), iv: checkInterval(b) }));
-    const framesEl = document.getElementById('frames');
-    framesEl.innerHTML = booths.length
-      ? booths.map(boothFrame).join('')
-      : `<div class="empty">No booths yet — enter a pairing code above once you've installed the agent on a booth PC.</div>`;
-
-    tick();
-
-    async function renameBooth(id){
-      const booth = booths.find(x => x.id === id);
-      const name = prompt('Booth name', booth.name);
-      if(name === null) return;
-      const location = prompt('Location (optional)', booth.location || '');
-      if(location === null) return;
-      const { error } = await sb.from('booths')
-        .update({ name: name.trim() || booth.name, location: location.trim() || null })
-        .eq('id', booth.id);
-      if(error){ alert(error.message); return; }
-      refresh();
+  // hours
+  const radios = () => [...document.querySelectorAll('input[name=hmode]')];
+  radios().forEach(r => r.onchange = () => {
+    const none = radios().find(x => x.checked).value === 'none';
+    $('week-wrap').style.opacity = none ? '.4' : ''; $('week-wrap').style.pointerEvents = none ? 'none' : '';
+  });
+  document.querySelectorAll('[data-h-open]').forEach(box => {
+    box.onchange = () => document.querySelector(`[data-h-times="${box.dataset.hOpen}"]`).classList.toggle('off', !box.checked);
+  });
+  if($('copy-mon')) $('copy-mon').onclick = () => {
+    const open = document.querySelector('[data-h-open="mon"]').checked;
+    const from = document.querySelector('[data-h-from="mon"]').value, to = document.querySelector('[data-h-to="mon"]').value;
+    DAY_KEYS.forEach(k => {
+      const box = document.querySelector(`[data-h-open="${k}"]`);
+      box.checked = open;
+      document.querySelector(`[data-h-from="${k}"]`).value = from; document.querySelector(`[data-h-to="${k}"]`).value = to;
+      document.querySelector(`[data-h-times="${k}"]`).classList.toggle('off', !open);
+    });
+  };
+  if($('save-hours')) $('save-hours').onclick = async () => {
+    const mode = radios().find(x => x.checked).value;
+    const days = {};
+    for(const k of DAY_KEYS){
+      const open = document.querySelector(`[data-h-open="${k}"]`).checked;
+      const from = document.querySelector(`[data-h-from="${k}"]`).value, to = document.querySelector(`[data-h-to="${k}"]`).value;
+      if(open && (!from || !to)){ msg('msg-hours', 'Fill in the opening and closing time for ' + DAY_NAMES[DAY_KEYS.indexOf(k)], true); return; }
+      days[k] = open ? [from, to] : null;
     }
-    framesEl.querySelectorAll('[data-rename]').forEach(el => {
-      el.onclick = e => { if(isMobile()) return; e.stopPropagation(); renameBooth(el.dataset.rename); };   // on a phone the name just opens/closes the card
-    });
-    framesEl.querySelectorAll('[data-rename-btn]').forEach(el => {
-      el.onclick = () => renameBooth(el.dataset.renameBtn);
-    });
-    framesEl.querySelectorAll('[data-toggle]').forEach(el => {
-      el.onclick = () => {
-        if(!isMobile()) return;
-        const id = el.dataset.toggle;
-        if(openBooths.has(id)) openBooths.delete(id); else openBooths.add(id);
-        saveOpen();
-        el.closest('.frame').classList.toggle('open', openBooths.has(id));
-      };
-    });
+    if(mode !== 'none' && !Object.values(days).some(Boolean)){ msg('msg-hours', 'Tick at least one open day, or choose "Always on".', true); return; }
+    $('save-hours').disabled = true;
+    try { await saveToAll(targets(), () => ({ hours: { mode, days } })); await refreshCache(); msg('msg-hours', 'Saved'); }
+    catch(e){ msg('msg-hours', e.message, true); }
+    $('save-hours').disabled = false;
+  };
 
-    framesEl.querySelectorAll('[data-autorestart]').forEach(box => {
-      box.onchange = async () => {
-        const booth = booths.find(x => x.id === box.dataset.autorestart);
-        const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: { auto_restart: box.checked } });
-        if(error){ alert(error.message); }
-        refresh();
-      };
-    });
+  // money
+  const readMoney = tr => {
+    const o = {};
+    tr.querySelectorAll('[data-m]').forEach(i => { o[i.dataset.m] = i.value === '' ? 0 : Number(i.value); });
+    return o;
+  };
+  if($('copy-money')) $('copy-money').onclick = () => {
+    const rows = [...document.querySelectorAll('[data-money]')];
+    rows.slice(1).forEach(tr => rows[0].querySelectorAll('[data-m]').forEach(i => { tr.querySelector(`[data-m="${i.dataset.m}"]`).value = i.value; }));
+    msg('msg-money', 'Copied. Press Save to keep it.');
+  };
+  if($('save-money')) $('save-money').onclick = async () => {
+    $('save-money').disabled = true;
+    try {
+      for(const tr of document.querySelectorAll('[data-money]')){
+        const { error } = await sb.rpc('update_booth_config', { p_booth_id: tr.dataset.money, p_patch: { money: readMoney(tr) } });
+        if(error) throw error;
+      }
+      await refreshCache(); msg('msg-money', 'Saved');
+    } catch(e){ msg('msg-money', e.message, true); }
+    $('save-money').disabled = false;
+  };
 
-    framesEl.querySelectorAll('[data-mute]').forEach(box => {
-      box.onchange = async () => {
-        const { error } = await sb.rpc('update_booth_config', { p_booth_id: box.dataset.mute, p_patch: { alerts_muted: box.checked } });
-        if(error){ alert(error.message); }
-        refresh();
-      };
-    });
+  // booth details
+  document.querySelectorAll('[data-bd]').forEach(tr => {
+    tr.querySelector('[data-bd-save]').onclick = async e => {
+      const id = tr.dataset.bd, btn = e.target, b = booths.find(x => x.id === id);
+      btn.disabled = true;
+      const name = tr.querySelector('[data-bd-name]').value.trim() || b.name;
+      const location = tr.querySelector('[data-bd-loc]').value.trim() || null;
+      const channel = tr.querySelector('[data-bd-channel]').value;
+      const r1 = await sb.from('booths').update({ name, location, channel }).eq('id', id);
+      const r2 = await sb.rpc('update_booth_config', { p_booth_id: id, p_patch: { auto_restart: tr.querySelector('[data-bd-auto]').checked } });
+      btn.disabled = false;
+      if(r1.error || r2.error){ alert((r1.error || r2.error).message); return; }
+      await refreshCache(); toast('Saved ' + name);
+    };
+  });
 
-    framesEl.querySelectorAll('[data-channel]').forEach(sel => {
-      sel.onchange = async () => {
-        const { error } = await sb.from('booths').update({ channel: sel.value }).eq('id', sel.dataset.channel);
-        if(error){ alert(error.message); }
-        refresh();
-      };
-    });
+  // add booth
+  if($('copy-cmd')) $('copy-cmd').onclick = async () => {
+    try { await navigator.clipboard.writeText($('inst-cmd').textContent); toast('Copied. Paste it on the booth PC.'); }
+    catch(e){ const r = document.createRange(); r.selectNodeContents($('inst-cmd')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Press Ctrl+C to copy'); }
+  };
+  if($('pair-btn')) $('pair-btn').onclick = async () => {
+    const code = $('pairing-code').value.trim();
+    if(code.length !== 6){ msg('msg-pair', 'The code has 6 characters.', true); return; }
+    const { error } = await sb.rpc('claim_booth', { p_code: code });
+    if(error){ msg('msg-pair', error.message, true); return; }
+    $('pairing-code').value = '';
+    await refreshCache(); msg('msg-pair', 'Booth added. Find it on the Booths page.');
+    drawSettings();
+  };
 
-    framesEl.querySelectorAll('[data-shot]').forEach(btn => {
-      btn.onclick = () => requestScreenshot(booths.find(x => x.id === btn.dataset.shot), refresh);
-    });
+  wireReleases();
 
-    async function sendCommand(boothId, kind, args){
-      const { error } = await sb.rpc('queue_command', { p_booth_id: boothId, p_kind: kind, p_args: args || {} });
-      if(error){ alert(error.message); return; }
-      refresh();
-      setTimeout(refresh, 4000); setTimeout(refresh, 9000); setTimeout(refresh, 20000);   // see the result quickly
-    }
-
-    framesEl.querySelectorAll('[data-restart-prog]').forEach(btn => {
-      btn.onclick = () => {
-        const name = btn.dataset.restartProg;
-        if(!confirm(`Restart ${name} on this booth? Anyone using the booth will be interrupted.`)) return;
-        sendCommand(btn.dataset.booth, 'restart_program', { program: name });
-      };
-    });
-
-    framesEl.querySelectorAll('[data-readpaper]').forEach(btn => {
-      btn.onclick = () => sendCommand(btn.dataset.readpaper, 'read_paper', {});
-    });
-
-    framesEl.querySelectorAll('[data-restart-pc]').forEach(btn => {
-      btn.onclick = () => {
-        const booth = booths.find(x => x.id === btn.dataset.restartPc);
-        if(!confirm(`Restart the whole PC for "${booth.name}"? It will restart about 15 seconds after the booth receives this. Anyone using the booth will be interrupted.`)) return;
-        sendCommand(booth.id, 'restart_pc', {});
-      };
-    });
-
-    framesEl.querySelectorAll('[data-closed]').forEach(btn => {
-      btn.onclick = async () => {
-        const booth = booths.find(x => x.id === btn.dataset.closed);
-        const isClosed = !!(booth.config && booth.config.closed);
-        let patch;
-        if(isClosed){
-          patch = { closed: false };
-        } else {
-          const msg = prompt('Message to show on the booth screen:', (booth.config && booth.config.closed_message) || 'Sorry, this photo booth is closed right now.');
-          if(msg === null) return;
-          patch = { closed: true, closed_message: msg.trim() };
-        }
-        const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: patch });
-        if(error){ alert(error.message); return; }
-        refresh();
-        setTimeout(refresh, 12000);
-      };
-    });
-
-    framesEl.querySelectorAll('[data-reset]').forEach(btn => {
-      btn.onclick = async () => {
-        await sb.rpc('reset_roll', { p_booth_id: btn.dataset.reset });
-        refresh();
-      };
-    });
-  }
-
-  refresh();
-  pollTimer = setInterval(refresh, 10000); // realtime channel is a nice later upgrade; polling is simple and reliable
+  // this dashboard
+  $('pref-start').onchange = e => { setPrefs({ startPage: e.target.value }); toast('Saved'); };
+  $('pref-clock').onchange = e => { setPrefs({ showClock: e.target.checked }); toast('Saved'); };
+  $('pref-details').onchange = e => { setPrefs({ openDetails: e.target.checked }); toast('Saved'); };
+  $('pref-refresh').onchange = e => {
+    setPrefs({ refreshSeconds: Number(e.target.value) });
+    if(pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(() => { refreshNotifs(); if(currentRefresh) currentRefresh(); }, Number(e.target.value) * 1000);
+    toast('Saved');
+  };
 }
+
+// ═══════════════ Company page ═══════════════
+const ymd = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+const fromYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = fromYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
+const spanDays = (a, b) => Math.round((fromYmd(b) - fromYmd(a)) / 864e5) + 1;
+const monthDays = s => { const d = fromYmd(s); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
+const shiftYear = (s, n) => { const d = fromYmd(s); d.setFullYear(d.getFullYear() + n); return ymd(d); };
+const monthStart = (s, n = 0) => { const d = fromYmd(s); return ymd(new Date(d.getFullYear(), d.getMonth() + n, 1)); };
+const monthEnd = s => ymd(new Date(fromYmd(s).getFullYear(), fromYmd(s).getMonth() + 1, 0));
+const fmtDay = s => fromYmd(s).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const fmtShort = s => fromYmd(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+const fmtMonth = s => fromYmd(s).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+const fmtRange = ([a, b]) => a === b ? fromYmd(a).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  : `${fmtShort(a)} – ${fromYmd(b).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
+const PERIODS = [
+  ['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week'], ['lastweek', 'Last week'],
+  ['month', 'This month'], ['lastmonth', 'Last month'], ['last30', 'Last 30 days'], ['year', 'This year'], ['lastyear', 'Last year'], ['custom', 'Custom dates…'],
+];
+function periodRange(key, custom){
+  const today = ymd(new Date()), t = fromYmd(today);
+  const monday = addDays(today, -((t.getDay() + 6) % 7));
+  switch(key){
+    case 'today': return [today, today];
+    case 'yesterday': { const y = addDays(today, -1); return [y, y]; }
+    case 'week': return [monday, today];
+    case 'lastweek': return [addDays(monday, -7), addDays(monday, -1)];
+    case 'month': return [monthStart(today), today];
+    case 'lastmonth': { const s = monthStart(today, -1); return [s, monthEnd(s)]; }
+    case 'last30': return [addDays(today, -29), today];
+    case 'year': return [t.getFullYear() + '-01-01', today];
+    case 'lastyear': return [(t.getFullYear() - 1) + '-01-01', (t.getFullYear() - 1) + '-12-31'];
+    default: {
+      const a = custom && custom[0] || today, b = custom && custom[1] || today;
+      return a <= b ? [a, b] : [b, a];
+    }
+  }
+}
+function compareRange(mode, key, [f, t], custom){
+  if(mode === 'none') return null;
+  if(mode === 'custom'){ const a = custom && custom[0], b = custom && custom[1]; return a && b ? (a <= b ? [a, b] : [b, a]) : null; }
+  if(mode === 'yoy') return [shiftYear(f, -1), shiftYear(t, -1)];
+  const n = spanDays(f, t);
+  if(key === 'month' || key === 'lastmonth'){ const ps = monthStart(f, -1); return [ps, addDays(ps, Math.min(n, monthDays(ps)) - 1)]; }
+  if(key === 'year' || key === 'lastyear') return [shiftYear(f, -1), shiftYear(t, -1)];
+  return [addDays(f, -n), addDays(f, -1)];
+}
+
+let companyState = (() => { try { return { period: 'month', compare: 'prev', metric: 'profit', customFrom: '', customTo: '', cmpFrom: '', cmpTo: '', ...JSON.parse(localStorage.getItem('bw-company') || '{}') }; } catch(e){ return { period: 'month', compare: 'prev', metric: 'profit', customFrom: '', customTo: '', cmpFrom: '', cmpTo: '' }; } })();
+function saveCompanyState(){ try { localStorage.setItem('bw-company', JSON.stringify(companyState)); } catch(e){} }
+let statsCache = null;   // { at, since, rows, booths }
+let showTable = false, monthTable = false;
+
+async function loadStatsRows(since){
+  let all = [], from = 0;
+  for(;;){
+    const { data, error } = await sb.from('daily_stats').select('booth_id, day, sessions, prints').gte('day', since).order('day').order('booth_id').range(from, from + 999);
+    if(error) throw error;
+    all = all.concat(data);
+    if(data.length < 1000) break;
+    from += 1000;
+  }
+  return all;
+}
+
+// Sales, costs and profit for a date range. Prices and costs are each booth's current settings.
+function computeRange(rows, booths, [f, t], bucket){
+  const today = ymd(new Date());
+  const end = t > today ? today : t;
+  const byKey = new Map(rows.map(r => [r.booth_id + '|' + r.day, r]));
+  const per = {}, buckets = new Map();
+  const zero = () => ({ sessions: 0, prints: 0, sales: 0, printCost: 0, fees: 0, running: 0, costs: 0, profit: 0 });
+  const add = (o, x) => { for(const k in x) o[k] += x[k]; };
+  let missing = false;
+  for(const b of booths){
+    const m = (b.config && b.config.money) || {};
+    const price = Number(m.price) || 0, cpp = Number(m.cost_per_print) || 0, monthly = Number(m.monthly_cost) || 0, fee = Number(m.card_fee_pct) || 0;
+    if(!price) missing = true;
+    const startDay = b.created_at ? ymd(new Date(b.created_at)) : '0000-00-00';
+    per[b.id] = zero();
+    for(let d = f; d <= end; d = addDays(d, 1)){
+      const r = byKey.get(b.id + '|' + d);
+      const sessions = r ? r.sessions : 0, prints = r ? r.prints : 0;
+      const sales = sessions * price, printCost = prints * cpp, fees = sales * fee / 100;
+      const running = (d >= startDay || r) ? monthly / monthDays(d) : 0;
+      const x = { sessions, prints, sales, printCost, fees, running, costs: printCost + fees + running, profit: sales - (printCost + fees + running) };
+      add(per[b.id], x);
+      const key = bucket === 'month' ? d.slice(0, 7) : d;
+      if(!buckets.has(key)) buckets.set(key, { key, day: d, ...zero() });
+      add(buckets.get(key), x);
+    }
+  }
+  // make sure days with no data still appear (a booth list that is empty gives no buckets)
+  for(let d = f; d <= end; d = addDays(d, 1)){
+    const key = bucket === 'month' ? d.slice(0, 7) : d;
+    if(!buckets.has(key)) buckets.set(key, { key, day: d, ...zero() });
+  }
+  const totals = zero();
+  Object.values(per).forEach(p => add(totals, p));
+  return { per, totals, buckets: [...buckets.values()].sort((a, b) => a.key < b.key ? -1 : 1), missing };
+}
+
+const METRICS = { sales: 'Sales', costs: 'Costs', profit: 'Profit', sessions: 'Sessions', prints: 'Prints' };
+const isMoneyMetric = m => ['sales', 'costs', 'profit'].includes(m);
+const fmtMetric = (m, v) => isMoneyMetric(m) ? money(v) : String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+function deltaText(metric, cur, prev, label){
+  if(prev == null) return '';
+  const diff = cur - prev;
+  const pct = prev !== 0 ? Math.round(100 * diff / Math.abs(prev)) : null;
+  const arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '=');
+  const amount = isMoneyMetric(metric) ? money(Math.abs(diff)) : fmtMetric(metric, Math.abs(diff));
+  return `<div class="delta"><b>${arrow} ${diff === 0 ? 'no change' : amount}${pct != null && diff !== 0 ? ` (${pct > 0 ? '+' : ''}${pct}%)` : ''}</b> vs ${esc(label)}</div>`;
+}
+
+async function renderCompanyPage(){
+  const el = mainEl();
+  el.innerHTML = `
+    <h1 class="page-title">Company</h1>
+    <p class="page-sub">Sales, costs and profit across all your booths. Sales are sessions × price per session; set prices and costs in Settings.</p>
+    <div id="company-body"><div class="empty">Loading…</div></div>`;
+  try {
+    const booths = await loadBooths();
+    if(view !== 'company') return;
+    const since = addDays(monthStart(ymd(new Date()), -25), 0);
+    if(!statsCache || Date.now() - statsCache.at > 60000 || statsCache.since > since){
+      statsCache = { at: Date.now(), since, rows: await loadStatsRows(since) };
+    }
+    if(view !== 'company') return;
+    boothCache = booths;
+    drawCompany();
+  } catch(e){
+    document.getElementById('company-body').innerHTML = `<div class="empty">Could not load the figures: ${esc(e.message || e)}</div>`;
+  }
+}
+
+function drawCompany(){
+  const booths = boothCache, rows = statsCache.rows, S = companyState;
+  const body = document.getElementById('company-body');
+  if(!booths.length){ body.innerHTML = '<div class="empty">No booths yet. Add one in Settings.</div>'; return; }
+
+  const cur = periodRange(S.period, [S.customFrom, S.customTo]);
+  const cmp = compareRange(S.compare, S.period, cur, [S.cmpFrom, S.cmpTo]);
+  const longRange = spanDays(cur[0], cur[1]) > 62;
+  const bucket = longRange ? 'month' : 'day';
+  const A = computeRange(rows, booths, cur, bucket);
+  const B = cmp ? computeRange(rows, booths, cmp, bucket) : null;
+  const cmpLabel = cmp ? (cmp[0] === cmp[1] ? fmtShort(cmp[0]) : fmtShort(cmp[0]) + ' – ' + fmtShort(cmp[1])) : '';
+  const T = A.totals, TB = B && B.totals;
+  const price0 = booths.filter(b => !(b.config && b.config.money && Number(b.config.money.price) > 0));
+
+  const tile = (metric, cls, sub) => `<div class="tile ${cls || ''}"><div class="tile-label">${METRICS[metric]}</div><div class="tile-num co">${isMoneyMetric(metric) ? money0(T[metric]) : fmtMetric(metric, T[metric])}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}${deltaText(metric, T[metric], TB && TB[metric], cmpLabel)}</div>`;
+  const perSession = T.sessions ? T.profit / T.sessions : 0;
+
+  const perRows = booths.map(b => {
+    const p = A.per[b.id], q = B && B.per[b.id];
+    const d = q ? p.profit - q.profit : null;
+    return `<tr><td>${esc(b.name)}</td><td class="num">${p.sessions}</td><td class="num">${p.prints}</td><td class="num">${money(p.sales)}</td><td class="num">${money(p.costs)}</td><td class="num">${money(p.profit)}</td>${B ? `<td class="num">${d == null ? '' : (d > 0 ? '▲ ' : d < 0 ? '▼ ' : '') + money(Math.abs(d))}</td>` : ''}</tr>`;
+  }).join('');
+  const dTotal = TB ? T.profit - TB.profit : null;
+
+  body.innerHTML = `
+    <div class="company-controls">
+      <label>Period<select id="c-period">${PERIODS.map(([k, n]) => `<option value="${k}" ${S.period === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      ${S.period === 'custom' ? `<label>From<input type="date" id="c-from" value="${esc(S.customFrom || cur[0])}"/></label><label>To<input type="date" id="c-to" value="${esc(S.customTo || cur[1])}"/></label>` : ''}
+      <label>Compare with<select id="c-compare">
+        <option value="none" ${S.compare === 'none' ? 'selected' : ''}>Nothing</option>
+        <option value="prev" ${S.compare === 'prev' ? 'selected' : ''}>Previous period</option>
+        <option value="yoy" ${S.compare === 'yoy' ? 'selected' : ''}>Same time last year</option>
+        <option value="custom" ${S.compare === 'custom' ? 'selected' : ''}>Pick dates…</option></select></label>
+      ${S.compare === 'custom' ? `<label>Compare from<input type="date" id="c-cfrom" value="${esc(S.cmpFrom || '')}"/></label><label>Compare to<input type="date" id="c-cto" value="${esc(S.cmpTo || '')}"/></label>` : ''}
+    </div>
+    <div class="page-sub" style="margin:-6px 0 14px"><b>${esc(fmtRange(cur))}</b>${cmp ? ` compared with <b>${esc(cmpLabel)}</b>` : ''}</div>
+    ${price0.length ? `<div class="banner">${price0.length === booths.length ? 'No price per session is set yet' : esc(price0.map(b => b.name).join(', ')) + ' has no price per session'}, so sales and profit will read as £0 there. <a href="#/settings">Set prices and costs</a>.</div>` : ''}
+    <div class="summary">
+      ${tile('sales')}
+      ${tile('costs', '', T.costs ? `prints ${money0(T.printCost)} · fees ${money0(T.fees)} · running ${money0(T.running)}` : '')}
+      ${tile('profit', 'hero', T.sessions ? `${money(perSession)} per session` : '')}
+      ${tile('sessions')}
+      ${tile('prints', '', T.sessions ? `${(T.prints / T.sessions).toFixed(1)} per session` : '')}
+    </div>
+
+    <section class="chart-card">
+      <div class="chart-head"><h2>${METRICS[S.metric]} ${longRange ? 'by month' : 'by day'}</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="seg" role="group" aria-label="Measure">${Object.entries(METRICS).map(([k, n]) => `<button data-metric="${k}" class="${S.metric === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="seg" role="group" aria-label="View"><button data-view="chart" class="${showTable ? '' : 'on'}">Chart</button><button data-view="table" class="${showTable ? 'on' : ''}">Table</button></div></div></div>
+      <div id="chart-main"></div>
+    </section>
+
+    <section class="panel">
+      <h2>By booth</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Booth</th><th class="num">Sessions</th><th class="num">Prints</th><th class="num">Sales</th><th class="num">Costs</th><th class="num">Profit</th>${B ? '<th class="num">Profit vs compared</th>' : ''}</tr></thead>
+        <tbody>${perRows}</tbody>
+        <tfoot><tr><td>All booths</td><td class="num">${T.sessions}</td><td class="num">${T.prints}</td><td class="num">${money(T.sales)}</td><td class="num">${money(T.costs)}</td><td class="num">${money(T.profit)}</td>${B ? `<td class="num">${(dTotal > 0 ? '▲ ' : dTotal < 0 ? '▼ ' : '') + money(Math.abs(dTotal))}</td>` : ''}</tr></tfoot>
+      </table></div>
+    </section>
+
+    <section class="chart-card">
+      <div class="chart-head"><h2>Last 12 months</h2>
+        <div class="seg" role="group" aria-label="View"><button data-mview="chart" class="${monthTable ? '' : 'on'}">Chart</button><button data-mview="table" class="${monthTable ? 'on' : ''}">Table</button></div></div>
+      <div id="chart-year"></div>
+    </section>
+    <p class="page-sub" style="margin-top:14px">Sales and costs use each booth's current price and costs for every date shown. Running costs are spread evenly across the days of each month.</p>`;
+
+  const $ = id => document.getElementById(id);
+  const rerender = () => { saveCompanyState(); drawCompany(); };
+  $('c-period').onchange = e => { S.period = e.target.value; if(S.period === 'custom' && !S.customFrom){ S.customFrom = cur[0]; S.customTo = cur[1]; } rerender(); };
+  $('c-compare').onchange = e => { S.compare = e.target.value; rerender(); };
+  if($('c-from')) { $('c-from').onchange = e => { S.customFrom = e.target.value; rerender(); }; $('c-to').onchange = e => { S.customTo = e.target.value; rerender(); }; }
+  if($('c-cfrom')) { $('c-cfrom').onchange = e => { S.cmpFrom = e.target.value; rerender(); }; $('c-cto').onchange = e => { S.cmpTo = e.target.value; rerender(); }; }
+  body.querySelectorAll('[data-metric]').forEach(b => b.onclick = () => { S.metric = b.dataset.metric; rerender(); });
+  body.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { showTable = b.dataset.view === 'table'; rerender(); });
+  body.querySelectorAll('[data-mview]').forEach(b => b.onclick = () => { monthTable = b.dataset.mview === 'table'; rerender(); });
+
+  // main chart
+  const lab = bk => bucket === 'month' ? fmtMonth(bk.day) : fmtDay(bk.day);
+  const shortLab = bk => bucket === 'month' ? fmtMonth(bk.day) : fmtShort(bk.day);
+  drawBarChart($('chart-main'), {
+    metric: S.metric, table: showTable,
+    cur: A.buckets.map(b => b[S.metric]), curLabels: A.buckets.map(lab), xLabels: A.buckets.map(shortLab), curName: fmtRange(cur),
+    cmp: B ? B.buckets.map(b => b[S.metric]) : null, cmpLabels: B ? B.buckets.map(lab) : null, cmpName: cmp ? fmtRange(cmp) : '',
+  });
+
+  // last 12 months vs the 12 before
+  const thisM = monthStart(ymd(new Date())), y0 = monthStart(thisM, -11), p0 = monthStart(thisM, -23);
+  const Y = computeRange(rows, booths, [y0, ymd(new Date())], 'month');
+  const YP = computeRange(rows, booths, [p0, monthEnd(monthStart(thisM, -12))], 'month');
+  drawBarChart($('chart-year'), {
+    metric: 'profit', table: monthTable,
+    cur: Y.buckets.map(b => b.profit), curLabels: Y.buckets.map(b => fmtMonth(b.day)), xLabels: Y.buckets.map(b => fmtMonth(b.day)), curName: 'Last 12 months',
+    cmp: YP.buckets.map(b => b.profit), cmpLabels: YP.buckets.map(b => fmtMonth(b.day)), cmpName: 'The 12 months before',
+    extra: Y.buckets.map((b, i) => `Sales ${money0(b.sales)} · Sessions ${b.sessions}`),
+  });
+  window.__redrawCharts = () => { if(view === 'company') drawCompany(); };
+}
+
+// One chart: current period in blue, comparison in grey, hover tooltip, and a table view.
+function drawBarChart(host, o){
+  const n = o.cur.length;
+  const hasCmp = !!(o.cmp && o.cmp.length);
+  const all = o.cur.concat(hasCmp ? o.cmp : []);
+  const fmt = v => fmtMetric(o.metric, v);
+  if(!n || all.every(v => !v)){
+    host.innerHTML = '<div class="no-data">No figures for this period yet.</div>'; return;
+  }
+  if(o.table){
+    const rows = o.cur.map((v, i) => `<tr><td>${esc(o.curLabels[i])}</td><td class="num">${fmt(v)}</td>${hasCmp ? `<td>${esc(o.cmpLabels[i] || '')}</td><td class="num">${o.cmp[i] != null ? fmt(o.cmp[i]) : ''}</td>` : ''}</tr>`).join('');
+    host.innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>${esc(o.curName)}</th><th class="num">${METRICS[o.metric]}</th>${hasCmp ? `<th>${esc(o.cmpName)}</th><th class="num">${METRICS[o.metric]}</th>` : ''}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    return;
+  }
+  host.innerHTML = `
+    <div class="legend"><span><i style="background:var(--accent)"></i>${esc(o.curName)}</span>${hasCmp ? `<span><i style="background:#C3C7CF"></i>${esc(o.cmpName)}</span>` : ''}</div>
+    <div class="chart-box"><svg role="img" aria-label="${esc(METRICS[o.metric])} chart"></svg><div class="chart-tip" hidden></div></div>`;
+  const box = host.querySelector('.chart-box'), svg = box.querySelector('svg'), tip = box.querySelector('.chart-tip');
+  const W = Math.max(280, box.clientWidth || 600), H = W < 520 ? 220 : 260;
+  const m = { l: isMoneyMetric(o.metric) ? 56 : 40, r: 6, t: 8, b: 26 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  let lo = Math.min(0, ...all), hi = Math.max(0, ...all);
+  if(hi === lo) hi = lo + 1;
+  const step = niceStep((hi - lo) / 4);
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  const y = v => m.t + ph * (1 - (v - lo) / (hi - lo));
+  const y0 = y(0);
+  const band = pw / Math.max(n, hasCmp ? o.cmp.length : 0, 1), bw = Math.max(2, Math.min(18, band * (hasCmp ? 0.36 : 0.6)));
+  const tickFmt = v => isMoneyMetric(o.metric) ? (Math.abs(v) >= 1000 ? '£' + (v / 1000).toFixed(v % 1000 ? 1 : 0) + 'k' : '£' + Math.round(v)) : String(Math.round(v));
+  let g = '';
+  for(let v = lo; v <= hi + step / 2; v += step){
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="${v === 0 ? '#9AA0AA' : '#E1E3E8'}" stroke-width="1"/>`;
+    g += `<text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${tickFmt(v)}</text>`;
+  }
+  const bar = (x, v, fill) => {
+    if(!v) return '';
+    const yy = y(v), h = Math.abs(yy - y0), r = Math.min(4, h, bw / 2);
+    if(h < 0.5) return '';
+    return v > 0
+      ? `<path d="M${x},${y0} V${yy + r} Q${x},${yy} ${x + r},${yy} H${x + bw - r} Q${x + bw},${yy} ${x + bw},${yy + r} V${y0} Z" fill="${fill}"/>`
+      : `<path d="M${x},${y0} V${yy - r} Q${x},${yy} ${x + r},${yy} H${x + bw - r} Q${x + bw},${yy} ${x + bw},${yy - r} V${y0} Z" fill="${fill}"/>`;
+  };
+  const every = Math.max(1, Math.ceil(n / Math.floor(pw / 56)));
+  let marks = '', hits = '', labels = '';
+  for(let i = 0; i < n; i++){
+    const cx = m.l + band * i + band / 2;
+    if(hasCmp){
+      marks += bar(cx - bw - 1, o.cmp[i], '#C3C7CF') + bar(cx + 1, o.cur[i], '#0078FF');
+    } else marks += bar(cx - bw / 2, o.cur[i], '#0078FF');
+    if(i % every === 0) labels += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(o.xLabels[i])}</text>`;
+    hits += `<rect class="hit" data-i="${i}" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ph}" fill="transparent"/>`;
+  }
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('height', H);
+  svg.innerHTML = `${g}<rect id="hl" x="0" y="${m.t}" width="${band}" height="${ph}" fill="#0A0A0B" opacity="0" />${marks}${labels}${hits}`;
+  const hl = svg.querySelector('#hl');
+  const show = i => {
+    hl.setAttribute('x', m.l + band * i); hl.setAttribute('opacity', '0.05');
+    const d = hasCmp && o.cmp[i] != null ? o.cur[i] - o.cmp[i] : null;
+    tip.innerHTML = `<div>${esc(o.curLabels[i])}: ${fmt(o.cur[i])}</div>`
+      + (hasCmp && o.cmpLabels[i] ? `<div class="k">${esc(o.cmpLabels[i])}: ${o.cmp[i] != null ? fmt(o.cmp[i]) : '—'}</div>` : '')
+      + (d != null && d !== 0 ? `<div class="k">${d > 0 ? '▲' : '▼'} ${fmt(Math.abs(d))}</div>` : '')
+      + (o.extra && o.extra[i] ? `<div class="k">${esc(o.extra[i])}</div>` : '');
+    tip.hidden = false;
+    const cx = m.l + band * i + band / 2, tw = tip.offsetWidth;
+    tip.style.left = Math.max(0, Math.min(W - tw, cx - tw / 2)) + 'px';
+    tip.style.top = Math.max(0, y(Math.max(o.cur[i], hasCmp && o.cmp[i] != null ? o.cmp[i] : o.cur[i])) - tip.offsetHeight - 8) + 'px';
+  };
+  svg.querySelectorAll('.hit').forEach(r => {
+    r.addEventListener('pointerenter', () => show(+r.dataset.i));
+    r.addEventListener('pointerdown', () => show(+r.dataset.i));
+  });
+  svg.addEventListener('pointerleave', () => { tip.hidden = true; hl.setAttribute('opacity', '0'); });
+}
+function niceStep(raw){
+  if(!(raw > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+}
+let resizeT = null;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if(view === 'company' && statsCache && window.__redrawCharts) window.__redrawCharts(); }, 200); });
+
 
 (async () => {
   let user = null;
   try { const { data } = await sb.auth.getSession(); user = data && data.session ? data.session.user : null; } catch(e){}
-  if(user){ currentUser = user; renderDashboard(); }
+  if(user){ currentUser = user; renderApp(); }
   else{ renderLogin(); }
 })();
 </script>

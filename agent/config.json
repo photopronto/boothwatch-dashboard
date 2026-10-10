@@ -1,0 +1,28 @@
+{
+  "supabase_url": "https://mfsxkomjbhlvufgosrtp.supabase.co",
+  "supabase_anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mc3hrb21qYmhsdnVmZ29zcnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0ODI4NjYsImV4cCI6MjEwNzA1ODg2Nn0.GpoF2YbXOmHrMaPnES8aVp87l-yJ8Ri6qFTYdSQxVd4",
+  "interval_seconds": 60,
+  "auto_restart": false,
+  "programs": [
+    {
+      "name": "DSLR Remote Pro",
+      "match": ["DSlrRemote"],
+      "expect_fullscreen": true,
+      "restart_command": "\"C:\\Program Files (x86)\\BreezeSys\\DSLR Remote Pro\\DSlrRemote.exe\"",
+      "restart_folder": "C:\\Program Files (x86)\\BreezeSys\\DSLR Remote Pro",
+      "alert_if_window_text_contains": []
+    },
+    {
+      "name": "MDB Payment",
+      "match": ["MDBPayment"],
+      "restart_command": "\"C:\\Program Files (x86)\\BreezeSys\\MDB Payment Utility\\MDBPayment.exe\"",
+      "restart_folder": "C:\\Program Files (x86)\\BreezeSys\\MDB Payment Utility",
+      "alert_if_window_text_contains": [
+        {
+          "text": "not running in photo booth mode",
+          "note": "Card reader disabled: photo booth software not in booth mode"
+        }
+      ]
+    }
+  ]
+}

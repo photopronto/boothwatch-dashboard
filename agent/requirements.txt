@@ -1,0 +1,4 @@
+requests
+psutil
+Pillow
+pywin32; sys_platform == "win32"
