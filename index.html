@@ -61,7 +61,7 @@
     display:flex; align-items:center; justify-content:space-between; gap:16px 24px; flex-wrap:wrap;
     padding: 24px clamp(16px, 4vw, 48px) 8px; max-width: 1280px; margin: 0 auto;
   }
-  .logo{ height: 40px; width:auto; display:block; }
+  .logo{ height: 54px; width:auto; display:block; }
   .head-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .pair{ display:flex; gap:8px; }
   .pair input{
@@ -82,14 +82,25 @@
 
   main{ padding: 8px clamp(16px, 4vw, 48px) 64px; max-width:1280px; margin:0 auto; }
 
-  .title-row{ display:flex; align-items:flex-end; justify-content:space-between; gap:8px 24px; flex-wrap:wrap; padding: 24px 0 20px; }
-  h1{ font-weight:800; font-size: clamp(32px, 6vw, 52px); line-height:1.02; letter-spacing:-.02em; margin:0; }
+  .nowbar{ display:flex; align-items:center; justify-content:space-between; gap:16px 32px; flex-wrap:wrap; padding: 22px 0 22px; }
+  .fleet-checkin{ display:flex; gap: 12px 36px; flex-wrap:wrap; }
+  .fleet-checkin .k{ display:block; font-weight:700; font-size:12px; color: var(--muted); margin-bottom:4px; }
+  .fleet-checkin b{ font-family: var(--mono); font-weight:600; font-size:15px; font-variant-numeric: tabular-nums; }
+  .clockbox{ display:flex; align-items:center; gap:14px; }
+  .clock-text{ text-align:right; }
   .title-sub{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); }
+  .clock-time{ font-family: var(--mono); font-weight:600; font-size: clamp(26px, 4vw, 36px); line-height:1.1; letter-spacing:-.01em; font-variant-numeric: tabular-nums; }
+  .clock-svg{ width:52px; height:52px; flex:none; }
+  .clock-svg .face{ fill: var(--bg); stroke: var(--ink); stroke-width:2.5; }
+  .clock-svg .tick{ stroke: var(--muted); stroke-width:1.5; stroke-linecap:round; }
+  .clock-svg .hand{ stroke: var(--ink); stroke-linecap:round; }
+  .clock-svg .sec{ stroke: var(--accent); stroke-width:1.5; stroke-linecap:round; }
+  .clock-svg .pin{ fill: var(--accent); }
 
   /* ── login ── */
   .login-wrap{ display:flex; justify-content:center; padding: 12vh 16px 0; }
   .login-card{ background: var(--tile); border-radius: 28px; padding: 36px; width: min(380px, 100%); }
-  .login-card .logo{ height: 44px; margin-bottom: 28px; }
+  .login-card .logo{ height: 60px; margin-bottom: 28px; }
   .login-card h2{ font-weight:800; font-size: 26px; margin:0 0 4px; letter-spacing:-.01em; }
   .login-card p{ color: var(--muted); font-size: 14px; margin: 0 0 24px; font-weight:500; }
   .login-card input{
@@ -128,15 +139,17 @@
   /* ── booth cards ── */
   .frames{ display:grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 14px; }
   .frame{ background: var(--tile); border-radius: 28px; padding: 22px; min-width:0; display:flex; flex-direction:column; gap: 14px; }
+  .frame-body{ display:flex; flex-direction:column; gap:14px; }
+  .frame-mini, .chev{ display:none; }
 
   .frame-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
   .frame-top > div:first-child{ flex:1; min-width:0; }
-  .checkin{ white-space:nowrap; }
+  .frame-top .right{ display:flex; align-items:center; gap:10px; flex:none; }
   .frame-name{ font-weight:800; font-size: 24px; line-height:1.1; letter-spacing:-.01em; overflow-wrap:anywhere; }
   .frame-name.editable{ cursor:pointer; }
   .frame-name.editable:hover{ color: var(--accent); }
   .frame-loc{ color: var(--muted); font-size:13px; margin-top:4px; font-weight:500; }
-  .checkin{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); margin-top:6px; }
+  .checkin{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); margin-top:6px; line-height:1.6; font-variant-numeric: tabular-nums; }
   .checkin b{ color: var(--ink); font-weight:600; }
 
   .pill{ flex:none; display:inline-flex; align-items:center; gap:7px; border-radius:999px; padding: 6px 12px; font-size:12px; font-weight:800; white-space:nowrap; }
@@ -194,11 +207,26 @@
 
   .empty{ color: var(--muted); text-align:center; padding: 60px 20px; font-size:14px; background: var(--tile); border-radius: 28px; font-weight:500; }
 
-  @media (max-width: 520px){
-    .frame{ padding: 18px; border-radius: 24px; }
-    .frame-name{ font-size: 21px; }
+  @media (max-width: 700px){
+    .logo{ height: 46px; }
+    .nowbar{ padding: 14px 0 16px; }
+    .summary{ grid-template-columns: 1fr 1fr; gap:10px; }
+    .tile{ padding: 14px 16px; border-radius: 20px; }
+    .tile .tile-num{ margin: 10px 0 6px; font-size: 34px; }
+    .frames{ gap:10px; }
+    .frame{ padding: 16px 18px; border-radius: 24px; gap: 0; }
+    .frame-name{ font-size: 19px; }
+    .pill{ font-size:11px; padding:5px 10px; }
     .pair input{ width: 130px; }
+    .frame-top{ cursor:pointer; align-items:center; }
+    .frame-mini{ display:block; font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); margin-top:6px; }
+    .chev{ display:block; flex:none; width:22px; height:22px; transition: transform .15s; color: var(--muted); }
+    .frame.open .chev{ transform: rotate(180deg); }
+    .frame:not(.open) .frame-body{ display:none; }
+    .frame.open .frame-body{ margin-top: 14px; }
+    .frame-top .right{ display:flex; align-items:center; gap:10px; }
   }
+  @media (prefers-reduced-motion: reduce){ .chev{ transition:none; } }
 </style>
 </head>
 <body>
@@ -280,6 +308,53 @@ function needsAttention(b){
   return rollRemaining(b) < b.roll_capacity * 0.15;
 }
 
+// ── check-in timing, clock, mobile tabs ──
+function checkInterval(b){
+  const iv = b.config && Number(b.config.interval_seconds);
+  return iv >= 15 ? iv : 60;
+}
+const pad2 = n => String(n).padStart(2, '0');
+const hms = d => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+function secs(n){ n = Math.max(0, Math.round(n)); return n < 60 ? n + 's' : Math.floor(n/60) + 'm ' + pad2(n % 60) + 's'; }
+let fleetBeats = [];   // [{t, iv}] of every booth, refreshed with the data
+const isMobile = () => window.matchMedia('(max-width: 700px)').matches;
+const openBooths = new Set((() => { try { return JSON.parse(localStorage.getItem('bw-open') || '[]'); } catch(e){ return []; } })());
+function saveOpen(){ try { localStorage.setItem('bw-open', JSON.stringify([...openBooths])); } catch(e){} }
+
+function tick(){
+  const now = new Date();
+  const t = document.getElementById('clock-time');
+  if(!t) return;
+  t.textContent = hms(now);
+  const sec = now.getSeconds() + now.getMilliseconds()/1000, min = now.getMinutes() + sec/60, hr = (now.getHours() % 12) + min/60;
+  const set = (id, deg) => { const el = document.getElementById(id); if(el) el.setAttribute('transform', `rotate(${deg} 24 24)`); };
+  set('hand-h', hr * 30); set('hand-m', min * 6); set('hand-s', Math.floor(now.getSeconds()) * 6);
+
+  const nowMs = now.getTime();
+  const nextText = (lastMs, iv, online) => {
+    if(!online) return 'waiting for booth';
+    const left = (lastMs + iv*1000 - nowMs) / 1000;
+    return left > 0 ? 'in ' + secs(left) : 'due now';
+  };
+  document.querySelectorAll('[data-hb]').forEach(el => {
+    if(!el.dataset.hb){ el.textContent = 'No check-in yet'; return; }
+    const last = new Date(el.dataset.hb), iv = Number(el.dataset.iv) || 60;
+    el.innerHTML = '';
+    for(const line of [`Last ${hms(last)} (${secs((nowMs - last)/1000)} ago)`, `Next ${nextText(last.getTime(), iv, el.dataset.online === '1')}`]){
+      const d = document.createElement('div'); d.textContent = line; el.appendChild(d);
+    }
+  });
+  const lastEl = document.getElementById('fleet-last'), nextEl = document.getElementById('fleet-next');
+  if(lastEl && nextEl){
+    if(!fleetBeats.length){ lastEl.textContent = '—'; nextEl.textContent = '—'; return; }
+    const latest = Math.max(...fleetBeats.map(x => x.t));
+    lastEl.textContent = `${hms(new Date(latest))} (${secs((nowMs - latest)/1000)} ago)`;
+    const live = fleetBeats.filter(x => nowMs - x.t < 3*60*1000);
+    const dues = live.map(x => x.t + x.iv*1000).filter(d => d > nowMs);
+    nextEl.textContent = !live.length ? '—' : (dues.length ? 'in ' + secs((Math.min(...dues) - nowMs)/1000) : 'due now');
+  }
+}
+
 function boothFrame(b){
   const online = isOnline(b);
   const programs = programList(b);
@@ -337,6 +412,7 @@ function boothFrame(b){
             <option value="test" ${b.channel === 'test' ? 'selected' : ''}>test</option>
           </select>
         </label>
+        <button data-rename-btn="${esc(b.id)}">Rename</button>
         <button data-shot="${esc(b.id)}" ${waiting || !online ? 'disabled' : ''}>${waiting ? 'Waiting for booth…' : 'Screenshot'}</button>
         <button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>${isClosed ? 'Reopen booth' : 'Close booth…'}</button>
         <button class="danger" data-restart-pc="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart PC</button>
@@ -346,15 +422,20 @@ function boothFrame(b){
       <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'}</div>`;
 
   return `
-    <div class="frame">
-      <div class="frame-top">
+    <div class="frame ${openBooths.has(b.id) ? 'open' : ''}" data-frame="${esc(b.id)}">
+      <div class="frame-top" data-toggle="${esc(b.id)}">
         <div>
           <div class="frame-name editable" data-rename="${esc(b.id)}" title="Click to rename">${esc(b.name)}${isClosed ? '<span class="badge-closed">Closed</span>' : ''}</div>
           <div class="frame-loc">${esc(b.location || "")}</div>
-          <div class="checkin">Last check-in <b>${fmtAgo(b.last_heartbeat_at)}</b></div>
+          <div class="frame-mini">${b.sessions_today ?? 0} sessions · ${b.prints_today ?? 0} prints today</div>
+          <div class="checkin" data-hb="${esc(b.last_heartbeat_at || '')}" data-iv="${checkInterval(b)}" data-online="${online ? 1 : 0}"></div>
         </div>
-        <span class="pill ${online ? (overallDot === 'ok' ? 'ok' : 'alert') : 'off'}">${overallLabel}</span>
+        <div class="right">
+          <span class="pill ${online ? (overallDot === 'ok' ? 'ok' : 'alert') : 'off'}">${overallLabel}</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
       </div>
+      <div class="frame-body">
       ${programRows ? `<div class="programs">${programRows}</div>` : ''}
 
       <div class="frame-metrics">
@@ -374,6 +455,7 @@ function boothFrame(b){
         <button data-reset="${b.id}">roll changed</button>
       </div>
       ${controls}
+      </div>
     </div>`;
 }
 
@@ -502,9 +584,26 @@ async function renderDashboard(){
       </div>
     </header>
     <main>
-      <div class="title-row">
-        <h1>Booth fleet</h1>
-        <div class="title-sub" id="today-label"></div>
+      <div class="nowbar">
+        <div class="fleet-checkin">
+          <div><span class="k">Last check-in</span><b id="fleet-last">—</b></div>
+          <div><span class="k">Next check-in</span><b id="fleet-next">—</b></div>
+        </div>
+        <div class="clockbox">
+          <div class="clock-text">
+            <div class="title-sub" id="today-label"></div>
+            <div class="clock-time" id="clock-time">00:00:00</div>
+          </div>
+          <svg class="clock-svg" viewBox="0 0 48 48" role="img" aria-label="Analogue clock">
+            <circle class="face" cx="24" cy="24" r="21.5"/>
+            <line class="tick" x1="24" y1="5" x2="24" y2="8.5"/><line class="tick" x1="43" y1="24" x2="39.5" y2="24"/>
+            <line class="tick" x1="24" y1="43" x2="24" y2="39.5"/><line class="tick" x1="5" y1="24" x2="8.5" y2="24"/>
+            <g id="hand-h"><line class="hand" x1="24" y1="24" x2="24" y2="14" stroke-width="3"/></g>
+            <g id="hand-m"><line class="hand" x1="24" y1="24" x2="24" y2="9.5" stroke-width="2.2"/></g>
+            <g id="hand-s"><line class="sec" x1="24" y1="27" x2="24" y2="8"/></g>
+            <circle class="pin" cx="24" cy="24" r="2.2"/>
+          </svg>
+        </div>
       </div>
       <div class="summary" id="summary"></div>
       <details class="releases">
@@ -522,6 +621,9 @@ async function renderDashboard(){
       <div class="frames" id="frames"></div>
     </main>`;
   document.getElementById('today-label').textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  if(window.clockTimer) clearInterval(window.clockTimer);
+  window.clockTimer = setInterval(tick, 1000);
+  tick();
   wireReleases();
 
   document.getElementById('signout').onclick = async () => {
@@ -556,23 +658,39 @@ async function renderDashboard(){
       <div class="tile"><div class="tile-label">Sessions today</div><div class="tile-num">${sessionsToday}</div><div class="tile-sub">all booths</div></div>
       <div class="tile"><div class="tile-label">Prints today</div><div class="tile-num">${printsToday}</div><div class="tile-sub">all booths</div></div>`;
 
+    fleetBeats = booths.filter(b => b.last_heartbeat_at).map(b => ({ t: new Date(b.last_heartbeat_at).getTime(), iv: checkInterval(b) }));
     const framesEl = document.getElementById('frames');
     framesEl.innerHTML = booths.length
       ? booths.map(boothFrame).join('')
       : `<div class="empty">No booths yet — enter a pairing code above once you've installed the agent on a booth PC.</div>`;
 
+    tick();
+
+    async function renameBooth(id){
+      const booth = booths.find(x => x.id === id);
+      const name = prompt('Booth name', booth.name);
+      if(name === null) return;
+      const location = prompt('Location (optional)', booth.location || '');
+      if(location === null) return;
+      const { error } = await sb.from('booths')
+        .update({ name: name.trim() || booth.name, location: location.trim() || null })
+        .eq('id', booth.id);
+      if(error){ alert(error.message); return; }
+      refresh();
+    }
     framesEl.querySelectorAll('[data-rename]').forEach(el => {
-      el.onclick = async () => {
-        const booth = booths.find(x => x.id === el.dataset.rename);
-        const name = prompt('Booth name', booth.name);
-        if(name === null) return;
-        const location = prompt('Location (optional)', booth.location || '');
-        if(location === null) return;
-        const { error } = await sb.from('booths')
-          .update({ name: name.trim() || booth.name, location: location.trim() || null })
-          .eq('id', booth.id);
-        if(error){ alert(error.message); return; }
-        refresh();
+      el.onclick = e => { if(isMobile()) return; e.stopPropagation(); renameBooth(el.dataset.rename); };   // on a phone the name just opens/closes the card
+    });
+    framesEl.querySelectorAll('[data-rename-btn]').forEach(el => {
+      el.onclick = () => renameBooth(el.dataset.renameBtn);
+    });
+    framesEl.querySelectorAll('[data-toggle]').forEach(el => {
+      el.onclick = () => {
+        if(!isMobile()) return;
+        const id = el.dataset.toggle;
+        if(openBooths.has(id)) openBooths.delete(id); else openBooths.add(id);
+        saveOpen();
+        el.closest('.frame').classList.toggle('open', openBooths.has(id));
       };
     });
 
@@ -648,7 +766,7 @@ async function renderDashboard(){
   }
 
   refresh();
-  pollTimer = setInterval(refresh, 15000); // realtime channel is a nice later upgrade; polling is simple and reliable
+  pollTimer = setInterval(refresh, 10000); // realtime channel is a nice later upgrade; polling is simple and reliable
 }
 
 (async () => {
