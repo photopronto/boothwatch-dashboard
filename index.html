@@ -543,6 +543,13 @@
     table.stack td .money-in input{ width:90px; }
     table.stack td button, table.stack td a.btn-sm{ width:100%; text-align:center; }
   }
+  /* pull down to refresh (phones, especially the Home Screen app which has no address bar) */
+  html, body{ overscroll-behavior-y: contain; }
+  #ptr{ position:fixed; top:0; left:50%; width:38px; height:38px; margin-left:-19px; border-radius:50%; background:var(--tile,#F1F2F4); box-shadow:0 2px 10px rgba(0,0,0,.15);
+        display:flex; align-items:center; justify-content:center; z-index:300; pointer-events:none; opacity:0; transform:translateY(-50px); }
+  #ptr svg{ width:18px; height:18px; stroke:var(--accent,#0078FF); fill:none; stroke-width:2.4; stroke-linecap:round; }
+  #ptr.spin svg{ animation: ptrspin .8s linear infinite; }
+  @keyframes ptrspin{ to{ transform:rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -2344,6 +2351,43 @@ async function printQrSheets(list){
     </style></head><body><div class="bar"><button onclick="print()">Print</button></div>${sheets}</body></html>`);
   w.document.close();
 }
+
+// Pull down from the top of any page to refresh (the Home Screen app has no address bar or refresh button).
+(function(){
+  if(!('ontouchstart' in window)) return;
+  const el = document.createElement('div');
+  el.id = 'ptr'; el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>';
+  document.body.appendChild(el);
+  const TRIGGER = 70;
+  let startY = null, dist = 0, busy = false;
+  const atTop = () => (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+  const place = d => { el.style.opacity = Math.min(1, d / 40); el.style.transform = `translateY(${Math.min(d, 90) - 50}px) rotate(${d * 4}deg)`; };
+  document.addEventListener('touchstart', e => {
+    if(busy || e.touches.length !== 1 || !atTop() || e.target.closest('input, textarea, select, .notif-panel, [data-no-ptr]')) { startY = null; return; }
+    startY = e.touches[0].clientY; dist = 0;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if(startY == null || busy) return;
+    const dy = e.touches[0].clientY - startY;
+    if(dy <= 0 || !atTop()){ if(dist){ dist = 0; el.style.transition = 'none'; place(0); } return; }
+    dist = dy * 0.5;
+    el.style.transition = 'none'; place(dist);
+    if(e.cancelable) e.preventDefault();
+  }, { passive: false });
+  const end = () => {
+    if(startY == null) return;
+    startY = null;
+    el.style.transition = 'transform .2s, opacity .2s';
+    if(dist >= TRIGGER && !busy){
+      busy = true; el.classList.add('spin'); el.style.opacity = 1; el.style.transform = 'translateY(24px)';
+      setTimeout(() => location.reload(), 250);
+    } else { place(0); }
+    dist = 0;
+  };
+  document.addEventListener('touchend', end, { passive: true });
+  document.addEventListener('touchcancel', end, { passive: true });
+})();
 
 (async () => {
   let user = null;
