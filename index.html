@@ -655,10 +655,18 @@ async function detectPush(){
   if(Notification.permission === 'denied') return { kind: 'blocked' };
   try {
     const reg = await navigator.serviceWorker.register('sw.js');
-    const sub = await reg.pushManager.getSubscription();
-    if(sub && Notification.permission === 'granted'){
-      saveSubscription(sub);     // keep the server's copy fresh
-      return { kind: 'on' };
+    let sub = await reg.pushManager.getSubscription();
+    if(Notification.permission === 'granted'){
+      // Permission is still on but the phone dropped (or the server removed) the
+      // subscription: quietly make a new one so the user never has to re-enable.
+      if(!sub){
+        try { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(CONFIG.VAPID_PUBLIC_KEY) }); }
+        catch(e){ console.error('resubscribe failed', e); }
+      }
+      if(sub){
+        saveSubscription(sub).catch(console.error);   // always refresh the server's copy
+        return { kind: 'on' };
+      }
     }
   } catch(e){ console.error(e); return { kind: 'unsupported' }; }
   return { kind: 'ask' };
