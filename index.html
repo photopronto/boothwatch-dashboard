@@ -2027,7 +2027,8 @@ window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTi
 // ═══════════════ Support page (customer fault reports) ═══════════════
 let supportFilter = 'open', lastSupportJson = null;
 const SUPPORT_STATUS = [['new', 'New'], ['contacted', 'Contacted'], ['resolved', 'Done']];
-const SUPPORT_OUTCOMES = [['', 'No outcome yet'], ['refunded', 'Refunded in full'], ['partial_refund', 'Partial refund'], ['no_refund', 'No refund needed'], ['fixed', 'Fixed or explained'], ['other', 'Other']];
+const SUPPORT_REFUNDS = [['', 'Not decided yet'], ['refunded', 'Full refund'], ['partial_refund', 'Partial refund'], ['no_refund', 'No refund']];
+const SUPPORT_RESOLUTIONS = [['', 'Not recorded yet'], ['fixed', 'Fixed'], ['no_fault', 'No fault found'], ['explained', 'Explained to customer'], ['other', 'Other']];
 
 function setSupportBadge(n){
   const el = document.getElementById('support-count');
@@ -2115,8 +2116,9 @@ function supportCard(r, boothName){
     <details class="rep-ctx"><summary>What BoothWatch saw</summary><div class="ctx">${supportContext(r)}</div></details>
     <div class="rep-edit">
       <label>Status<select data-f="status">${SUPPORT_STATUS.map(([v, n]) => `<option value="${v}" ${r.status === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-      <label>Outcome<select data-f="outcome">${SUPPORT_OUTCOMES.map(([v, n]) => `<option value="${v}" ${(r.outcome || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label>Refund<select data-f="refundtype">${SUPPORT_REFUNDS.map(([v, n]) => `<option value="${v}" ${(r.outcome || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label data-refund ${showRefund ? '' : 'hidden'}>Refund amount<span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-f="refund" value="${r.refund_amount != null ? esc(r.refund_amount) : ''}"/></span></label>
+      <label>Outcome<select data-f="resolution">${SUPPORT_RESOLUTIONS.map(([v, n]) => `<option value="${v}" ${(r.resolution || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="wide">Notes<textarea data-f="notes" placeholder="What you did, what you said">${esc(r.notes || '')}</textarea></label>
     </div>
     <div class="actions"><button class="btn-primary save">Save</button><button class="del" style="margin-left:auto">Delete</button></div>
@@ -2127,11 +2129,11 @@ function wireSupport(list, rows){
   list.querySelectorAll('.report').forEach(card => {
     const id = Number(card.dataset.rid);
     const f = k => card.querySelector(`[data-f="${k}"]`);
-    f('outcome').onchange = () => { card.querySelector('[data-refund]').hidden = !['refunded', 'partial_refund'].includes(f('outcome').value); };
+    f('refundtype').onchange = () => { card.querySelector('[data-refund]').hidden = !['refunded', 'partial_refund'].includes(f('refundtype').value); };
     card.querySelector('.save').onclick = async e => {
       const btn = e.target; btn.disabled = true;
       const refund = f('refund').value === '' ? null : Number(f('refund').value);
-      const { error } = await sb.rpc('update_support_report', { p_id: id, p_status: f('status').value, p_outcome: f('outcome').value, p_refund: refund, p_notes: f('notes').value });
+      const { error } = await sb.rpc('update_support_report', { p_id: id, p_status: f('status').value, p_refund_type: f('refundtype').value, p_refund: refund, p_notes: f('notes').value, p_resolution: f('resolution').value });
       btn.disabled = false;
       if(error){ alert(error.message); return; }
       toast('Saved'); lastSupportJson = null; loadSupport(true);
