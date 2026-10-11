@@ -1621,10 +1621,11 @@ function drawSettings(){
       <h2>Support QR codes</h2>
       <p class="help">Customers scan the code in the booth and fill in a short form. You get the report on the Support tab and a notification on your phone. Each code is tied to one booth, so make sure the booth names here match the venue names customers will see.</p>
       <div class="tbl-wrap"><table class="tbl stack"><tbody>${booths.map(b => `<tr><td>${esc(b.name)}</td>
-        <td data-label=""><button class="btn-sm" data-qr-print="${esc(b.id)}">Print card</button></td>
+        <td data-label=""><button class="btn-sm" data-qr-pdf="${esc(b.id)}">Card PDF</button></td>
+        <td data-label=""><button class="btn-sm" data-qr-svg="${esc(b.id)}">Card SVG</button></td>
         <td data-label=""><a class="btn-sm" style="text-decoration:none;display:inline-block" href="${esc(reportLink(b.id))}" target="_blank" rel="noopener">Open form</a></td>
         <td data-label=""><button class="btn-sm" data-qr-copy="${esc(b.id)}">Copy link</button></td></tr>`).join('')}</tbody></table></div>
-      <div class="save-row"><button class="btn-primary" id="qr-print-all">Print all cards</button><span class="save-msg" style="font-weight:500">Opens a print page with one 110 × 50 mm card per booth. Choose "Save as PDF" to keep a vector copy.</span></div>
+      <div class="save-row"><button class="btn-primary" id="qr-pdf-all">Download all cards (PDF)</button><span class="save-msg" style="font-weight:500">110 × 50 mm "Report a fault" cards, as vector files for printing. The PDF has one page per booth.</span></div>
     </section>` : ''}
 
     <section class="panel" id="p-agent">
@@ -1810,11 +1811,12 @@ function wireSettings(booths, targets){
   };
 
   // support QR codes
-  document.querySelectorAll('[data-qr-print]').forEach(b => b.onclick = () => printQrSheets(booths.filter(x => x.id === b.dataset.qrPrint)));
+  document.querySelectorAll('[data-qr-pdf]').forEach(b => b.onclick = () => downloadCards(booths.filter(x => x.id === b.dataset.qrPdf), 'pdf'));
+  document.querySelectorAll('[data-qr-svg]').forEach(b => b.onclick = () => downloadCards(booths.filter(x => x.id === b.dataset.qrSvg), 'svg'));
   document.querySelectorAll('[data-qr-copy]').forEach(b => b.onclick = async () => {
     try { await navigator.clipboard.writeText(reportLink(b.dataset.qrCopy)); toast('Link copied'); } catch(e){ prompt('Copy this link', reportLink(b.dataset.qrCopy)); }
   });
-  if($('qr-print-all')) $('qr-print-all').onclick = () => printQrSheets(booths);
+  if($('qr-pdf-all')) $('qr-pdf-all').onclick = () => downloadCards(booths, 'pdf');
 
   // add booth
   if($('copy-cmd')) $('copy-cmd').onclick = async () => {
@@ -2333,62 +2335,128 @@ function qrSvg(text){
   for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(q.isDark(r, c)) d += `M${c},${r}h1v1h-1z`;
   return `<svg viewBox="-2 -2 ${n + 4} ${n + 4}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><rect x="-2" y="-2" width="${n + 4}" height="${n + 4}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }
-// One 110 x 50 mm "Report a fault" card per booth. Everything is vector (QR squares and text are SVG), so
-// "Save as PDF" from the print dialog gives a sharp file for the printer. Positions are in points (the
-// card is 311.811 x 141.732 pt) and match the approved design.
-function cardSvg(b){
+// One 110 x 50 mm "Report a fault" card per booth, made in the browser as a vector PDF or SVG.
+// The text is converted to outlines, so the file looks the same on any computer and in any print shop.
+// Positions are in points (the card is 311.811 x 141.732 pt) and follow the approved design.
+const CARD_W = 311.811, CARD_H = 141.732, CARD_INK = [0.1373, 0.1216, 0.1255];
+const FONT_BASE = 'https://cdn.jsdelivr.net/npm/';
+const CARD_FONT_URLS = {
+  head: FONT_BASE + '@fontsource/inter@5.0.8/files/inter-latin-800-normal.woff',
+  body: FONT_BASE + '@fontsource/inter@5.0.8/files/inter-latin-400-normal.woff',
+  mono: FONT_BASE + '@fontsource/ibm-plex-mono@5.0.8/files/ibm-plex-mono-latin-400-normal.woff',
+};
+let cardFontsPromise = null;
+function loadScriptOnce(src, test){
+  if(test()) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const el = document.createElement('script');
+    el.src = src; el.onload = res; el.onerror = () => rej(new Error('Could not load a helper library. Check your internet connection.'));
+    document.head.appendChild(el);
+  });
+}
+function loadCardTools(){
+  if(!cardFontsPromise){
+    cardFontsPromise = (async () => {
+      await loadQrLib();
+      await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js', () => window.opentype);
+      const out = {};
+      for(const k of Object.keys(CARD_FONT_URLS)){
+        const r = await fetch(CARD_FONT_URLS[k]);
+        if(!r.ok) throw new Error('Could not load the card fonts. Check your internet connection.');
+        out[k] = window.opentype.parse(await r.arrayBuffer());
+      }
+      return out;
+    })();
+    cardFontsPromise.catch(() => { cardFontsPromise = null; });
+  }
+  return cardFontsPromise;
+}
+// Everything the card is made of: QR squares and outlined text, in card points (y down from the top).
+function cardParts(b, fonts){
   const q = window.qrcode(0, 'M'); q.addData(reportLink(b.id)); q.make();
-  const n = q.getModuleCount(), x0 = 191.941, y0 = 22.344, mod = 96.582 / n, f = v => v.toFixed(3);
-  let d = '';
+  const n = q.getModuleCount(), x0 = 191.941, y0 = 22.344, mod = 96.582 / n, rects = [];
   for(let r = 0; r < n; r++){
     for(let c = 0; c < n; c++){
       if(!q.isDark(r, c)) continue;
       let e = c; while(e < n && q.isDark(r, e)) e++;
-      d += `M${f(x0 + c * mod - .01)} ${f(y0 + r * mod - .01)}h${f((e - c) * mod + .02)}v${f(mod + .02)}h-${f((e - c) * mod + .02)}z`;
+      rects.push([x0 + c * mod - .01, y0 + r * mod - .01, (e - c) * mod + .02, mod + .02]);   // a hair of overlap: no seams
       c = e;
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="110mm" height="50mm" viewBox="0 0 311.811 141.732">
-    <rect x="187.23" y="17.762" width="106.004" height="105.875" fill="#fff"/>
-    <path d="${d}" fill="#000"/>
-    <g fill="#231F20">
-      <text class="h" x="22.834" y="37.025" font-size="22.1" textLength="147.13" lengthAdjust="spacing">Report a fault</text>
-      <text class="b" x="22.834" y="77.184" font-size="10.16" textLength="120.37" lengthAdjust="spacing">For refunds and to report</text>
-      <text class="b" x="22.834" y="90.16" font-size="10.16" textLength="129.9" lengthAdjust="spacing">a fault with the photobooth</text>
-      <text class="b" x="22.834" y="103.135" font-size="10.16" textLength="121.15" lengthAdjust="spacing">please scan the QR code.</text>
-      <text class="m" x="22.834" y="118.83" font-size="6.78">Location: ${esc(b.name)}</text>
-      <text class="b" x="251.971" y="127.571" font-size="4.04" textLength="38.47" lengthAdjust="spacing">©PhotoPronto 2026</text>
-    </g></svg>`;
+  const T = (txt, k, size, x, y) => fonts[k].getPath(txt, x, y, size, { kerning: true });
+  const L = 22.834;
+  const texts = [
+    T('Report a fault', 'head', 22.1, L, 37.025),
+    T('For refunds and to report', 'body', 10.16, L, 77.184),
+    T('a fault with the photobooth', 'body', 10.16, L, 90.16),
+    T('please scan the QR code.', 'body', 10.16, L, 103.135),
+    T('Location: ' + b.name, 'mono', 6.78, L, 118.83),
+    T('©PhotoPronto 2026', 'body', 4.04, 251.971, 127.571),
+  ];
+  return { rects, texts };
 }
-async function printQrSheets(list){
-  const w = window.open('', '_blank');
-  if(!w){ alert('Your browser blocked the new window. Allow pop-ups for this page and try again.'); return; }
-  w.document.write('<p style="font-family:sans-serif">Making your cards…</p>');
-  try { await loadQrLib(); } catch(e){ w.close(); alert(e.message); return; }
-  const cards = list.map(b => `<section class="card" aria-label="${esc(b.name)}">${cardSvg(b)}</section>`).join('');
-  w.document.open();
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Photo Pronto report a fault cards</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
-    <style>
-      @page{ size:110mm 50mm; margin:0 }
-      *{ box-sizing:border-box }
-      body{ margin:0; background:#e9eaec; font-family:'Inter',system-ui,sans-serif }
-      .card{ width:110mm; height:50mm; margin:14px auto; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.15); page-break-after:always; break-after:page; overflow:hidden }
-      .card:last-child{ page-break-after:auto; break-after:auto }
-      .card svg{ display:block }
-      text{ text-rendering:geometricPrecision }
-      .h{ font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Inter','Noto Sans JP',sans-serif; font-weight:800 }
-      .b{ font-family:'Inter','Helvetica Neue',Arial,sans-serif; font-weight:400 }
-      .m{ font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace; font-weight:400 }
-      .bar{ position:fixed; top:10px; right:10px; font-family:sans-serif }
-      .bar button{ background:#0078FF; color:#fff; border:0; border-radius:999px; padding:10px 20px; font-weight:700; font-size:14px; cursor:pointer }
-      .tip{ text-align:center; font:12px sans-serif; color:#555; margin:12px 0 }
-      @media print{ body{ background:#fff } .card{ margin:0; box-shadow:none } .bar, .tip{ display:none } }
-    </style></head><body><div class="bar"><button id="pr">Print</button></div>
-    <p class="tip">${list.length} card${list.length === 1 ? '' : 's'}, 110 &times; 50 mm. Choose "Save as PDF" in the print window to keep a vector copy.</p>${cards}
-    <script>document.getElementById('pr').onclick=function(){ var done=false, go=function(){ if(!done){ done=true; print(); } }; if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(go); setTimeout(go,2500); } else go(); };<\/script>
-    </body></html>`);
-  w.document.close();
+function cardSvgFile(parts, name){
+  const f = v => v.toFixed(3);
+  const qr = parts.rects.map(([x, y, w, h]) => `M${f(x)} ${f(y)}h${f(w)}v${f(h)}h${f(-w)}z`).join('');
+  const ink = 'rgb(' + CARD_INK.map(v => Math.round(v * 255)).join(',') + ')';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="110mm" height="50mm" viewBox="0 0 ${CARD_W} ${CARD_H}"><title>Report a fault card, ${esc(name)}</title>`
+    + `<rect x="187.23" y="17.762" width="106.004" height="105.875" fill="#fff"/><path d="${qr}" fill="#000"/>`
+    + `<path d="${parts.texts.map(p => p.toPathData(3)).join(' ')}" fill="${ink}"/></svg>`;
+}
+function cardPdfStream(parts){
+  const f = v => v.toFixed(3), Y = y => f(CARD_H - y);
+  let o = `1 1 1 rg 187.230 ${f(CARD_H - 17.762 - 105.875)} 106.004 105.875 re f\n0 0 0 rg\n`;
+  o += parts.rects.map(([x, y, w, h]) => `${f(x)} ${f(CARD_H - y - h)} ${f(w)} ${f(h)} re`).join('\n') + '\nf\n';
+  o += CARD_INK.map(v => v.toFixed(4)).join(' ') + ' rg\n';
+  for(const p of parts.texts){
+    let cx = 0, cy = 0;
+    for(const c of p.commands){
+      if(c.type === 'M'){ o += `${f(c.x)} ${Y(c.y)} m\n`; cx = c.x; cy = c.y; }
+      else if(c.type === 'L'){ o += `${f(c.x)} ${Y(c.y)} l\n`; cx = c.x; cy = c.y; }
+      else if(c.type === 'C'){ o += `${f(c.x1)} ${Y(c.y1)} ${f(c.x2)} ${Y(c.y2)} ${f(c.x)} ${Y(c.y)} c\n`; cx = c.x; cy = c.y; }
+      else if(c.type === 'Q'){
+        o += `${f(cx + 2 / 3 * (c.x1 - cx))} ${Y(cy + 2 / 3 * (c.y1 - cy))} ${f(c.x + 2 / 3 * (c.x1 - c.x))} ${Y(c.y + 2 / 3 * (c.y1 - c.y))} ${f(c.x)} ${Y(c.y)} c\n`;
+        cx = c.x; cy = c.y;
+      }
+      else if(c.type === 'Z') o += 'h\n';
+    }
+  }
+  return o + 'f\n';
+}
+function buildPdf(streams){
+  const objs = [];
+  const n = streams.length;
+  objs.push('<< /Type /Catalog /Pages 2 0 R >>');
+  objs.push(`<< /Type /Pages /Kids [${streams.map((_, i) => `${3 + i * 2} 0 R`).join(' ')}] /Count ${n} >>`);
+  streams.forEach((st, i) => {
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${CARD_W} ${CARD_H}] /Contents ${4 + i * 2} 0 R /Resources << >> >>`);
+    objs.push(`<< /Length ${st.length} >>\nstream\n${st}endstream`);
+  });
+  let pdf = '%PDF-1.4\n'; const offs = [];
+  objs.forEach((ob, i) => { offs.push(pdf.length); pdf += `${i + 1} 0 obj\n${ob}\nendobj\n`; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(v => String(v).padStart(10, '0') + ' 00000 n \n').join('');
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Blob([pdf], { type: 'application/pdf' });
+}
+function saveBlob(blob, filename){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+const cardSlug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'booth';
+async function downloadCards(list, kind){
+  toast('Making your card' + (list.length === 1 ? '' : 's') + '…');
+  try {
+    const fonts = await loadCardTools();
+    const parts = list.map(b => cardParts(b, fonts));
+    if(kind === 'svg'){
+      list.forEach((b, i) => saveBlob(new Blob([cardSvgFile(parts[i], b.name)], { type: 'image/svg+xml' }), `report-a-fault_${cardSlug(b.name)}.svg`));
+    } else {
+      saveBlob(buildPdf(parts.map(cardPdfStream)), list.length === 1 ? `report-a-fault_${cardSlug(list[0].name)}.pdf` : 'report-a-fault_all-booths.pdf');
+    }
+  } catch(e){ alert(e.message || 'Could not make the card.'); }
 }
 
 // Pull down from the top of any page to refresh (the Home Screen app has no address bar or refresh button).
