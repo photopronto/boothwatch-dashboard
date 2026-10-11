@@ -37,7 +37,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700;800&display=swap');
 
   /* Layout: white page, light-grey rounded tiles, one blue hero tile, black only for "needs attention". */
   :root{
@@ -484,6 +484,12 @@
   .tile.dark .tile-num, .tile.hero .tile-num{ font-weight:600; }
 
   .tab-count[hidden]{ display:none; }
+  /* bold numbers and sub-titles (sizes unchanged) */
+  .tile .tile-num, .tile.dark .tile-num, .tile.hero .tile-num, .stat b, .roll-label b{ font-weight:800; }
+  .page-title, .panel h2, .chart-head h2, .frame-name, .rep-issue, .set-row .name, .mode b, .np-head,
+  .login-card h2, .program-head, .fld > span:first-child, .tbl td:first-child{ font-weight:800; }
+  .tile .tile-label{ font-weight:600; }
+
   @media (max-width: 700px){
     header{ padding: 14px 16px 4px; row-gap:10px; }
     main{ padding: 4px 16px 48px; }
