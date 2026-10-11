@@ -136,7 +136,7 @@
   /* ── login ── */
   .login-wrap{ display:flex; justify-content:center; padding: 12vh 16px 0; }
   .login-card{ background: var(--tile); border-radius: 28px; padding: 36px; width: min(380px, 100%); }
-  .login-card .logo{ height: 60px; margin-bottom: 28px; }
+  .login-card .logo{ height: 60px; margin-bottom: 28px; display:block; }
   .login-card h2{ font-weight:700; font-size: 26px; margin:0 0 4px; letter-spacing:-.01em; }
   .login-card p{ color: var(--muted); font-size: 14px; margin: 0 0 24px; font-weight:500; }
   .login-card input{
@@ -576,23 +576,26 @@ function isOnline(booth){
 function renderLogin(errorMsg){
   app.innerHTML = `
     <div class="login-wrap">
-      <div class="login-card">
+      <form class="login-card" id="login-form">
         <img class="logo" src="logo.png" alt="Photo Pronto" />
-        <h2>BoothWatch</h2>
-        <p>Sign in to see your booths.</p>
-        <input id="email" type="email" placeholder="Email" />
-        <input id="password" type="password" placeholder="Password" />
-        <button id="signin">Sign in</button>
-        <div class="error">${errorMsg || ""}</div>
-      </div>
+        <input id="email" type="email" placeholder="Email" autocomplete="username" aria-label="Email" />
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password" />
+        <button id="signin" type="submit">Sign in</button>
+        <div class="error">${esc(errorMsg || "")}</div>
+      </form>
     </div>`;
-  document.getElementById('signin').onclick = async () => {
+  document.getElementById('login-form').onsubmit = async e => {
+    e.preventDefault();
+    const btn = document.getElementById('signin');
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if(error){ renderLogin(error.message); return; }
-    currentUser = data.user;
-    renderDashboard();
+    btn.disabled = true;
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if(error){ renderLogin(error.message); return; }
+      currentUser = data.user;
+      renderApp();
+    } catch(err){ renderLogin(err.message || 'Could not sign in.'); }
   };
 }
 
