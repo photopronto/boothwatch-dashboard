@@ -1430,7 +1430,7 @@ let settingsScope = 'all';
 let supportForm = {};
 const DEFAULT_ISSUES = ['Payment was taken but nothing happened', 'Photos were taken but no picture came out', "QR for digital images didn't work", 'Payment was taken twice', 'Photos were too dark or out of focus', 'Card machine was not working to take payment', 'Other'];
 const DEFAULT_INTRO = "To help fix the issue and sort your refund as quickly as possible, please answer the questions below. We're sorry something went wrong.";
-const ALERT_DEFAULTS = { offline: 3, software: 2, device: 1, low_prints: 15 };
+const ALERT_DEFAULTS = { offline: 3, software: 2, device: 1, print_missing: 5, low_prints: 15 };
 
 function cfgAlert(cfg, kind){
   const a = (cfg.alerts && cfg.alerts[kind]) || {};
@@ -1528,6 +1528,7 @@ function drawSettings(){
       ${alertRow('offline', 'Booth offline', 'The booth PC stops checking in (off, no internet, or the agent stopped).', delayCtl('offline'))}
       ${alertRow('software', 'Booth software problem', 'DSLR Remote Pro or MDB Payment is not running, not full screen, or shows an error.', delayCtl('software'))}
       ${alertRow('device', 'Camera or printer problem', 'Camera disconnected, printer off, door open, out of ribbon or paper, print stuck.', delayCtl('device'))}
+      ${alertRow('print_missing', 'Session without a print', 'A session was saved but no print was counted. A sign a print may have failed. Turn this off on booths that do not always print.', delayCtl('print_missing'))}
       ${alertRow('low_prints', 'Low on prints', 'Warn when the roll is nearly used up.', `<span class="after">at <input type="number" min="1" max="90" step="1" data-a-threshold value="${A('low_prints').threshold}" aria-label="Percent of roll left"/> <span class="unit">% left</span></span>`)}
       ${alertRow('out_of_prints', 'Out of prints', 'The roll has run out.', '')}
       ${alertRow('command_failed', 'A button press fails', 'Restart, screenshot or paper read did not work on the booth.', '')}
@@ -1669,7 +1670,7 @@ function wireSettings(booths, targets){
   });
   if($('save-alerts')) $('save-alerts').onclick = async () => {
     const alerts = {};
-    for(const kind of ['offline', 'software', 'device', 'low_prints', 'out_of_prints', 'command_failed']){
+    for(const kind of ['offline', 'software', 'device', 'print_missing', 'low_prints', 'out_of_prints', 'command_failed']){
       const o = { on: document.querySelector(`[data-a-on="${kind}"]`).checked };
       const d = document.querySelector(`[data-a-delay="${kind}"]`);
       if(d && d.value !== '') o.delay = Number(d.value);

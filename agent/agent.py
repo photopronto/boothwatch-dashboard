@@ -52,7 +52,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.8.2"
+VERSION = "0.8.3"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -490,6 +490,32 @@ def count_sessions(images_root, day):
         return sum(1 for f in folder.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTS)
     except OSError:
         return None
+
+
+class PrintMatcher:
+    """Every session should lead to a print. Each new session picture is noted, and each new print
+    counted by the booth software clears the oldest one. A session still waiting for its print
+    after the grace period is reported as a possible missed print."""
+    def __init__(self):
+        self.day = None
+        self.sessions = None
+        self.counter = None
+        self.owed = []          # when each unmatched session was first seen
+
+    def update(self, day, sessions, counter, grace_minutes, now=None):
+        now = time.time() if now is None else now
+        if sessions is None or counter is None:
+            return 0            # cannot tell, so never raise an alarm
+        if day != self.day or self.sessions is None or sessions < self.sessions or counter < self.counter:
+            self.day, self.sessions, self.counter, self.owed = day, sessions, counter, []
+            return 0            # first look (or a new day / reset): start counting from here
+        new_sessions = sessions - self.sessions
+        new_prints = counter - self.counter
+        self.sessions, self.counter = sessions, counter
+        self.owed += [now] * new_sessions
+        del self.owed[:new_prints]      # a print settles the oldest waiting session; extra prints are ignored
+        grace = max(1, grace_minutes) * 60
+        return sum(1 for t in self.owed if now - t >= grace)
 
 
 def resolve_images_root(local_cfg, state):
@@ -1708,6 +1734,7 @@ def main():
     paper_state = {"last": time.time() - PAPER_READ_SECONDS + 90}   # first read about 90 seconds after start
     last_beat = 0.0
     last_poll_error = None
+    print_matcher = PrintMatcher()
 
     while True:
         # 1. Ask the dashboard for settings, screenshot requests and button presses (every ~10s)
@@ -1805,7 +1832,16 @@ def main():
                 folder = resolve_images_root(local_cfg, state)
                 today = datetime.date.today()
                 sessions = count_sessions(folder, today.isoformat())
+                pm_cfg = (cfg.get("alerts") or {}).get("print_missing") or {}
+                try:
+                    pm_grace = float(pm_cfg.get("delay", 5))
+                except (TypeError, ValueError):
+                    pm_grace = 5
+                missing = print_matcher.update(today.isoformat(), sessions, counter, pm_grace)
+                if closed_shown or not watching(cfg, "printer"):
+                    missing = 0
                 status = {"closed_shown": closed_shown, "folder_found": sessions is not None,
+                          "print_missing": missing,
                           "counter_seen": counter is not None,
                           "closed_scheduled": bool(cfg.get("scheduled_closed"))}
                 if closed_screen.error:
