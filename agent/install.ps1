@@ -76,6 +76,26 @@ try {
         Write-Host 'Keeping this booth''s existing config.json'
     }
 
+    # ---------- photo folder ----------
+    # Sessions are counted from the pictures the booth saves, so BoothWatch needs to know where that is.
+    Step 'Photo folder'
+    $cfgObj = Get-Content $cfg -Raw | ConvertFrom-Json
+    $current = $cfgObj.images_folder
+    Write-Host 'Where does this booth save its photos? This is the folder that contains one folder per day'
+    Write-Host '(for example D:\PhotoboothImages, which holds 2026-10-11, 2026-10-12 and so on).'
+    if ($current) { Write-Host "Currently set to: $current" -ForegroundColor Yellow }
+    $ans = Read-Host $(if ($current) { 'Type a new folder, or press Enter to keep it' } else { 'Type the folder, or press Enter to let BoothWatch find it automatically' })
+    $ans = ($ans -replace '"', '').Trim().TrimEnd('\')
+    if ($ans) {
+        if (-not (Test-Path -LiteralPath $ans)) {
+            Write-Host "Note: $ans does not exist on this PC yet. Saving it anyway; check the spelling if sessions show as 0." -ForegroundColor Yellow
+        }
+        if ($cfgObj.PSObject.Properties.Name -contains 'images_folder') { $cfgObj.images_folder = $ans }
+        else { $cfgObj | Add-Member -NotePropertyName images_folder -NotePropertyValue $ans }
+        [IO.File]::WriteAllText($cfg, ($cfgObj | ConvertTo-Json -Depth 10), (New-Object Text.UTF8Encoding($false)))
+        Write-Host "Photo folder set to $ans" -ForegroundColor Green
+    }
+
     # ---------- packages ----------
     Step 'Installing Python packages (a minute or two)'
     & $py -m pip install --disable-pip-version-check --quiet -r (Join-Path $InstallDir 'requirements.txt')
