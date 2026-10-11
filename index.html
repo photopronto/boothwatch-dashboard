@@ -556,6 +556,12 @@
   #ptr svg{ width:18px; height:18px; stroke:var(--accent,#0078FF); fill:none; stroke-width:2.4; stroke-linecap:round; }
   #ptr.spin svg{ animation: ptrspin .8s linear infinite; }
   @keyframes ptrspin{ to{ transform:rotate(360deg); } }
+  [hidden]{ display:none !important; }
+  .stabs{ display:flex; gap:6px; margin:0 0 16px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .stabs::-webkit-scrollbar{ display:none; }
+  .stabs button{ flex:none; border:0; background: var(--tile); color: var(--muted); font:inherit; font-weight:600; font-size:13px; border-radius:999px; padding:9px 16px; cursor:pointer; white-space:nowrap; }
+  .stabs button:hover{ color: var(--ink); }
+  .stabs button.on{ background: var(--ink); color:#fff; }
 </style>
 </head>
 <body>
@@ -1437,6 +1443,12 @@ function wireBoothCards(framesEl, booths){
 
 // ═══════════════ Settings page ═══════════════
 let settingsScope = 'all';
+const SETTINGS_TABS = [['alerts', 'Alerts'], ['hours', 'Hours and prices'], ['booths', 'Booths'], ['support', 'Support'], ['dashboard', 'Dashboard']];
+let settingsTab = (() => { try { const t = localStorage.getItem('bw-settings-tab'); return SETTINGS_TABS.some(x => x[0] === t) ? t : 'alerts'; } catch(e){ return 'alerts'; } })();
+function applySettingsTab(){
+  document.querySelectorAll('[data-stab]').forEach(el => { el.hidden = !el.dataset.stab.split(' ').includes(settingsTab); });
+  document.querySelectorAll('[data-stab-btn]').forEach(b => { const on = b.dataset.stabBtn === settingsTab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+}
 let supportForm = {};
 const DEFAULT_ISSUES = ['Payment was taken but nothing happened', 'Photos were taken but no picture came out', "QR for digital images didn't work", 'Payment was taken twice', 'Photos were too dark or out of focus', 'Card machine was not working to take payment', 'Other'];
 const DEFAULT_INTRO = "To help fix the issue and sort your refund as quickly as possible, please answer the questions below. We're sorry something went wrong.";
@@ -1522,9 +1534,12 @@ function drawSettings(){
   el.innerHTML = `
     <h1 class="page-title">Settings</h1>
     <p class="page-sub">Choose which alerts each booth sends, when each booth is open, and what your sessions cost and earn. Changes reach the booths within a minute.</p>
+    <div class="stabs" role="tablist" aria-label="Settings sections">
+      ${SETTINGS_TABS.map(([k, label]) => `<button role="tab" type="button" data-stab-btn="${k}" aria-selected="${k === settingsTab}" class="${k === settingsTab ? 'on' : ''}">${label}</button>`).join('')}
+    </div>
 
     ${booths.length ? `
-    <div class="scope"><span>Alerts and opening hours apply to</span>
+    <div class="scope" data-stab="alerts hours"><span>These settings apply to</span>
       <select id="scope" aria-label="Which booth">
         <option value="all" ${settingsScope === 'all' ? 'selected' : ''}>All booths (${booths.length})</option>
         ${booths.map(b => `<option value="${esc(b.id)}" ${settingsScope === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
@@ -1532,7 +1547,7 @@ function drawSettings(){
       ${many ? `<span class="help" style="margin:0;font-weight:500;font-size:12px">Showing ${esc(first.name)}'s values. Saving sets them on every booth.</span>` : ''}
     </div>
 
-    <section class="panel" id="p-alerts">
+    <section class="panel" id="p-alerts" data-stab="alerts">
       <h2>Alerts and notifications</h2>
       <p class="help">Switch each kind of alert on or off and choose how long a problem must last before you are told. A longer wait means fewer false alarms from short blips.</p>
       ${alertRow('offline', 'Booth offline', 'The booth PC stops checking in (off, no internet, or the agent stopped).', delayCtl('offline'))}
@@ -1549,7 +1564,7 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="save-alerts">Save alerts</button><span class="save-msg" id="msg-alerts"></span></div>
     </section>
 
-    <section class="panel" id="p-hours">
+    <section class="panel" id="p-hours" data-stab="hours">
       <h2>Opening hours</h2>
       <p class="help">Tell BoothWatch when each booth is meant to be on. Times are the booth's own clock (UK).</p>
       <label class="mode"><input type="radio" name="hmode" value="none" ${mode === 'none' ? 'checked' : ''}/><div><b>Always on</b><span>No schedule. Alerts any time of day.</span></div></label>
@@ -1562,7 +1577,7 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="save-hours">Save opening hours</button><span class="save-msg" id="msg-hours"></span></div>
     </section>
 
-    <section class="panel" id="p-money">
+    <section class="panel" id="p-money" data-stab="hours">
       <h2>Prices and costs</h2>
       <p class="help">Used by the Company page to work out sales and profit. Sales are sessions × price per session. Costs are prints × cost per print, plus card fees, plus the monthly running cost (spread evenly over each day). Changes apply to all dates, past and future.</p>
       <div class="tbl-wrap"><table class="tbl stack">
@@ -1571,13 +1586,13 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="save-money">Save prices and costs</button>${booths.length > 1 ? '<button class="btn-sm" id="copy-money">Copy first booth to all</button>' : ''}<span class="save-msg" id="msg-money"></span></div>
     </section>
 
-    <section class="panel" id="p-booths">
+    <section class="panel" id="p-booths" data-stab="booths">
       <h2>Booth details</h2>
       <p class="help">Name, location, and whether a booth is <b>live</b> or in <b>build</b> (being set up or tested, so its sessions and prints are left out of the Company page). "Test" booths get new agent versions first. Auto-restart brings crashed booth software back by itself.</p>
       <div class="tbl-wrap"><table class="tbl stack"><tbody>${detailRows}</tbody></table></div>
     </section>
 
-    <section class="panel" id="p-watch">
+    <section class="panel" id="p-watch" data-stab="alerts">
       <h2>What each booth watches</h2>
       <p class="help">Untick anything a booth does not have, or cannot be checked on, such as a thermal printer, a webcam or no card machine. BoothWatch then ignores it: no alerts and nothing shown on the card. Takes effect within a minute on agent 0.8.2 or newer.</p>
       <div class="tbl-wrap"><table class="tbl stack">
@@ -1589,7 +1604,7 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="save-watch">Save</button><span class="save-msg" id="msg-watch"></span></div>
     </section>` : ''}
 
-    <section class="panel" id="p-add">
+    <section class="panel" id="p-add" data-stab="booths">
       <h2>Add a booth</h2>
       <p class="help">Installing on a new booth PC takes one paste.</p>
       <ol class="steps">
@@ -1605,7 +1620,7 @@ function drawSettings(){
       </div>
     </section>
 
-    <section class="panel" id="p-form">
+    <section class="panel" id="p-form" data-stab="support">
       <h2>Support form</h2>
       <p class="help">The wording customers see after scanning a QR code. Changes go live as soon as you save. A choice called exactly <b>Other</b> opens a box where the customer describes the problem.</p>
       <label class="fld"><span>Text under the heading</span><textarea id="sf-intro" maxlength="600">${esc(supportForm.intro || DEFAULT_INTRO)}</textarea></label>
@@ -1617,7 +1632,7 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="sf-save">Save form</button><a class="btn-sm" style="text-decoration:none" href="${esc(reportLink(''))}" target="_blank" rel="noopener">Preview form</a><span class="save-msg" id="msg-sf"></span></div>
     </section>
 
-    ${booths.length ? `<section class="panel" id="p-qr">
+    ${booths.length ? `<section class="panel" id="p-qr" data-stab="support">
       <h2>Support QR codes</h2>
       <p class="help">Customers scan the code in the booth and fill in a short form. You get the report on the Support tab and a notification on your phone. Each code is tied to one booth, so make sure the booth names here match the venue names customers will see.</p>
       <div class="tbl-wrap"><table class="tbl stack"><tbody>${booths.map(b => `<tr><td>${esc(b.name)}</td>
@@ -1628,7 +1643,7 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="qr-pdf-all">Download all cards (PDF)</button><span class="save-msg" style="font-weight:500">110 × 50 mm "Report a fault" cards, as vector files for printing. The PDF has one page per booth.</span></div>
     </section>` : ''}
 
-    <section class="panel" id="p-agent">
+    <section class="panel" id="p-agent" data-stab="booths">
       <h2>Agent versions</h2>
       <p class="help">New versions go to the test channel first. Booths set to "test" update within a few minutes. Once it works, promote it so booths on "live" get it too.</p>
       <div class="releases-in">
@@ -1638,7 +1653,7 @@ function drawSettings(){
       </div>
     </section>
 
-    <section class="panel" id="p-morning">
+    <section class="panel" id="p-morning" data-stab="alerts">
       <h2>Morning check</h2>
       <p class="help">One notification each morning: whether every booth is online, any open alerts, and yesterday's sessions, prints and takings. If it ever doesn't arrive, phone notifications need turning back on.</p>
       <div class="set-row"><div><div class="name">Send the morning check</div><div class="desc">Booths marked "build" are left out.</div></div>
@@ -1648,7 +1663,7 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="mc-save">Save</button><span class="save-msg" id="msg-mc"></span></div>
     </section>
 
-    <section class="panel" id="p-prefs">
+    <section class="panel" id="p-prefs" data-stab="dashboard">
       <h2>This dashboard</h2>
       <p class="help">Saved in this browser only, so your phone and computer can differ.</p>
       <div class="set-row"><div><div class="name">Page to open first</div></div><div class="set-ctl"><select id="pref-start"><option value="booths">Booths</option><option value="company">Company</option><option value="settings">Settings</option></select></div></div>
@@ -1674,6 +1689,13 @@ function wireSettings(booths, targets){
   const refreshCache = async () => { boothCache = await loadBooths(); };
 
   if($('scope')) $('scope').onchange = e => { settingsScope = e.target.value; drawSettings(); };
+  document.querySelectorAll('[data-stab-btn]').forEach(b => b.onclick = () => {
+    settingsTab = b.dataset.stabBtn;
+    try { localStorage.setItem('bw-settings-tab', settingsTab); } catch(e){}
+    applySettingsTab();
+    window.scrollTo({ top: 0 });
+  });
+  applySettingsTab();
 
   // alerts
   document.querySelectorAll('[data-a-on]').forEach(box => {
