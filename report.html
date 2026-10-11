@@ -48,7 +48,7 @@
   <img class="logo" src="logo.png" alt="Photo Pronto" />
   <div id="form-view">
     <h1>Report a fault</h1>
-    <p class="intro">To help fix the issue and sort your refund as quickly as possible, please answer the questions below. We're sorry something went wrong.</p>
+    <p class="intro" id="intro">To help fix the issue and sort your refund as quickly as possible, please answer the questions below. We're sorry something went wrong.</p>
     <form id="f" novalidate>
       <div class="hp" aria-hidden="true"><label>Website <input type="text" id="website" tabindex="-1" autocomplete="off"/></label></div>
 
@@ -64,12 +64,12 @@
         <div id="other-box" hidden style="margin-top:10px"><textarea id="other" maxlength="500" placeholder="Please tell us what happened"></textarea></div>
       </fieldset>
 
-      <fieldset>
+      <fieldset id="when-box">
         <legend>When did you use the photobooth? <span class="req">*</span></legend>
         <div class="row"><input type="date" id="date" aria-label="Date"/><input type="time" id="time" aria-label="Time"/></div>
       </fieldset>
 
-      <fieldset>
+      <fieldset id="more-box">
         <label class="q" for="more">Anything else we should know?</label>
         <textarea id="more" maxlength="1000" placeholder="Optional"></textarea>
       </fieldset>
@@ -98,7 +98,7 @@ const CONFIG = {
   SUPABASE_URL: "https://mfsxkomjbhlvufgosrtp.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mc3hrb21qYmhsdnVmZ29zcnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0ODI4NjYsImV4cCI6MjEwNzA1ODg2Nn0.GpoF2YbXOmHrMaPnES8aVp87l-yJ8Ri6qFTYdSQxVd4",
 };
-const ISSUES = [
+let ISSUES = [
   "Payment was taken but nothing happened",
   "Photos were taken but no picture came out",
   "QR for digital images didn't work",
@@ -114,28 +114,44 @@ const pad = n => String(n).padStart(2, '0');
 let boothId = new URLSearchParams(location.search).get('b') || '';
 let booths = [];
 
-$('issues').innerHTML = ISSUES.map((t, i) => `<label class="opt"><input type="radio" name="issue" value="${esc(t)}"/> <span>${esc(t)}</span></label>`).join('');
-document.querySelectorAll('input[name=issue]').forEach(r => r.onchange = () => { $('other-box').hidden = r.value !== 'Other' || !r.checked; if(!$('other-box').hidden) $('other').focus(); });
+function drawIssues(){
+  $('issues').innerHTML = ISSUES.map(t => `<label class="opt"><input type="radio" name="issue" value="${esc(t)}"/> <span>${esc(t)}</span></label>`).join('');
+  document.querySelectorAll('input[name=issue]').forEach(r => r.onchange = () => { $('other-box').hidden = r.value !== 'Other' || !r.checked; if(!$('other-box').hidden) $('other').focus(); });
+}
+drawIssues();
 
+let askWhen = true;
 const now = new Date();
 $('date').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 $('date').max = $('date').value;
 $('time').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
 (async () => {
+  let form = null;
   try {
-    const { data } = await sb.rpc('support_booths');
-    booths = data || [];
+    const r = await sb.rpc('support_form', { p_booth: boothId || null });
+    if(!r.error && r.data) form = r.data;
   } catch(e){}
+  if(!form){               // older database: fall back to the plain booth list and the built-in wording
+    try { const r = await sb.rpc('support_booths'); if(!r.error && r.data) form = { booths: r.data }; } catch(e){}
+  }
+  form = form || {};
+  booths = form.booths || [];
+  if(Array.isArray(form.issues) && form.issues.length){ ISSUES = form.issues; drawIssues(); }
+  if(form.intro) $('intro').textContent = form.intro;
+  if(form.ask_when === false){ askWhen = false; $('when-box').hidden = true; }
+  if(form.ask_more === false){ $('more-box').hidden = true; }
   const known = booths.find(b => b.id === boothId);
   if(known){
     $('booth-legend').hidden = true;
     $('booth-fixed').hidden = false; $('booth-name').textContent = known.name;
+  } else if(boothId && !booths.length){
+    $('booth-box').hidden = true;      // the code in the QR link is enough, even if the list could not load
   } else {
     boothId = '';
     $('booth-pick').innerHTML = booths.length
       ? booths.map(b => `<label class="opt"><input type="radio" name="booth" value="${esc(b.id)}"/> <span>${esc(b.name)}</span></label>`).join('')
-      : '<div class="err">Sorry, the booth list could not be loaded. Please try again, or email hello@photopronto.co.uk.</div>';
+      : '<div class="err">Sorry, the booth list could not be loaded. Please try again in a moment, or email hello@photopronto.co.uk.</div>';
   }
 })();
 
@@ -149,9 +165,9 @@ $('f').addEventListener('submit', async ev => {
   if(!booth) return showErr('Please choose which photobooth you used.');
   if(!issue) return showErr('Please choose what happened.');
   if(issue === 'Other' && !$('other').value.trim()) return showErr('Please describe what happened.');
-  if(!$('date').value || !$('time').value) return showErr('Please enter the date and time you used the photobooth.');
+  if(askWhen && (!$('date').value || !$('time').value)) return showErr('Please enter the date and time you used the photobooth.');
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return showErr('Please check your email address.');
-  const used = new Date(`${$('date').value}T${$('time').value}`);
+  const used = askWhen ? new Date(`${$('date').value}T${$('time').value}`) : new Date();
   if(isNaN(used)) return showErr('Please check the date and time.');
   const details = [issue === 'Other' ? $('other').value.trim() : '', $('more').value.trim()].filter(Boolean).join('\n\n');
   $('send').disabled = true; $('send').textContent = 'Sending…';

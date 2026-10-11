@@ -392,6 +392,12 @@
   .report .del{ background:none; border:none; color: var(--muted); font-weight:700; font-size:12px; cursor:pointer; text-decoration:underline; }
   .report .del:hover{ color: var(--ink); }
 
+  .fld{ display:flex; flex-direction:column; gap:6px; margin-bottom:16px; font-weight:800; font-size:14px; }
+  .fld textarea{ background: var(--inner); border:1px solid var(--line); border-radius:12px; padding:10px 14px; font-family:inherit; font-weight:500; font-size:14px; line-height:1.5; min-height:80px; resize:vertical; max-width:680px; }
+  .issue-row{ display:flex; gap:6px; margin-bottom:6px; max-width:680px; }
+  .issue-row input{ flex:1; min-width:0; background: var(--inner); border:1px solid var(--line); border-radius:12px; padding:9px 14px; font-family:inherit; font-weight:700; font-size:14px; }
+  .issue-row button:disabled{ opacity:.4; cursor:default; }
+
   /* ── company ── */
   .company-controls{ display:flex; flex-wrap:wrap; gap:10px 18px; align-items:flex-end; margin-bottom: 18px; }
   .company-controls label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; color: var(--muted); }
@@ -1285,6 +1291,9 @@ function wireBoothCards(framesEl, booths){
 
 // ═══════════════ Settings page ═══════════════
 let settingsScope = 'all';
+let supportForm = {};
+const DEFAULT_ISSUES = ['Payment was taken but nothing happened', 'Photos were taken but no picture came out', "QR for digital images didn't work", 'Payment was taken twice', 'Photos were too dark or out of focus', 'Card machine was not working to take payment', 'Other'];
+const DEFAULT_INTRO = "To help fix the issue and sort your refund as quickly as possible, please answer the questions below. We're sorry something went wrong.";
 const ALERT_DEFAULTS = { offline: 3, software: 2, device: 1, low_prints: 15 };
 
 function cfgAlert(cfg, kind){
@@ -1304,6 +1313,7 @@ async function renderSettingsPage(){
   const booths = await loadBooths();
   if(view !== 'settings') return;
   boothCache = booths;
+  try { const r = await sb.from('support_settings').select('*').maybeSingle(); supportForm = (!r.error && r.data) || {}; } catch(e){ supportForm = {}; }
   if(settingsScope !== 'all' && !booths.find(b => b.id === settingsScope)) settingsScope = 'all';
   drawSettings();
 }
@@ -1444,6 +1454,18 @@ function drawSettings(){
         <input type="text" id="pairing-code" placeholder="Pairing code" maxlength="6" autocomplete="off" style="font-family:var(--mono);letter-spacing:2px;width:160px" aria-label="Pairing code from a new booth"/>
         <button class="btn-primary" id="pair-btn">Add booth</button><span class="save-msg" id="msg-pair"></span>
       </div>
+    </section>
+
+    <section class="panel" id="p-form">
+      <h2>Support form</h2>
+      <p class="help">The wording customers see after scanning a QR code. Changes go live as soon as you save. A choice called exactly <b>Other</b> opens a box where the customer describes the problem.</p>
+      <label class="fld"><span>Text under the heading</span><textarea id="sf-intro" maxlength="600">${esc(supportForm.intro || DEFAULT_INTRO)}</textarea></label>
+      <div class="fld"><span>"What happened?" choices</span><div id="issue-list"></div>
+        <div class="save-row" style="margin-top:8px"><button class="btn-sm" id="issue-add">Add a choice</button><button class="btn-sm" id="issue-reset">Reset to the original list</button></div></div>
+      <div class="set-row"><div><div class="name">Ask when they used the booth</div><div class="desc">Date and time questions. Helps match the report to what BoothWatch saw.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="sf-when" ${supportForm.ask_when === false ? '' : 'checked'}/> On</label></div></div>
+      <div class="set-row"><div><div class="name">Show "Anything else we should know?"</div><div class="desc">An optional free-text box.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="sf-more" ${supportForm.ask_more === false ? '' : 'checked'}/> On</label></div></div>
+      <p class="help" style="margin-top:6px">Always asked: which booth (set by the QR code) and the customer's email.</p>
+      <div class="save-row"><button class="btn-primary" id="sf-save">Save form</button><a class="btn-sm" style="text-decoration:none" href="${esc(reportLink(''))}" target="_blank" rel="noopener">Preview form</a><span class="save-msg" id="msg-sf"></span></div>
     </section>
 
     ${booths.length ? `<section class="panel" id="p-qr">
@@ -1601,6 +1623,33 @@ function wireSettings(booths, targets){
     $('save-watch').disabled = false;
   };
 
+  // support form editor
+  let issuesDraft = (Array.isArray(supportForm.issues) && supportForm.issues.length ? supportForm.issues : DEFAULT_ISSUES).slice();
+  const drawIssues = () => {
+    const box = $('issue-list'); if(!box) return;
+    box.innerHTML = issuesDraft.map((t, i) => `<div class="issue-row"><input type="text" maxlength="120" value="${esc(t)}" data-i="${i}" aria-label="Choice ${i + 1}"/>
+      <button class="btn-sm" data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
+      <button class="btn-sm" data-down="${i}" ${i === issuesDraft.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
+      <button class="btn-sm" data-rm="${i}">Remove</button></div>`).join('');
+    box.querySelectorAll('input[data-i]').forEach(inp => inp.oninput = () => { issuesDraft[+inp.dataset.i] = inp.value; });
+    box.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [issuesDraft[i - 1], issuesDraft[i]] = [issuesDraft[i], issuesDraft[i - 1]]; drawIssues(); });
+    box.querySelectorAll('[data-down]').forEach(b => b.onclick = () => { const i = +b.dataset.down; [issuesDraft[i + 1], issuesDraft[i]] = [issuesDraft[i], issuesDraft[i + 1]]; drawIssues(); });
+    box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { issuesDraft.splice(+b.dataset.rm, 1); drawIssues(); });
+  };
+  drawIssues();
+  if($('issue-add')) $('issue-add').onclick = () => { issuesDraft.push(''); drawIssues(); const ins = $('issue-list').querySelectorAll('input'); ins[ins.length - 1].focus(); };
+  if($('issue-reset')) $('issue-reset').onclick = () => { issuesDraft = DEFAULT_ISSUES.slice(); $('sf-intro').value = DEFAULT_INTRO; drawIssues(); };
+  if($('sf-save')) $('sf-save').onclick = async () => {
+    const issues = issuesDraft.map(t => t.trim()).filter(Boolean);
+    if(!issues.length){ msg('msg-sf', 'Add at least one choice.', true); return; }
+    $('sf-save').disabled = true;
+    const { error } = await sb.rpc('save_support_settings', { p_issues: issues, p_intro: $('sf-intro').value, p_ask_when: $('sf-when').checked, p_ask_more: $('sf-more').checked });
+    $('sf-save').disabled = false;
+    if(error){ msg('msg-sf', error.message, true); return; }
+    issuesDraft = issues; drawIssues(); supportForm = { issues, intro: $('sf-intro').value, ask_when: $('sf-when').checked, ask_more: $('sf-more').checked };
+    msg('msg-sf', 'Saved. The form is updated.');
+  };
+
   // support QR codes
   document.querySelectorAll('[data-qr-print]').forEach(b => b.onclick = () => printQrSheets(booths.filter(x => x.id === b.dataset.qrPrint)));
   document.querySelectorAll('[data-qr-copy]').forEach(b => b.onclick = async () => {
@@ -1703,12 +1752,12 @@ async function loadStatsRows(since){
 }
 
 // Sales, costs and profit for a date range. Prices and costs are each booth's current settings.
-function computeRange(rows, booths, [f, t], bucket){
+function computeRange(rows, booths, [f, t], bucket, refunds){
   const today = ymd(new Date());
   const end = t > today ? today : t;
   const byKey = new Map(rows.map(r => [r.booth_id + '|' + r.day, r]));
   const per = {}, buckets = new Map();
-  const zero = () => ({ sessions: 0, prints: 0, sales: 0, printCost: 0, fees: 0, running: 0, costs: 0, profit: 0 });
+  const zero = () => ({ sessions: 0, prints: 0, sales: 0, printCost: 0, fees: 0, running: 0, costs: 0, refunds: 0, refundCount: 0, profit: 0 });
   const add = (o, x) => { for(const k in x) o[k] += x[k]; };
   let missing = false;
   for(const b of booths){
@@ -1734,13 +1783,22 @@ function computeRange(rows, booths, [f, t], bucket){
     const key = bucket === 'month' ? d.slice(0, 7) : d;
     if(!buckets.has(key)) buckets.set(key, { key, day: d, ...zero() });
   }
+  // Refunds you have recorded on Support reports, counted on the day the customer used the booth
+  for(const r of (refunds || [])){
+    const d = ymd(new Date(r.used_at));
+    if(!per[r.booth_id] || d < f || d > end) continue;
+    const amt = Number(r.refund_amount) || 0;
+    const key = bucket === 'month' ? d.slice(0, 7) : d;
+    const bk = buckets.get(key);
+    for(const o of [per[r.booth_id], bk]){ if(o){ o.refunds += amt; o.refundCount += 1; o.profit -= amt; } }
+  }
   const totals = zero();
   Object.values(per).forEach(p => add(totals, p));
   return { per, totals, buckets: [...buckets.values()].sort((a, b) => a.key < b.key ? -1 : 1), missing };
 }
 
-const METRICS = { sales: 'Sales', costs: 'Costs', profit: 'Profit', sessions: 'Sessions', prints: 'Prints' };
-const isMoneyMetric = m => ['sales', 'costs', 'profit'].includes(m);
+const METRICS = { sales: 'Sales', costs: 'Costs', refunds: 'Refunds', profit: 'Profit', sessions: 'Sessions', prints: 'Prints' };
+const isMoneyMetric = m => ['sales', 'costs', 'refunds', 'profit'].includes(m);
 const fmtMetric = (m, v) => isMoneyMetric(m) ? money(v) : String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 function deltaText(metric, cur, prev, label){
@@ -1763,7 +1821,12 @@ async function renderCompanyPage(){
     if(view !== 'company') return;
     const since = addDays(monthStart(ymd(new Date()), -25), 0);
     if(!statsCache || Date.now() - statsCache.at > 60000 || statsCache.since > since){
-      statsCache = { at: Date.now(), since, rows: await loadStatsRows(since) };
+      let refunds = [];
+      try {
+        const r = await sb.from('support_reports').select('booth_id, used_at, refund_amount').in('outcome', ['refunded', 'partial_refund']).gte('used_at', since + 'T00:00:00').limit(5000);
+        if(!r.error && r.data) refunds = r.data;
+      } catch(e){}
+      statsCache = { at: Date.now(), since, rows: await loadStatsRows(since), refunds };
     }
     if(view !== 'company') return;
     boothCache = booths;
@@ -1784,8 +1847,9 @@ function drawCompany(){
   const cmp = compareRange(S.compare, S.period, cur, [S.cmpFrom, S.cmpTo]);
   const longRange = spanDays(cur[0], cur[1]) > 62;
   const bucket = longRange ? 'month' : 'day';
-  const A = computeRange(rows, booths, cur, bucket);
-  const B = cmp ? computeRange(rows, booths, cmp, bucket) : null;
+  const RF = statsCache.refunds || [];
+  const A = computeRange(rows, booths, cur, bucket, RF);
+  const B = cmp ? computeRange(rows, booths, cmp, bucket, RF) : null;
   const cmpLabel = cmp ? (cmp[0] === cmp[1] ? fmtShort(cmp[0]) : fmtShort(cmp[0]) + ' – ' + fmtShort(cmp[1])) : '';
   const T = A.totals, TB = B && B.totals;
   const price0 = booths.filter(b => !(b.config && b.config.money && Number(b.config.money.price) > 0));
@@ -1796,7 +1860,7 @@ function drawCompany(){
   const perRows = booths.map(b => {
     const p = A.per[b.id], q = B && B.per[b.id];
     const d = q ? p.profit - q.profit : null;
-    return `<tr><td>${esc(b.name)}</td><td class="num">${p.sessions}</td><td class="num">${p.prints}</td><td class="num">${money(p.sales)}</td><td class="num">${money(p.costs)}</td><td class="num">${money(p.profit)}</td>${B ? `<td class="num">${d == null ? '' : (d > 0 ? '▲ ' : d < 0 ? '▼ ' : '') + money(Math.abs(d))}</td>` : ''}</tr>`;
+    return `<tr><td>${esc(b.name)}</td><td class="num">${p.sessions}</td><td class="num">${p.prints}</td><td class="num">${money(p.sales)}</td><td class="num">${money(p.costs)}</td><td class="num">${money(p.refunds)}</td><td class="num">${money(p.profit)}</td>${B ? `<td class="num">${d == null ? '' : (d > 0 ? '▲ ' : d < 0 ? '▼ ' : '') + money(Math.abs(d))}</td>` : ''}</tr>`;
   }).join('');
   const dTotal = TB ? T.profit - TB.profit : null;
 
@@ -1817,6 +1881,7 @@ function drawCompany(){
     <div class="summary">
       ${tile('sales')}
       ${tile('costs', '', T.costs ? `prints ${money0(T.printCost)} · fees ${money0(T.fees)} · running ${money0(T.running)}` : '')}
+      ${tile('refunds', '', T.refundCount ? `${T.refundCount} refund${T.refundCount > 1 ? 's' : ''}, taken off profit` : 'none recorded')}
       ${tile('profit', 'hero', T.sessions ? `${money(perSession)} per session` : '')}
       ${tile('sessions')}
       ${tile('prints', '', T.sessions ? `${(T.prints / T.sessions).toFixed(1)} per session` : '')}
@@ -1832,9 +1897,9 @@ function drawCompany(){
     <section class="panel">
       <h2>By booth</h2>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Booth</th><th class="num">Sessions</th><th class="num">Prints</th><th class="num">Sales</th><th class="num">Costs</th><th class="num">Profit</th>${B ? '<th class="num">Profit vs compared</th>' : ''}</tr></thead>
+        <thead><tr><th>Booth</th><th class="num">Sessions</th><th class="num">Prints</th><th class="num">Sales</th><th class="num">Costs</th><th class="num">Refunds</th><th class="num">Profit</th>${B ? '<th class="num">Profit vs compared</th>' : ''}</tr></thead>
         <tbody>${perRows}</tbody>
-        <tfoot><tr><td>All booths</td><td class="num">${T.sessions}</td><td class="num">${T.prints}</td><td class="num">${money(T.sales)}</td><td class="num">${money(T.costs)}</td><td class="num">${money(T.profit)}</td>${B ? `<td class="num">${(dTotal > 0 ? '▲ ' : dTotal < 0 ? '▼ ' : '') + money(Math.abs(dTotal))}</td>` : ''}</tr></tfoot>
+        <tfoot><tr><td>All booths</td><td class="num">${T.sessions}</td><td class="num">${T.prints}</td><td class="num">${money(T.sales)}</td><td class="num">${money(T.costs)}</td><td class="num">${money(T.refunds)}</td><td class="num">${money(T.profit)}</td>${B ? `<td class="num">${(dTotal > 0 ? '▲ ' : dTotal < 0 ? '▼ ' : '') + money(Math.abs(dTotal))}</td>` : ''}</tr></tfoot>
       </table></div>
     </section>
 
@@ -1843,7 +1908,7 @@ function drawCompany(){
         <div class="seg" role="group" aria-label="View"><button data-mview="chart" class="${monthTable ? '' : 'on'}">Chart</button><button data-mview="table" class="${monthTable ? 'on' : ''}">Table</button></div></div>
       <div id="chart-year"></div>
     </section>
-    <p class="page-sub" style="margin-top:14px">Sales and costs use each booth's current price and costs for every date shown. Running costs are spread evenly across the days of each month.</p>`;
+    <p class="page-sub" style="margin-top:14px">Sales and costs use each booth's current price and costs for every date shown. Running costs are spread evenly across the days of each month. Refunds come from the Support tab and are counted on the day the customer used the booth.</p>`;
 
   const $ = id => document.getElementById(id);
   const rerender = () => { saveCompanyState(); drawCompany(); };
@@ -1866,8 +1931,8 @@ function drawCompany(){
 
   // last 12 months vs the 12 before
   const thisM = monthStart(ymd(new Date())), y0 = monthStart(thisM, -11), p0 = monthStart(thisM, -23);
-  const Y = computeRange(rows, booths, [y0, ymd(new Date())], 'month');
-  const YP = computeRange(rows, booths, [p0, monthEnd(monthStart(thisM, -12))], 'month');
+  const Y = computeRange(rows, booths, [y0, ymd(new Date())], 'month', RF);
+  const YP = computeRange(rows, booths, [p0, monthEnd(monthStart(thisM, -12))], 'month', RF);
   drawBarChart($('chart-year'), {
     metric: 'profit', table: monthTable,
     cur: Y.buckets.map(b => b.profit), curLabels: Y.buckets.map(b => fmtMonth(b.day)), xLabels: Y.buckets.map(b => fmtMonth(b.day)), curName: 'Last 12 months',
