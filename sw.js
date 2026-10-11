@@ -18,14 +18,15 @@ self.addEventListener('notificationclick', event => {
   event.notification.close();
   const data = event.notification.data || {};
   event.waitUntil((async () => {
+    const isSupport = /^Support/.test(event.notification.title || '');
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of all) {
       if ('focus' in c) {
         await c.focus();
-        c.postMessage({ type: 'open-booth', booth_id: data.booth_id });
+        c.postMessage(isSupport ? { type: 'open-page', page: 'support' } : { type: 'open-booth', booth_id: data.booth_id });
         return;
       }
     }
-    await self.clients.openWindow(data.url || './');
+    await self.clients.openWindow((data.url || './').split('#')[0] + (isSupport ? '#/support' : ''));
   })());
 });

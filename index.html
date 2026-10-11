@@ -366,6 +366,32 @@
   .panel .rel-help{ font-size:12px; line-height:1.5; color: var(--muted); font-weight:500; }
   .panel input[type=file]{ font-family: var(--mono); font-size:12px; max-width:100%; color: var(--muted); }
 
+
+  /* ── support ── */
+  .tab-count{ display:inline-block; min-width:18px; height:18px; padding:0 5px; margin-left:6px; border-radius:999px; background: var(--accent); color:#fff; font-family: var(--mono); font-weight:600; font-size:11px; line-height:18px; text-align:center; vertical-align:1px; }
+  .tabs a.on .tab-count{ background:#fff; color: var(--ink); }
+  .report{ background: var(--tile); border-radius:24px; padding:20px; margin-bottom:12px; display:flex; flex-direction:column; gap:12px; }
+  .report.new{ box-shadow: inset 4px 0 0 var(--ink); }
+  .rep-head{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .rep-issue{ font-weight:800; font-size:18px; line-height:1.25; }
+  .rep-meta{ font-family: var(--mono); font-weight:500; font-size:12px; color: var(--muted); margin-top:4px; line-height:1.5; }
+  .rep-details{ background: var(--inner); border-radius:14px; padding:12px 14px; font-weight:500; font-size:14px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .rep-contact a{ display:inline-block; text-decoration:none; }
+  .rep-ctx summary{ cursor:pointer; font-weight:700; font-size:13px; color: var(--muted); }
+  .rep-ctx summary:hover{ color: var(--accent); }
+  .rep-ctx .ctx{ background: var(--inner); border-radius:14px; padding:12px 14px; margin-top:8px; font-family: var(--mono); font-weight:500; font-size:12px; line-height:1.6; display:flex; flex-direction:column; gap:4px; }
+  .rep-ctx .ctx b{ font-weight:600; }
+  .rep-edit{ display:grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap:10px 14px; }
+  .rep-edit label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; color: var(--muted); }
+  .rep-edit label[hidden]{ display:none; }
+  .rep-edit label.wide{ grid-column: 1 / -1; }
+  .rep-edit select, .rep-edit input, .rep-edit textarea{ background: var(--inner); color: var(--ink); border:1px solid var(--line); border-radius:12px; padding:9px 12px; font-size:14px; font-weight:700; font-family:inherit; width:100%; }
+  .rep-edit textarea{ min-height:70px; font-weight:500; resize:vertical; }
+  .rep-edit .money-in{ display:flex; } .rep-edit .money-in input{ width:100%; }
+  .report .btn-primary{ padding: 9px 20px; font-size:13px; }
+  .report .del{ background:none; border:none; color: var(--muted); font-weight:700; font-size:12px; cursor:pointer; text-decoration:underline; }
+  .report .del:hover{ color: var(--ink); }
+
   /* ── company ── */
   .company-controls{ display:flex; flex-wrap:wrap; gap:10px 18px; align-items:flex-end; margin-bottom: 18px; }
   .company-controls label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; color: var(--muted); }
@@ -592,7 +618,7 @@ function renderNotifPanel(){
   const unread = notifs.some(n => !n.read_at);
   const pb = pushBlockHtml();
   const items = notifs.map(n => `
-    <div class="np-item ${n.read_at ? '' : 'unread'} ${n.severity === 'info' ? 'info' : ''}" data-notif="${n.id}" data-booth="${esc(n.booth_id || '')}" tabindex="0">
+    <div class="np-item ${n.read_at ? '' : 'unread'} ${n.severity === 'info' ? 'info' : ''}" data-notif="${n.id}" data-booth="${esc(n.booth_id || '')}" data-kind="${esc(n.kind || '')}" tabindex="0">
       <span class="np-dot"></span>
       <div style="min-width:0">
         <div class="np-title">${esc(n.title)}</div>
@@ -621,7 +647,8 @@ function renderNotifPanel(){
       const n = notifs.find(x => x.id === id);
       if(n && !n.read_at){ n.read_at = new Date().toISOString(); renderBell(); sb.rpc('mark_notifications_read', { p_id: id }); }
       closeNotifPanel();
-      if(el.dataset.booth) showBooth(el.dataset.booth);
+      if(el.dataset.kind === 'support') goPage('support');
+      else if(el.dataset.booth) showBooth(el.dataset.booth);
     };
     el.onclick = go;
     el.onkeydown = e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } };
@@ -1015,7 +1042,7 @@ let view = null;                 // 'booths' | 'company' | 'settings'
 let currentRefresh = null;       // called every few seconds while a page that needs live data is open
 let pendingFocus = null;         // booth to scroll to once the Booths page has drawn
 let boothCache = [];
-const PAGES = ['booths', 'company', 'settings'];
+const PAGES = ['booths', 'company', 'support', 'settings'];
 const mainEl = () => document.getElementById('view');
 
 function renderApp(){
@@ -1025,6 +1052,7 @@ function renderApp(){
       <nav class="tabs" aria-label="Pages">
         <a href="#/booths" data-tab="booths">Booths</a>
         <a href="#/company" data-tab="company">Company</a>
+        <a href="#/support" data-tab="support">Support<span class="tab-count" id="support-count" hidden>0</span></a>
         <a href="#/settings" data-tab="settings">Settings</a>
       </nav>
       <div class="head-actions">
@@ -1053,7 +1081,11 @@ function renderApp(){
     document.addEventListener('keydown', e => { if(e.key === 'Escape' && notifPanelOpen) closeNotifPanel(); });
     window.addEventListener('hashchange', () => showPage(routeFromHash()));
     if('serviceWorker' in navigator){
-      navigator.serviceWorker.addEventListener('message', e => { if(e.data && e.data.type === 'open-booth' && e.data.booth_id) showBooth(e.data.booth_id); });
+      navigator.serviceWorker.addEventListener('message', e => {
+        if(!e.data) return;
+        if(e.data.type === 'open-page' && PAGES.includes(e.data.page)) goPage(e.data.page);
+        else if(e.data.type === 'open-booth' && e.data.booth_id) showBooth(e.data.booth_id);
+      });
     }
   }
   detectPush().then(st => { pushState = st; if(notifPanelOpen) renderNotifPanel(); });
@@ -1062,8 +1094,8 @@ function renderApp(){
   window.clockTimer = setInterval(tick, 1000);
   if(pollTimer) clearInterval(pollTimer);
   const every = Math.max(5, Number(getPrefs().refreshSeconds) || 10) * 1000;
-  pollTimer = setInterval(() => { refreshNotifs(); if(currentRefresh) currentRefresh(); }, every);
-  refreshNotifs();
+  pollTimer = setInterval(() => { refreshNotifs(); refreshSupportCount(); if(currentRefresh) currentRefresh(); }, every);
+  refreshNotifs(); refreshSupportCount();
   showPage(routeFromHash());
 }
 
@@ -1079,7 +1111,7 @@ function showPage(p){
   currentRefresh = null;
   document.querySelectorAll('.tabs a').forEach(a => { a.classList.toggle('on', a.dataset.tab === p); if(a.dataset.tab === p) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   window.scrollTo(0, 0);
-  ({ booths: renderBoothsPage, company: renderCompanyPage, settings: renderSettingsPage })[p]();
+  ({ booths: renderBoothsPage, company: renderCompanyPage, support: renderSupportPage, settings: renderSettingsPage })[p]();
 }
 
 // ═══════════════ Booths page ═══════════════
@@ -1414,6 +1446,16 @@ function drawSettings(){
       </div>
     </section>
 
+    ${booths.length ? `<section class="panel" id="p-qr">
+      <h2>Support QR codes</h2>
+      <p class="help">Customers scan the code in the booth and fill in a short form. You get the report on the Support tab and a notification on your phone. Each code is tied to one booth, so make sure the booth names here match the venue names customers will see.</p>
+      <div class="tbl-wrap"><table class="tbl"><tbody>${booths.map(b => `<tr><td>${esc(b.name)}</td>
+        <td><button class="btn-sm" data-qr-print="${esc(b.id)}">Print QR code</button></td>
+        <td><a class="btn-sm" style="text-decoration:none;display:inline-block" href="${esc(reportLink(b.id))}" target="_blank" rel="noopener">Open form</a></td>
+        <td><button class="btn-sm" data-qr-copy="${esc(b.id)}">Copy link</button></td></tr>`).join('')}</tbody></table></div>
+      <div class="save-row"><button class="btn-primary" id="qr-print-all">Print all QR codes</button><span class="save-msg" style="font-weight:500">Opens a print page, one A4 sheet per booth. Choose "Save as PDF" to keep a copy.</span></div>
+    </section>` : ''}
+
     <section class="panel" id="p-agent">
       <h2>Agent versions</h2>
       <p class="help">New versions go to the test channel first. Booths set to "test" update within a few minutes. Once it works, promote it so booths on "live" get it too.</p>
@@ -1559,6 +1601,13 @@ function wireSettings(booths, targets){
     $('save-watch').disabled = false;
   };
 
+  // support QR codes
+  document.querySelectorAll('[data-qr-print]').forEach(b => b.onclick = () => printQrSheets(booths.filter(x => x.id === b.dataset.qrPrint)));
+  document.querySelectorAll('[data-qr-copy]').forEach(b => b.onclick = async () => {
+    try { await navigator.clipboard.writeText(reportLink(b.dataset.qrCopy)); toast('Link copied'); } catch(e){ prompt('Copy this link', reportLink(b.dataset.qrCopy)); }
+  });
+  if($('qr-print-all')) $('qr-print-all').onclick = () => printQrSheets(booths);
+
   // add booth
   if($('copy-cmd')) $('copy-cmd').onclick = async () => {
     try { await navigator.clipboard.writeText($('inst-cmd').textContent); toast('Copied. Paste it on the booth PC.'); }
@@ -1583,7 +1632,7 @@ function wireSettings(booths, targets){
   $('pref-refresh').onchange = e => {
     setPrefs({ refreshSeconds: Number(e.target.value) });
     if(pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(() => { refreshNotifs(); if(currentRefresh) currentRefresh(); }, Number(e.target.value) * 1000);
+    pollTimer = setInterval(() => { refreshNotifs(); refreshSupportCount(); if(currentRefresh) currentRefresh(); }, Number(e.target.value) * 1000);
     toast('Saved');
   };
 }
@@ -1909,6 +1958,180 @@ function niceStep(raw){
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if(view === 'company' && statsCache && window.__redrawCharts) window.__redrawCharts(); }, 200); });
 
+
+// ═══════════════ Support page (customer fault reports) ═══════════════
+let supportFilter = 'open', lastSupportJson = null;
+const SUPPORT_STATUS = [['new', 'New'], ['contacted', 'Contacted'], ['resolved', 'Done']];
+const SUPPORT_OUTCOMES = [['', 'No outcome yet'], ['refunded', 'Refunded in full'], ['partial_refund', 'Partial refund'], ['no_refund', 'No refund needed'], ['fixed', 'Fixed or explained'], ['other', 'Other']];
+
+function setSupportBadge(n){
+  const el = document.getElementById('support-count');
+  if(!el) return;
+  el.textContent = n > 99 ? '99+' : String(n); el.hidden = !(n > 0);
+}
+async function refreshSupportCount(){
+  try {
+    const { count, error } = await sb.from('support_reports').select('id', { count: 'exact', head: true }).eq('status', 'new');
+    if(!error && typeof count === 'number') setSupportBadge(count);
+  } catch(e){}
+}
+
+async function renderSupportPage(){
+  mainEl().innerHTML = `
+    <h1 class="page-title">Support</h1>
+    <p class="page-sub">Reports from customers who scanned the QR code in a booth. A new report also sends a notification to your phone.</p>
+    <div class="company-controls"><div class="seg" role="group" aria-label="Show">
+      <button data-sf="open">Open</button><button data-sf="resolved">Done</button><button data-sf="all">All</button></div></div>
+    <div id="support-list"><div class="empty">Loading…</div></div>`;
+  mainEl().querySelectorAll('[data-sf]').forEach(b => b.onclick = () => { supportFilter = b.dataset.sf; lastSupportJson = null; loadSupport(true); });
+  lastSupportJson = null;
+  currentRefresh = () => loadSupport(false);
+  loadSupport(true);
+}
+
+async function loadSupport(force){
+  if(view !== 'support') return;
+  const list = document.getElementById('support-list');
+  if(!list) return;
+  if(!force && list.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;   // do not redraw while typing
+  const [{ data, error }, booths] = await Promise.all([
+    sb.from('support_reports').select('*').order('created_at', { ascending: false }).limit(300),
+    loadBooths()]);
+  if(view !== 'support') return;
+  if(error){ list.innerHTML = `<div class="empty">Could not load reports: ${esc(error.message)}</div>`; return; }
+  boothCache = booths;
+  const rows = data || [];
+  setSupportBadge(rows.filter(r => r.status === 'new').length);
+  const json = JSON.stringify([rows, supportFilter]);
+  if(!force && json === lastSupportJson) return;
+  lastSupportJson = json;
+  mainEl().querySelectorAll('[data-sf]').forEach(b => b.classList.toggle('on', b.dataset.sf === supportFilter));
+  const names = Object.fromEntries(booths.map(b => [b.id, b.name]));
+  const shown = rows.filter(r => supportFilter === 'all' || (supportFilter === 'open' ? r.status !== 'resolved' : r.status === 'resolved'));
+  if(!shown.length){
+    list.innerHTML = `<div class="empty">${rows.length ? 'Nothing here.' : 'No reports yet. Print the QR codes from Settings → Support QR codes and put one in each booth.'}</div>`;
+    return;
+  }
+  list.innerHTML = shown.map(r => supportCard(r, names[r.booth_id] || 'Unknown booth')).join('');
+  wireSupport(list, rows);
+}
+
+const dayTime = iso => new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+function supportContext(r){
+  const c = r.context || {};
+  const hhmm = iso => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const lines = [];
+  const near = Array.isArray(c.alerts_around_time_used) ? c.alerts_around_time_used : [];
+  if(near.length) near.forEach(a => lines.push(`<div><b>${esc(a.key || a.kind)}</b>: ${esc(a.message)} (from ${hhmm(a.since)}, ${a.resolved ? 'cleared ' + hhmm(a.resolved) : 'still open when reported'})</div>`));
+  else lines.push('<div><b>No BoothWatch alerts</b> around the time they used the booth. The booth may have looked healthy.</div>');
+  const bad = (Array.isArray(c.programs_now) ? c.programs_now : []).filter(p => p.ok === false);
+  if(bad.length) lines.push(`<div>At the time of the report: ${bad.map(p => esc(p.name) + (p.note ? ' (' + esc(p.note) + ')' : '')).join(', ')} not OK.</div>`);
+  lines.push(`<div>Booth was ${c.online_now ? 'online' : 'offline'} when the report arrived${c.last_heartbeat_at ? ' (last check-in ' + esc(fmtAgo(c.last_heartbeat_at)) + ' before reading this)' : ''}.</div>`);
+  const day = c.that_day || {};
+  if(day.sessions != null) lines.push(`<div>That day: ${day.sessions} sessions, ${day.prints} prints.</div>`);
+  if(c.paper_left != null) lines.push(`<div>Printer paper left at the time: about ${c.paper_left} pages.</div>`);
+  return lines.join('');
+}
+
+function supportCard(r, boothName){
+  const subject = encodeURIComponent('Your Photo Pronto photobooth report');
+  const body = encodeURIComponent(`Hi,\n\nThanks for letting us know about "${r.issue}" at ${boothName} on ${dayTime(r.used_at)}.\n\n`);
+  const showRefund = r.outcome === 'refunded' || r.outcome === 'partial_refund';
+  return `
+  <article class="report ${r.status}" data-rid="${r.id}">
+    <div class="rep-head">
+      <div style="min-width:0"><div class="rep-issue">${esc(r.issue)}</div>
+        <div class="rep-meta">${esc(boothName)} · used ${esc(dayTime(r.used_at))} · reported ${esc(fmtAgo(r.created_at))}</div></div>
+      <span class="pill ${r.status === 'new' ? 'alert' : (r.status === 'contacted' ? 'ok' : 'off')}">${esc((SUPPORT_STATUS.find(s => s[0] === r.status) || [0, r.status])[1])}</span>
+    </div>
+    ${r.details ? `<div class="rep-details">${esc(r.details)}</div>` : ''}
+    <div class="rep-contact"><a class="btn-sm" href="mailto:${esc(r.email)}?subject=${subject}&body=${body}">Email ${esc(r.email)}</a></div>
+    <details class="rep-ctx"><summary>What BoothWatch saw</summary><div class="ctx">${supportContext(r)}</div></details>
+    <div class="rep-edit">
+      <label>Status<select data-f="status">${SUPPORT_STATUS.map(([v, n]) => `<option value="${v}" ${r.status === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label>Outcome<select data-f="outcome">${SUPPORT_OUTCOMES.map(([v, n]) => `<option value="${v}" ${(r.outcome || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label data-refund ${showRefund ? '' : 'hidden'}>Refund amount<span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-f="refund" value="${r.refund_amount != null ? esc(r.refund_amount) : ''}"/></span></label>
+      <label class="wide">Notes<textarea data-f="notes" placeholder="What you did, what you said">${esc(r.notes || '')}</textarea></label>
+    </div>
+    <div class="actions"><button class="btn-primary save">Save</button><button class="del" style="margin-left:auto">Delete</button></div>
+  </article>`;
+}
+
+function wireSupport(list, rows){
+  list.querySelectorAll('.report').forEach(card => {
+    const id = Number(card.dataset.rid);
+    const f = k => card.querySelector(`[data-f="${k}"]`);
+    f('outcome').onchange = () => { card.querySelector('[data-refund]').hidden = !['refunded', 'partial_refund'].includes(f('outcome').value); };
+    card.querySelector('.save').onclick = async e => {
+      const btn = e.target; btn.disabled = true;
+      const refund = f('refund').value === '' ? null : Number(f('refund').value);
+      const { error } = await sb.rpc('update_support_report', { p_id: id, p_status: f('status').value, p_outcome: f('outcome').value, p_refund: refund, p_notes: f('notes').value });
+      btn.disabled = false;
+      if(error){ alert(error.message); return; }
+      toast('Saved'); lastSupportJson = null; loadSupport(true);
+    };
+    card.querySelector('.del').onclick = async () => {
+      if(!confirm('Delete this report for good?')) return;
+      const { error } = await sb.rpc('delete_support_report', { p_id: id });
+      if(error){ alert(error.message); return; }
+      lastSupportJson = null; loadSupport(true);
+    };
+  });
+}
+
+// ═══════════════ QR codes for the booths ═══════════════
+function pageBase(){ return location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, ''); }
+function reportLink(boothId){ return pageBase() + 'report.html' + (boothId ? '?b=' + encodeURIComponent(boothId) : ''); }
+
+function loadQrLib(){
+  if(window.qrcode) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    s.onload = res; s.onerror = () => rej(new Error('Could not load the QR code library. Check your internet connection.'));
+    document.head.appendChild(s);
+  });
+}
+function qrSvg(text){
+  const q = window.qrcode(0, 'M'); q.addData(text); q.make();
+  const n = q.getModuleCount(); let d = '';
+  for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(q.isDark(r, c)) d += `M${c},${r}h1v1h-1z`;
+  return `<svg viewBox="-2 -2 ${n + 4} ${n + 4}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><rect x="-2" y="-2" width="${n + 4}" height="${n + 4}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+async function printQrSheets(list){
+  const w = window.open('', '_blank');
+  if(!w){ alert('Your browser blocked the new window. Allow pop-ups for this page and try again.'); return; }
+  w.document.write('<p style="font-family:sans-serif">Making your QR codes…</p>');
+  try { await loadQrLib(); } catch(e){ w.close(); alert(e.message); return; }
+  const logo = pageBase() + 'logo.png';
+  const sheets = list.map(b => `
+    <section class="sheet">
+      <img class="logo" src="${esc(logo)}" alt="Photo Pronto"/>
+      <h1>Had a problem?</h1>
+      <p>Scan this code and tell us what happened.<br>We'll put it right.</p>
+      <div class="qr">${qrSvg(reportLink(b.id))}</div>
+      <div class="name">${esc(b.name)}</div>
+    </section>`).join('');
+  w.document.open();
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Photo Pronto support QR codes</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;800&display=swap" rel="stylesheet">
+    <style>
+      @page{ size:A4; margin:0 }
+      *{ box-sizing:border-box }
+      body{ margin:0; font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif; color:#0A0A0B; }
+      .sheet{ width:210mm; height:297mm; padding:24mm 20mm; display:flex; flex-direction:column; align-items:center; text-align:center; page-break-after:always; }
+      .logo{ height:22mm; margin-bottom:22mm }
+      h1{ font-size:30mm; line-height:1; margin:0 0 8mm; font-weight:800; letter-spacing:-.02em }
+      p{ font-size:7mm; line-height:1.4; margin:0 0 14mm; font-weight:500 }
+      .qr{ width:110mm; height:110mm } .qr svg{ width:100%; height:100% }
+      .name{ margin-top:12mm; font-size:8mm; font-weight:800 }
+      .bar{ position:fixed; top:10px; right:10px; font-family:sans-serif }
+      .bar button{ background:#0078FF; color:#fff; border:0; border-radius:999px; padding:10px 20px; font-weight:700; font-size:14px; cursor:pointer }
+      @media print{ .bar{ display:none } }
+    </style></head><body><div class="bar"><button onclick="print()">Print</button></div>${sheets}</body></html>`);
+  w.document.close();
+}
 
 (async () => {
   let user = null;

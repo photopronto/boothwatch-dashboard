@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Report a fault · Photo Pronto</title>
+<meta name="theme-color" content="#ffffff" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@500;700;800&display=swap');
+  :root{ --accent:#0078FF; --ink:#0A0A0B; --muted:#6B7078; --bg:#fff; --tile:#F2F3F5; --line:#E1E3E8;
+    --display:'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:var(--display); font-weight:700; font-size:16px; -webkit-font-smoothing:antialiased; }
+  main{ max-width:560px; margin:0 auto; padding: 24px 20px 64px; }
+  .logo{ height:44px; display:block; margin: 4px 0 28px; }
+  h1{ font-weight:800; font-size:32px; letter-spacing:-.02em; margin:0 0 10px; line-height:1.1; }
+  .intro{ color:var(--muted); font-weight:500; font-size:15px; line-height:1.55; margin:0 0 28px; }
+  fieldset{ border:0; padding:0; margin:0 0 26px; }
+  legend, label.q{ display:block; font-weight:800; font-size:16px; margin-bottom:10px; padding:0; }
+  .req{ color:var(--accent); }
+  .opt{ display:flex; align-items:center; gap:12px; background:var(--tile); border-radius:16px; padding:14px 16px; margin-bottom:8px; cursor:pointer; font-weight:700; font-size:15px; line-height:1.3; border:2px solid transparent; }
+  .opt:has(input:checked){ border-color:var(--accent); background:#fff; }
+  .opt input{ accent-color:var(--accent); width:20px; height:20px; flex:none; margin:0; }
+  input[type=text], input[type=email], input[type=date], input[type=time], select, textarea{
+    width:100%; background:var(--tile); border:2px solid transparent; border-radius:14px; padding:14px 16px; font-family:inherit; font-weight:700; font-size:16px; color:var(--ink); }
+  textarea{ min-height:110px; resize:vertical; font-weight:500; line-height:1.45; }
+  input:focus, select:focus, textarea:focus{ outline:none; border-color:var(--accent); background:#fff; }
+  .row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .booth-fixed{ background:var(--tile); border-radius:16px; padding:14px 16px; font-weight:800; }
+  .booth-fixed small{ display:block; color:var(--muted); font-weight:700; font-size:12px; margin-bottom:2px; }
+  button.go{ width:100%; background:var(--accent); color:#fff; border:0; border-radius:999px; padding:17px; font-family:inherit; font-weight:800; font-size:17px; cursor:pointer; }
+  button.go:hover{ background:var(--ink); } button.go:disabled{ opacity:.5; cursor:default; }
+  .err{ color:var(--ink); background:#FFE9E5; border-radius:14px; padding:12px 16px; font-weight:700; font-size:14px; margin-bottom:16px; line-height:1.4; }
+  .privacy{ color:var(--muted); font-weight:500; font-size:12px; line-height:1.5; margin:14px 2px 0; }
+  .hp{ position:absolute; left:-5000px; width:1px; height:1px; overflow:hidden; }
+  .done{ text-align:left; padding-top:8px; }
+  .done .tick{ width:64px; height:64px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; margin-bottom:22px; }
+  .done .tick svg{ width:32px; height:32px; }
+  .done p{ font-weight:500; line-height:1.6; color:var(--muted); font-size:16px; }
+  .done b{ color:var(--ink); }
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<main id="app">
+  <img class="logo" src="logo.png" alt="Photo Pronto" />
+  <div id="form-view">
+    <h1>Report a fault</h1>
+    <p class="intro">To help fix the issue and sort your refund as quickly as possible, please answer the questions below. We're sorry something went wrong.</p>
+    <form id="f" novalidate>
+      <div class="hp" aria-hidden="true"><label>Website <input type="text" id="website" tabindex="-1" autocomplete="off"/></label></div>
+
+      <fieldset id="booth-box">
+        <legend id="booth-legend">Which photobooth did you use? <span class="req">*</span></legend>
+        <div id="booth-fixed" class="booth-fixed" hidden><small>Photobooth</small><span id="booth-name"></span></div>
+        <div id="booth-pick"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>What happened? <span class="req">*</span></legend>
+        <div id="issues"></div>
+        <div id="other-box" hidden style="margin-top:10px"><textarea id="other" maxlength="500" placeholder="Please tell us what happened"></textarea></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>When did you use the photobooth? <span class="req">*</span></legend>
+        <div class="row"><input type="date" id="date" aria-label="Date"/><input type="time" id="time" aria-label="Time"/></div>
+      </fieldset>
+
+      <fieldset>
+        <label class="q" for="more">Anything else we should know?</label>
+        <textarea id="more" maxlength="1000" placeholder="Optional"></textarea>
+      </fieldset>
+
+      <fieldset>
+        <label class="q" for="email">Your email <span class="req">*</span></label>
+        <input type="email" id="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="200"/>
+      </fieldset>
+
+      <div id="err" class="err" hidden role="alert"></div>
+      <button class="go" id="send" type="submit">Send report</button>
+      <p class="privacy">We only use your details to look into this problem and reply to you. We keep reports for 12 months, then delete them. Questions: hello@photopronto.co.uk</p>
+    </form>
+  </div>
+
+  <div id="done-view" class="done" hidden>
+    <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h1>Thank you</h1>
+    <p>We have your report and we're sorry for the trouble. We'll email <b id="done-email"></b> as soon as we've looked into it.</p>
+    <p>Need us sooner? Email <b>hello@photopronto.co.uk</b>.</p>
+  </div>
+</main>
+
+<script>
+const CONFIG = {
+  SUPABASE_URL: "https://mfsxkomjbhlvufgosrtp.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mc3hrb21qYmhsdnVmZ29zcnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0ODI4NjYsImV4cCI6MjEwNzA1ODg2Nn0.GpoF2YbXOmHrMaPnES8aVp87l-yJ8Ri6qFTYdSQxVd4",
+};
+const ISSUES = [
+  "Payment was taken but nothing happened",
+  "Photos were taken but no picture came out",
+  "QR for digital images didn't work",
+  "Payment was taken twice",
+  "Photos were too dark or out of focus",
+  "Card machine was not working to take payment",
+  "Other",
+];
+const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+let boothId = new URLSearchParams(location.search).get('b') || '';
+let booths = [];
+
+$('issues').innerHTML = ISSUES.map((t, i) => `<label class="opt"><input type="radio" name="issue" value="${esc(t)}"/> <span>${esc(t)}</span></label>`).join('');
+document.querySelectorAll('input[name=issue]').forEach(r => r.onchange = () => { $('other-box').hidden = r.value !== 'Other' || !r.checked; if(!$('other-box').hidden) $('other').focus(); });
+
+const now = new Date();
+$('date').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+$('date').max = $('date').value;
+$('time').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+(async () => {
+  try {
+    const { data } = await sb.rpc('support_booths');
+    booths = data || [];
+  } catch(e){}
+  const known = booths.find(b => b.id === boothId);
+  if(known){
+    $('booth-legend').hidden = true;
+    $('booth-fixed').hidden = false; $('booth-name').textContent = known.name;
+  } else {
+    boothId = '';
+    $('booth-pick').innerHTML = booths.length
+      ? booths.map(b => `<label class="opt"><input type="radio" name="booth" value="${esc(b.id)}"/> <span>${esc(b.name)}</span></label>`).join('')
+      : '<div class="err">Sorry, the booth list could not be loaded. Please try again, or email hello@photopronto.co.uk.</div>';
+  }
+})();
+
+function showErr(msg){ const e = $('err'); e.textContent = msg; e.hidden = !msg; if(msg) e.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+
+$('f').addEventListener('submit', async ev => {
+  ev.preventDefault(); showErr('');
+  const booth = boothId || (document.querySelector('input[name=booth]:checked') || {}).value;
+  const issue = (document.querySelector('input[name=issue]:checked') || {}).value;
+  const email = $('email').value.trim();
+  if(!booth) return showErr('Please choose which photobooth you used.');
+  if(!issue) return showErr('Please choose what happened.');
+  if(issue === 'Other' && !$('other').value.trim()) return showErr('Please describe what happened.');
+  if(!$('date').value || !$('time').value) return showErr('Please enter the date and time you used the photobooth.');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return showErr('Please check your email address.');
+  const used = new Date(`${$('date').value}T${$('time').value}`);
+  if(isNaN(used)) return showErr('Please check the date and time.');
+  const details = [issue === 'Other' ? $('other').value.trim() : '', $('more').value.trim()].filter(Boolean).join('\n\n');
+  $('send').disabled = true; $('send').textContent = 'Sending…';
+  const { data, error } = await sb.rpc('submit_support_report', {
+    p_booth: booth, p_issue: issue, p_details: details, p_email: email,
+    p_used_at: used.toISOString(), p_website: $('website').value });
+  if(error){
+    $('send').disabled = false; $('send').textContent = 'Send report';
+    return showErr(error.message || 'Sorry, that did not send. Please try again.');
+  }
+  $('done-email').textContent = email;
+  $('form-view').hidden = true; $('done-view').hidden = false; window.scrollTo(0, 0);
+});
+</script>
+</body>
+</html>
