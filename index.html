@@ -613,9 +613,50 @@ function renderLogin(errorMsg){
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if(error){ renderLogin(error.message); return; }
       currentUser = data.user;
-      renderApp();
+      await continueAfterSignIn();
     } catch(err){ renderLogin(err.message || 'Could not sign in.'); }
   };
+}
+
+// Two-step sign-in: if this account has an authenticator app set up, ask for its 6-digit code before showing anything.
+async function continueAfterSignIn(){
+  let needCode = false;
+  try {
+    const { data } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    needCode = !!data && data.nextLevel === 'aal2' && data.currentLevel !== 'aal2';
+  } catch(e){ needCode = false; }
+  if(needCode) renderCodePrompt(); else renderApp();
+}
+
+async function renderCodePrompt(errorMsg){
+  app.innerHTML = `
+    <div class="login-wrap">
+      <form class="login-card" id="code-form">
+        <img class="logo" src="logo.png" alt="Photo Pronto" />
+        <input id="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code" aria-label="6-digit code from your authenticator app" style="text-align:center;letter-spacing:6px;font-family:var(--mono)" />
+        <button id="verify" type="submit">Continue</button>
+        <div class="error">${esc(errorMsg || '')}</div>
+        <button id="code-out" type="button" class="btn-sm" style="margin-top:6px;width:100%">Sign out</button>
+      </form>
+    </div>`;
+  const input = document.getElementById('code'); input.focus();
+  document.getElementById('code-out').onclick = async () => { await sb.auth.signOut(); renderLogin(); };
+  const submit = async () => {
+    const code = input.value.replace(/\D/g, '');
+    if(code.length !== 6) return;
+    document.getElementById('verify').disabled = true; input.disabled = true;
+    try {
+      const { data: f, error: fe } = await sb.auth.mfa.listFactors();
+      if(fe) throw fe;
+      const factor = (f.totp || []).find(x => x.status === 'verified');
+      if(!factor) throw new Error('No authenticator is set up on this account.');
+      const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+      if(error) throw error;
+      renderApp();
+    } catch(err){ renderCodePrompt(/invalid|expired|code/i.test(err.message || '') ? 'That code did not work. Try the newest one.' : (err.message || 'Could not check the code.')); }
+  };
+  document.getElementById('code-form').onsubmit = e => { e.preventDefault(); submit(); };
+  input.oninput = () => { input.value = input.value.replace(/\D/g, '').slice(0, 6); if(input.value.length === 6) submit(); };
 }
 
 async function loadBooths(){
@@ -1663,6 +1704,12 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="mc-save">Save</button><span class="save-msg" id="msg-mc"></span></div>
     </section>
 
+    <section class="panel" id="p-2fa" data-stab="dashboard">
+      <h2>Two-step sign-in</h2>
+      <p class="help">Asks for a 6-digit code from an authenticator app (Google Authenticator, 1Password, Authy and similar) each time you sign in, on top of your password.</p>
+      <div id="tfa-body"><div class="help">Checking…</div></div>
+    </section>
+
     <section class="panel" id="p-prefs" data-stab="dashboard">
       <h2>This dashboard</h2>
       <p class="help">Saved in this browser only, so your phone and computer can differ.</p>
@@ -1677,6 +1724,54 @@ function drawSettings(){
   document.getElementById('pref-refresh').value = String(prefs.refreshSeconds || 10);
 }
 
+// Two-step sign-in settings: turn on (scan a QR code, confirm one code) or turn off.
+async function draw2fa(note){
+  const box = document.getElementById('tfa-body'); if(!box) return;
+  const say = (html) => { if(document.getElementById('tfa-body') === box) box.innerHTML = html; };
+  let factors = [];
+  try { const { data, error } = await sb.auth.mfa.listFactors(); if(error) throw error; factors = data.totp || []; }
+  catch(e){ say(`<div class="help">Two-step sign-in is not available right now: ${esc(e.message || 'could not check')}. In Supabase, check Authentication, Multi-Factor, that authenticator apps (TOTP) are enabled.</div>`); return; }
+  const verified = factors.find(f => f.status === 'verified');
+  if(verified){
+    say(`<div class="set-row"><div><div class="name">On</div><div class="desc">${note ? esc(note) : 'You are asked for a code each time you sign in.'}</div></div>
+      <div class="set-ctl"><button class="btn-sm" id="tfa-off">Turn off</button></div></div><div class="save-row" style="margin-top:0"><span class="save-msg" id="tfa-msg"></span></div>`);
+    document.getElementById('tfa-off').onclick = async () => {
+      if(!confirm('Turn off two-step sign-in? Your password alone will be enough to sign in.')) return;
+      const { error } = await sb.auth.mfa.unenroll({ factorId: verified.id });
+      if(error){ document.getElementById('tfa-msg').textContent = error.message; return; }
+      draw2fa('');
+    };
+    return;
+  }
+  say(`<div class="set-row"><div><div class="name">Off</div><div class="desc">${note ? esc(note) : 'Only your password is needed to sign in.'}</div></div>
+    <div class="set-ctl"><button class="btn-primary" id="tfa-on">Turn on</button></div></div><div class="save-row" style="margin-top:0"><span class="save-msg" id="tfa-msg"></span></div>`);
+  document.getElementById('tfa-on').onclick = async () => {
+    const msg = document.getElementById('tfa-msg'); msg.textContent = '';
+    try {
+      for(const f of factors) await sb.auth.mfa.unenroll({ factorId: f.id });     // clear half-finished set-ups
+      const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'BoothWatch ' + new Date().toISOString().slice(0, 10) });
+      if(error) throw error;
+      say(`<ol class="steps">
+          <li>Open your authenticator app and add an account by scanning this code.</li>
+        </ol>
+        <div style="background:#fff;border-radius:16px;padding:12px;display:inline-block;margin:4px 0 10px"><img src="${esc(data.totp.qr_code)}" alt="QR code to add BoothWatch to your authenticator app" width="180" height="180" style="display:block"/></div>
+        <p class="help" style="margin-bottom:12px">Cannot scan it? Enter this key instead: <code style="font-family:var(--mono);font-weight:600;word-break:break-all">${esc(data.totp.secret)}</code></p>
+        <ol class="steps" start="2"><li>Type the 6-digit code the app shows to finish.</li></ol>
+        <div class="save-row" style="margin-top:0"><input type="text" id="tfa-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code" style="font-family:var(--mono);letter-spacing:3px;width:160px" aria-label="6-digit code"/>
+        <button class="btn-primary" id="tfa-confirm">Turn on</button><button class="btn-sm" id="tfa-cancel">Cancel</button><span class="save-msg" id="tfa-msg"></span></div>`);
+      const m2 = () => document.getElementById('tfa-msg');
+      document.getElementById('tfa-cancel').onclick = async () => { await sb.auth.mfa.unenroll({ factorId: data.id }); draw2fa(''); };
+      document.getElementById('tfa-confirm').onclick = async () => {
+        const code = document.getElementById('tfa-code').value.replace(/\D/g, '');
+        if(code.length !== 6){ m2().textContent = 'Enter the 6 digits from the app.'; return; }
+        const { error: ve } = await sb.auth.mfa.challengeAndVerify({ factorId: data.id, code });
+        if(ve){ m2().textContent = 'That code did not work. Try the newest one.'; return; }
+        draw2fa('Turned on. You will be asked for a code next time you sign in.');
+      };
+    } catch(e){ msg.textContent = e.message || 'Could not start the set-up.'; }
+  };
+}
+
 function wireSettings(booths, targets){
   const $ = id => document.getElementById(id);
   const msg = (id, text, bad) => { const m = $(id); if(m){ m.textContent = text; m.style.color = bad ? 'var(--ink)' : 'var(--accent)'; clearTimeout(m._t); if(text) m._t = setTimeout(() => { m.textContent = ''; }, 4000); } };
@@ -1689,6 +1784,7 @@ function wireSettings(booths, targets){
   const refreshCache = async () => { boothCache = await loadBooths(); };
 
   if($('scope')) $('scope').onchange = e => { settingsScope = e.target.value; drawSettings(); };
+  draw2fa();
   document.querySelectorAll('[data-stab-btn]').forEach(b => b.onclick = () => {
     settingsTab = b.dataset.stabBtn;
     try { localStorage.setItem('bw-settings-tab', settingsTab); } catch(e){}
@@ -2522,7 +2618,7 @@ async function downloadCards(list, kind){
 (async () => {
   let user = null;
   try { const { data } = await sb.auth.getSession(); user = data && data.session ? data.session.user : null; } catch(e){}
-  if(user){ currentUser = user; renderApp(); }
+  if(user){ currentUser = user; await continueAfterSignIn(); }
   else{ renderLogin(); }
 })();
 </script>
