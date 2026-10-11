@@ -2344,6 +2344,7 @@ const CARD_FONT_URLS = {
   head: FONT_BASE + '@fontsource/inter@5.0.8/files/inter-latin-800-normal.woff',
   body: FONT_BASE + '@fontsource/inter@5.0.8/files/inter-latin-400-normal.woff',
   mono: FONT_BASE + '@fontsource/ibm-plex-mono@5.0.8/files/ibm-plex-mono-latin-400-normal.woff',
+  copy: FONT_BASE + '@fontsource/inter@5.0.8/files/inter-latin-700-normal.woff',
 };
 let cardFontsPromise = null;
 function loadScriptOnce(src, test){
@@ -2391,7 +2392,7 @@ function cardParts(b, fonts){
     T('a fault with the photobooth', 'body', 10.16, L, 90.16),
     T('please scan the QR code.', 'body', 10.16, L, 103.135),
     T('Location: ' + b.name, 'mono', 6.78, L, 118.83),
-    T('©PhotoPronto 2026', 'body', 4.04, 251.971, 127.571),
+    T('©PhotoPronto 2026', 'copy', 4.04, 290.719 - fonts.copy.getAdvanceWidth('©PhotoPronto 2026', 4.04, { kerning: true }), 127.571),   // bold, right edge where it always was
   ];
   return { rects, texts };
 }
