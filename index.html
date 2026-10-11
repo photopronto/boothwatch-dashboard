@@ -267,6 +267,10 @@
     .frame.open .frame-mini{ display:none; }
     .frame.open .frame-body{ margin-top: 14px; }
     .frame-top .right{ display:flex; align-items:center; gap:10px; }
+    /* name and figures get the full width; the status pill and arrow sit on their own row underneath */
+    .frame-top{ flex-wrap:wrap; row-gap:12px; }
+    .frame-top > div:first-child{ flex:1 1 100%; }
+    .frame-top .right{ flex:1 1 100%; justify-content:space-between; }
     .notif-panel{ position:fixed; left:16px; right:16px; width:auto; top: var(--np-top, 120px); max-height: calc(100vh - var(--np-top, 120px) - 16px); }
   }
   @media (prefers-reduced-motion: reduce){ .chev{ transition:none; } }
