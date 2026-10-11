@@ -6,4 +6,4 @@ if %errorlevel% neq 0 (
   powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
   exit /b
 )
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://photopronto.github.io/boothwatch-dashboard/agent/install.ps1' | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://dashboard.photopronto.co.uk/agent/install.ps1' | iex"

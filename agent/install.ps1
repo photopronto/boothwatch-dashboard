@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
 
-$BaseUrl    = 'https://photopronto.github.io/boothwatch-dashboard/agent/'
+$BaseUrl    = 'https://dashboard.photopronto.co.uk/agent/'
 $InstallDir = 'C:\BoothWatch'
 $TaskName   = 'BoothWatch Agent'
 $PythonUrl  = 'https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe'
