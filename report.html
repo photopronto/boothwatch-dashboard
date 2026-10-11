@@ -141,17 +141,15 @@ $('time').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   if(form.intro) $('intro').textContent = form.intro;
   if(form.ask_when === false){ askWhen = false; $('when-box').hidden = true; }
   if(form.ask_more === false){ $('more-box').hidden = true; }
-  const known = booths.find(b => b.id === boothId);
-  if(known){
-    $('booth-legend').hidden = true;
-    $('booth-fixed').hidden = false; $('booth-name').textContent = known.name;
-  } else if(boothId && !booths.length){
+  if(boothId && !booths.length){
     $('booth-box').hidden = true;      // the code in the QR link is enough, even if the list could not load
+  } else if(booths.length){
+    if(!booths.find(b => b.id === boothId)) boothId = '';
+    $('booth-pick').innerHTML = `<select id="booth-select" aria-label="Photobooth">
+      ${boothId ? '' : '<option value="">Choose a photobooth…</option>'}
+      ${booths.map(b => `<option value="${esc(b.id)}" ${b.id === boothId ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>`;
   } else {
-    boothId = '';
-    $('booth-pick').innerHTML = booths.length
-      ? booths.map(b => `<label class="opt"><input type="radio" name="booth" value="${esc(b.id)}"/> <span>${esc(b.name)}</span></label>`).join('')
-      : '<div class="err">Sorry, the booth list could not be loaded. Please try again in a moment, or email hello@photopronto.co.uk.</div>';
+    $('booth-pick').innerHTML = '<div class="err">Sorry, the booth list could not be loaded. Please try again in a moment, or email hello@photopronto.co.uk.</div>';
   }
 })();
 
@@ -159,7 +157,8 @@ function showErr(msg){ const e = $('err'); e.textContent = msg; e.hidden = !msg;
 
 $('f').addEventListener('submit', async ev => {
   ev.preventDefault(); showErr('');
-  const booth = boothId || (document.querySelector('input[name=booth]:checked') || {}).value;
+  const sel = $('booth-select');
+  const booth = sel ? sel.value : boothId;
   const issue = (document.querySelector('input[name=issue]:checked') || {}).value;
   const email = $('email').value.trim();
   if(!booth) return showErr('Please choose which photobooth you used.');
