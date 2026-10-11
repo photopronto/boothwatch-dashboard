@@ -29,6 +29,7 @@
 <script>
   const CONFIG = {
     VAPID_PUBLIC_KEY: "BCALpqfJBmALnfvKiBdUbbtv669xuHfhLhxfvPzYmoKHkog8PreNXwhhdMT0HfelHRWIioKjif1eMDkK01Qrxjw",   // public half of the phone-notification key (safe to be here)
+    SUPPORT_URL: "",   // once the support site has its own address, put it here, e.g. "https://support.photopronto.co.uk/"
     SUPABASE_URL: "https://mfsxkomjbhlvufgosrtp.supabase.co",
     SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mc3hrb21qYmhsdnVmZ29zcnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0ODI4NjYsImV4cCI6MjEwNzA1ODg2Nn0.GpoF2YbXOmHrMaPnES8aVp87l-yJ8Ri6qFTYdSQxVd4",
   };
@@ -2290,7 +2291,7 @@ function wireSupport(list, rows){
 
 // ═══════════════ QR codes for the booths ═══════════════
 function pageBase(){ return location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, ''); }
-function reportLink(boothId){ return pageBase() + 'report.html' + (boothId ? '?b=' + encodeURIComponent(boothId) : ''); }
+function reportLink(boothId){ return (CONFIG.SUPPORT_URL ? CONFIG.SUPPORT_URL.replace(/\/?$/, '/') : pageBase() + 'report.html') + (boothId ? '?b=' + encodeURIComponent(boothId) : ''); }
 
 function loadQrLib(){
   if(window.qrcode) return Promise.resolve();
