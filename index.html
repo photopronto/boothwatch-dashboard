@@ -174,6 +174,8 @@
 
   /* ── booth cards ── */
   .frames{ display:grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 14px; align-items:start; }
+  .frames.cols{ display:flex; align-items:flex-start; gap:14px; }
+  .frame-col{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:14px; }
   .frame{ background: var(--tile); border-radius: 28px; padding: 22px; min-width:0; display:flex; flex-direction:column; gap: 14px; }
   .frame-body{ display:flex; flex-direction:column; gap:14px; }
   .frame-mini, .chev{ display:none; }
@@ -1294,6 +1296,7 @@ function renderBoothsPage(){
 }
 
 let lastFramesHtml = null;
+window.addEventListener('resize', () => { clearTimeout(window._frT); window._frT = setTimeout(() => { if(view === 'booths'){ lastFramesHtml = null; refreshBooths(); } }, 250); });
 
 async function refreshBooths(){
   if(view !== 'booths') return;
@@ -1319,8 +1322,15 @@ async function refreshBooths(){
 
   fleetBeats = booths.filter(b => b.last_heartbeat_at).map(b => ({ t: new Date(b.last_heartbeat_at).getTime(), iv: checkInterval(b) }));
   const framesEl = document.getElementById('frames');
+  // Cards sit in independent columns (1st, 2nd, 3rd across, then the 4th under the 1st...), so opening one
+  // card only moves the cards beneath it, never the ones in the next column.
+  const colCount = booths.length ? Math.max(1, Math.min(booths.length, Math.floor((framesEl.clientWidth + 14) / (380 + 14)))) : 1;
+  framesEl.classList.toggle('cols', colCount > 1);
+  const cards = booths.map(boothFrame);
   const html = booths.length
-    ? booths.map(boothFrame).join('')
+    ? (colCount > 1
+        ? Array.from({ length: colCount }, (_, c) => `<div class="frame-col">${cards.filter((_, i) => i % colCount === c).join('')}</div>`).join('')
+        : cards.join(''))
     : `<div class="empty">No booths yet. Open <a href="#/settings">Settings</a> and use "Add a booth" to install the agent on a booth PC.</div>`;
   if(html !== lastFramesHtml){
     lastFramesHtml = html;
