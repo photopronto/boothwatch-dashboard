@@ -277,6 +277,40 @@
   }
   @media (prefers-reduced-motion: reduce){ .chev{ transition:none; } }
 
+
+  /* ── company overview ── */
+  .overview{ display:grid; grid-template-columns: 1.3fr repeat(4, 1fr); gap:14px; background: var(--tile); border-radius:20px; padding:20px 22px; margin-bottom:22px; }
+  .ov{ min-width:0; }
+  .ov .k{ color: var(--muted); font-size:12.5px; font-weight:500; }
+  .ov .v{ font-weight:800; font-size:26px; letter-spacing:-.02em; line-height:1.15; margin:6px 0 2px; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .ov-main .v{ font-size:34px; color: var(--accent); }
+  .sect-title{ font-size:15px; font-weight:800; margin:6px 0 12px; }
+  @media (max-width:700px){
+    .overview{ grid-template-columns: 1fr 1fr; gap:16px 12px; padding:16px; border-radius:18px; margin-bottom:18px; }
+    .ov-main{ grid-column: 1 / -1; padding-bottom:14px; border-bottom:1px solid var(--line); }
+    .ov .v{ font-size:21px; } .ov-main .v{ font-size:30px; }
+  }
+
+  /* ── sales strip on booth cards (sales first, like a machines list) ── */
+  .frame .sales{ display:grid; grid-template-columns: 1.15fr 1fr 1fr; gap:6px; margin-top:2px; }
+  .sale{ min-width:0; }
+  .sale b, .stat b.money{ display:block; font-weight:800; font-size:22px; line-height:1.1; letter-spacing:-.02em; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .frame .sales .sale:first-child b{ font-size:26px; }
+  .sale .k{ display:block; color: var(--muted); font-size:11.5px; font-weight:500; margin:0 0 4px; }
+  .sub{ all:unset; display:block; cursor:pointer; margin-top:6px; font-family: var(--mono); font-weight:500; font-size:11.5px; color: var(--muted); font-variant-numeric: tabular-nums; border-bottom:1px dotted transparent; width:max-content; max-width:100%; }
+  .sub:hover, .sub:focus-visible{ color: var(--ink); border-bottom-color: currentColor; }
+  .stat .sub{ margin-top:4px; }
+  .stats .stat b{ font-size:18px; white-space:nowrap; }
+  .stats .stat .k, .stat .k{ display:block; color: var(--muted); font-size:11.5px; font-weight:500; margin:0 0 3px; }
+  .tile-toggle{ cursor:pointer; }
+  @media (max-width:700px){
+    .frame .sales{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+    .frame.open .sales{ margin-bottom:0; }
+    .sale b{ font-size:18px; }
+    .frame .sales .sale:first-child b{ font-size:22px; }
+  }
+
+
   /* ── navigation ── */
   .tabs{ display:flex; gap:4px; background: var(--tile); border-radius:999px; padding:4px; }
   .tabs a{ padding: 8px 18px; border-radius:999px; font-weight:700; font-size:14px; color: var(--muted); text-decoration:none; }
@@ -439,7 +473,7 @@
     .set-row{ grid-template-columns: 1fr; }
     .set-ctl{ justify-content:flex-start; }
     .chart-card{ padding: 16px; border-radius:24px; }
-    .stat b{ font-size:24px; }
+    .stats .stat b{ font-size:17px; }
     .actions .more{ margin-left:0; }
   }
 
@@ -991,6 +1025,41 @@ function setPrefs(p){ try { localStorage.setItem('bw-prefs', JSON.stringify({ ..
 const openDetails = new Set((() => { try { return JSON.parse(localStorage.getItem('bw-details') || '[]'); } catch(e){ return []; } })());
 function saveDetails(){ try { localStorage.setItem('bw-details', JSON.stringify([...openDetails])); } catch(e){} }
 
+// ── sales / sessions per booth ──
+let countKind = (() => { try { return localStorage.getItem('bw-count') === 'prints' ? 'prints' : 'sessions'; } catch(e){ return 'sessions'; } })();
+function toggleCountKind(){
+  countKind = countKind === 'prints' ? 'sessions' : 'prints';
+  try { localStorage.setItem('bw-count', countKind); } catch(e){}
+  lastFramesHtml = null; refreshBooths();
+}
+const countWord = (n, kind) => n + ' ' + (kind === 'prints' ? 'print' : 'session') + (n === 1 ? '' : 's');
+// One figure: the money made (or, with no price set, the session count) with the sessions/prints under it. Tap the small line to switch to prints.
+function saleCell(b, key, label, plain){
+  const p = (b.periods && b.periods[key]) || { sessions: 0, prints: 0, sales: 0 };
+  const priced = Number((b.config && b.config.money && b.config.money.price) || 0) > 0;
+  const big = priced ? (key === 'today' || key === 'yesterday' ? money(p.sales) : money0(p.sales)) : String(p.sessions);
+  const sub = priced ? countWord(p[countKind], countKind) : (countKind === 'prints' ? countWord(p.prints, 'prints') : 'no price set');
+  const inner = `<span class="k">${esc(label)}</span><b>${big}</b><button type="button" class="sub" data-count-toggle title="Switch between sessions and prints">${sub}</button>`;
+  return plain ? inner : `<div class="sale">${inner}</div>`;
+}
+let periodCache = null;
+async function loadPeriodStats(booths){
+  const [yf] = periodRange('year');
+  const since = addDays(yf, -8);
+  if(!periodCache || Date.now() - periodCache.at > 25000 || periodCache.since > since){
+    try { periodCache = { at: Date.now(), since, rows: await loadStatsRows(since) }; }
+    catch(e){ console.error(e); if(!periodCache) return {}; }
+  }
+  const out = {};
+  for(const b of booths){
+    out[b.id] = {};
+    for(const k of ['today', 'yesterday', 'week', 'month', 'year']){
+      out[b.id][k] = computeRange(periodCache.rows, [b], periodRange(k), 'day', []).per[b.id];
+    }
+  }
+  return out;
+}
+
 function boothFrame(b){
   const online = isOnline(b);
   const programs = programList(b);
@@ -1077,7 +1146,6 @@ function boothFrame(b){
         <div>
           <div class="frame-name">${esc(b.name)}${badge}</div>
           <div class="frame-loc">${esc(b.location || "")}</div>
-          <div class="frame-mini">${b.sessions_today ?? 0} sessions · ${b.prints_today ?? 0} prints today</div>
           <div class="checkin" data-hb="${esc(b.last_heartbeat_at || '')}" data-iv="${checkInterval(b)}" data-online="${online ? 1 : 0}"></div>
         </div>
         <div class="right">
@@ -1085,10 +1153,12 @@ function boothFrame(b){
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
         </div>
       </div>
+      <div class="sales">
+        ${[['today', 'Today'], ['month', 'This month'], ['year', 'This year']].map(([k, n]) => saleCell(b, k, n)).join('')}
+      </div>
       <div class="frame-body">
         <div class="stats">
-          <div class="stat"><b>${b.sessions_today ?? 0}</b><span>sessions today</span></div>
-          <div class="stat"><b>${b.prints_today ?? 0}</b><span>prints today</span></div>
+          ${[['yesterday', 'Yesterday'], ['week', 'This week']].map(([k, n]) => `<div class="stat">${saleCell(b, k, n, true)}</div>`).join('')}
           <div class="stat ${rollState}"><b>${remaining}</b><span>prints left</span></div>
         </div>
         <div class="roll-bar" title="${Math.round(pct)}% of the roll left"><div class="roll-fill ${rollState}" style="width:${pct}%"></div></div>
@@ -1351,21 +1421,23 @@ async function refreshBooths(){
   if(view !== 'booths') return;
   boothCache = booths;
   const ids = booths.map(b => b.id);
-  const [counts, lastCmds] = await Promise.all([loadTodayCounts(ids), loadLastCommands(ids)]);
+  const [periods, lastCmds] = await Promise.all([loadPeriodStats(booths), loadLastCommands(ids)]);
   if(view !== 'booths') return;
-  booths = booths.map(b => ({ ...b, ...(counts[b.id] || { prints_today: 0, sessions_today: 0 }), lastCommand: lastCmds[b.id] || null }));
+  booths = booths.map(b => ({ ...b, periods: periods[b.id] || null, lastCommand: lastCmds[b.id] || null }));
 
   const onlineCount = booths.filter(isOnline).length;
   const attentionCount = booths.filter(needsAttention).length;
   const counted = booths.filter(b => !(b.config && b.config.stage === 'build'));
-  const printsToday = counted.reduce((s,b) => s + (b.prints_today||0), 0);
-  const sessionsToday = counted.reduce((s,b) => s + (b.sessions_today||0), 0);
+  const todayOf = b => (b.periods && b.periods.today) || { sessions: 0, prints: 0, sales: 0 };
+  const salesToday = counted.reduce((s,b) => s + todayOf(b).sales, 0);
+  const countToday = counted.reduce((s,b) => s + todayOf(b)[countKind], 0);
 
   document.getElementById('summary').innerHTML = `
     <div class="tile hero"><div class="tile-label">Online</div><div class="tile-num">${onlineCount}/${booths.length}</div><div class="tile-sub">booths checking in</div></div>
     <div class="tile ${attentionCount ? 'dark' : ''}"><div class="tile-label">Need attention</div><div class="tile-num">${attentionCount}</div><div class="tile-sub">${attentionCount ? 'open the cards below' : 'all clear'}</div></div>
-    <div class="tile"><div class="tile-label">Sessions today</div><div class="tile-num">${sessionsToday}</div><div class="tile-sub">live booths</div></div>
-    <div class="tile"><div class="tile-label">Prints today</div><div class="tile-num">${printsToday}</div><div class="tile-sub">live booths</div></div>`;
+    <div class="tile"><div class="tile-label">Sales today</div><div class="tile-num">${money0(salesToday)}</div><div class="tile-sub">live booths</div></div>
+    <div class="tile tile-toggle" data-count-toggle role="button" tabindex="0" title="Tap to switch between sessions and prints"><div class="tile-label">${countKind === 'prints' ? 'Prints' : 'Sessions'} today</div><div class="tile-num">${countToday}</div><div class="tile-sub">live booths · tap for ${countKind === 'prints' ? 'sessions' : 'prints'}</div></div>`;
+  document.querySelectorAll('#summary [data-count-toggle]').forEach(el => { el.onclick = toggleCountKind; el.onkeydown = e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleCountKind(); } }; });
 
   fleetBeats = booths.filter(b => b.last_heartbeat_at).map(b => ({ t: new Date(b.last_heartbeat_at).getTime(), iv: checkInterval(b) }));
   const framesEl = document.getElementById('frames');
@@ -1406,6 +1478,7 @@ function wireBoothCards(framesEl, booths){
       el.closest('.frame').classList.toggle('open', openBooths.has(id));
     };
   });
+  framesEl.querySelectorAll('[data-count-toggle]').forEach(btn => { btn.onclick = e => { e.stopPropagation(); toggleCountKind(); }; });
   framesEl.querySelectorAll('[data-details]').forEach(btn => {
     btn.onclick = () => {
       const id = btn.dataset.details;
@@ -2101,7 +2174,7 @@ async function renderCompanyPage(){
   const el = mainEl();
   el.innerHTML = `
     <h1 class="page-title">Company</h1>
-    <p class="page-sub">Sales, costs and profit across all your booths. Sales are sessions × price per session; set prices and costs in Settings.</p>
+    <p class="page-sub">Sales are sessions × price per session, before costs and refunds. Set prices and costs in Settings.</p>
     <div id="company-body"><div class="empty">Loading…</div></div>`;
   try {
     const booths = await loadBooths();
@@ -2151,7 +2224,15 @@ function drawCompany(){
   }).join('');
   const dTotal = TB ? T.profit - TB.profit : null;
 
+  // Overview first: sessions and sales for today, yesterday, this week, this month, this year
+  const OV = [['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week'], ['month', 'This month'], ['year', 'This year']].map(([k, n]) => {
+    const t = computeRange(rows, booths, periodRange(k), 'day', []).totals;
+    return `<div class="ov ${k === 'today' ? 'ov-main' : ''}"><div class="k">${n}</div><div class="v">${money0(t.sales)}</div><button type="button" class="sub" data-count-toggle title="Switch between sessions and prints">${countWord(Math.round(t[countKind]), countKind)}</button></div>`;
+  }).join('');
+
   body.innerHTML = `
+    <section class="overview">${OV}</section>
+    <h2 class="sect-title">Compare and explore</h2>
     <div class="company-controls">
       <label>Period<select id="c-period">${PERIODS.map(([k, n]) => `<option value="${k}" ${S.period === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       ${S.period === 'custom' ? `<label>From<input type="date" id="c-from" value="${esc(S.customFrom || cur[0])}"/></label><label>To<input type="date" id="c-to" value="${esc(S.customTo || cur[1])}"/></label>` : ''}
@@ -2199,6 +2280,7 @@ function drawCompany(){
 
   const $ = id => document.getElementById(id);
   const rerender = () => { saveCompanyState(); drawCompany(); };
+  body.querySelectorAll('[data-count-toggle]').forEach(el => el.onclick = () => { countKind = countKind === 'prints' ? 'sessions' : 'prints'; try { localStorage.setItem('bw-count', countKind); } catch(e){} drawCompany(); });
   $('c-period').onchange = e => { S.period = e.target.value; if(S.period === 'custom' && !S.customFrom){ S.customFrom = cur[0]; S.customTo = cur[1]; } rerender(); };
   $('c-compare').onchange = e => { S.compare = e.target.value; rerender(); };
   if($('c-from')) { $('c-from').onchange = e => { S.customFrom = e.target.value; rerender(); }; $('c-to').onchange = e => { S.customTo = e.target.value; rerender(); }; }
