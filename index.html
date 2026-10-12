@@ -599,6 +599,43 @@
   .stabs button{ flex:none; border:0; background: var(--tile); color: var(--muted); font:inherit; font-weight:600; font-size:13px; border-radius:999px; padding:9px 16px; cursor:pointer; white-space:nowrap; }
   .stabs button:hover{ color: var(--ink); }
   .stabs button.on{ background: var(--ink); color:#fff; }
+
+  /* ── sticky header + motion polish ── */
+  header{ position:sticky; top: calc(-1 * var(--hd-top, 0px)); z-index:30; max-width:none; margin:0;
+    padding-left: max(clamp(16px, 4vw, 48px), calc((100vw - 1280px) / 2 + clamp(16px, 4vw, 48px)));
+    padding-right: max(clamp(16px, 4vw, 48px), calc((100vw - 1280px) / 2 + clamp(16px, 4vw, 48px)));
+    padding-bottom:10px; background: color-mix(in srgb, var(--bg) 84%, transparent);
+    -webkit-backdrop-filter: saturate(1.6) blur(14px); backdrop-filter: saturate(1.6) blur(14px);
+    transition: box-shadow .25s, border-color .25s; border-bottom:1px solid transparent; }
+  header.stuck{ border-bottom-color: var(--line); box-shadow: 0 6px 20px -12px rgba(10,10,11,.22); }
+  .tabs{ position:relative; }
+  .tabs a{ position:relative; z-index:1; transition: color .2s; }
+  .tabs a.on{ background:transparent; }
+  .tab-ind{ position:absolute; left:0; top:0; z-index:0; background: var(--ink); border-radius:999px; pointer-events:none;
+    transition: transform .32s cubic-bezier(.3,.8,.25,1), width .32s cubic-bezier(.3,.8,.25,1); }
+  .notif-panel{ z-index:40; }
+
+  @keyframes riseIn{ from{ opacity:0; transform: translateY(8px); } to{ opacity:1; transform:none; } }
+  @keyframes barGrow{ from{ transform: scaleY(0); } to{ transform: scaleY(1); } }
+  @keyframes livePulse{ 0%{ box-shadow:0 0 0 0 rgba(255,255,255,.55); } 70%,100%{ box-shadow:0 0 0 6px rgba(255,255,255,0); } }
+  #view.enter > *, #view.enter .frame, #view.enter .tile, #view.enter .panel, #view.enter .chart-card, #view.enter .overview{ animation: riseIn .38s cubic-bezier(.2,.7,.2,1) both; }
+  #view.enter .frame:nth-child(2), #view.enter .tile:nth-child(2){ animation-delay:.04s; }
+  #view.enter .frame:nth-child(3), #view.enter .tile:nth-child(3){ animation-delay:.08s; }
+  #view.enter .frame:nth-child(4), #view.enter .tile:nth-child(4){ animation-delay:.12s; }
+  #view.enter .frame:nth-child(n+5){ animation-delay:.16s; }
+  .chart-box svg path[fill="#0078FF"], .chart-box svg path[fill="#C3C7CF"]{ transform-box: fill-box; transform-origin: 50% 100%; animation: barGrow .5s cubic-bezier(.2,.7,.2,1) both; }
+  .pill.ok::before{ animation: livePulse 2.2s ease-out infinite; }
+  .frame, .tile, .btn, button{ transition: transform .16s cubic-bezier(.2,.7,.2,1), box-shadow .2s, background-color .15s, border-color .15s, color .15s, opacity .15s; }
+  button:not(:disabled):active, .tile-toggle:active, .tabs a:active{ transform: scale(.97); }
+  @media (hover:hover){
+    .frame:hover, .tile:hover{ transform: translateY(-2px); box-shadow: 0 10px 28px -18px rgba(10,10,11,.35); }
+    .tile.hero:hover, .tile.dark:hover{ box-shadow: 0 10px 28px -14px rgba(10,10,11,.4); }
+  }
+  .sub{ transition: color .15s, border-color .15s; }
+  .chev{ transition: transform .22s cubic-bezier(.3,.8,.25,1); }
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{ animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -1314,6 +1351,7 @@ function renderApp(){
     <header>
       <img class="logo" src="logo.png" alt="Photo Pronto" />
       <nav class="tabs" aria-label="Pages">
+        <span class="tab-ind" aria-hidden="true"></span>
         <a href="#/booths" data-tab="booths">Booths</a>
         <a href="#/company" data-tab="company">Company</a>
         <a href="#/support" data-tab="support">Support<span class="tab-count" id="support-count" hidden>0</span></a>
@@ -1331,6 +1369,7 @@ function renderApp(){
       </div>
     </header>
     <main id="view"></main>`;
+  requestAnimationFrame(fitHeader);
 
   document.getElementById('signout').onclick = async () => {
     await sb.auth.signOut();
@@ -1369,12 +1408,38 @@ function routeFromHash(){
 }
 function goPage(p){ if(location.hash === '#/' + p) showPage(p); else location.hash = '#/' + p; }
 
+
+// sliding highlight behind the active tab, and a header that stays put while scrolling
+function placeTabInd(animate){
+  const nav = document.querySelector('.tabs'), ind = nav && nav.querySelector('.tab-ind'), on = nav && nav.querySelector('a.on');
+  if(!ind || !on) return;
+  if(!animate || !ind.dataset.ready) ind.style.transition = 'none';
+  ind.style.width = on.offsetWidth + 'px'; ind.style.height = on.offsetHeight + 'px';
+  ind.style.transform = `translate(${on.offsetLeft}px, ${on.offsetTop}px)`;
+  if(!ind.dataset.ready){ ind.dataset.ready = '1'; void ind.offsetWidth; }
+  requestAnimationFrame(() => { ind.style.transition = ''; });
+}
+function fitHeader(){
+  const h = document.querySelector('header'), t = document.querySelector('.tabs');
+  if(!h || !t) return;
+  // on a phone the logo row scrolls away and just the tabs stay; on a wide screen the whole bar stays
+  h.style.setProperty('--hd-top', isMobile() ? Math.max(0, t.offsetTop - 6) + 'px' : '0px');
+  h.classList.toggle('stuck', window.scrollY > 4);
+  placeTabInd(false);
+}
+window.addEventListener('resize', () => fitHeader());
+window.addEventListener('load', () => fitHeader());
+window.addEventListener('scroll', () => { const h = document.querySelector('header'); if(h) h.classList.toggle('stuck', window.scrollY > 4); }, { passive: true });
+
 function showPage(p){
   if(!PAGES.includes(p)) p = 'booths';
   view = p;
   currentRefresh = null;
   document.querySelectorAll('.tabs a').forEach(a => { a.classList.toggle('on', a.dataset.tab === p); if(a.dataset.tab === p) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   window.scrollTo(0, 0);
+  placeTabInd(true);
+  const v = document.getElementById('view');
+  if(v){ v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); clearTimeout(window._enterT); window._enterT = setTimeout(() => v.classList.remove('enter'), 900); }
   ({ booths: renderBoothsPage, company: renderCompanyPage, support: renderSupportPage, settings: renderSettingsPage })[p]();
 }
 
