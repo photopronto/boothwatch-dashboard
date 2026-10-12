@@ -557,9 +557,12 @@
     .company-controls label{ flex:1 1 calc(50% - 10px); }
     .company-controls select, .company-controls input{ width:100%; }
     .chart-head{ gap:8px; }
-    .seg{ max-width:100%; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; }
-    .seg::-webkit-scrollbar{ display:none; }
-    .seg button{ white-space:nowrap; flex:none; }
+    .chart-head > *{ min-width:0; max-width:100%; }
+    .chart-ctl{ width:100%; }
+    .chart-ctl .seg{ width:100%; flex-wrap:wrap; border-radius:18px; }
+    .chart-ctl .seg button{ white-space:nowrap; flex:1 1 30%; padding:7px 8px; }
+    .chart-ctl .seg:last-child{ width:auto; }
+    .chart-ctl .seg:last-child button{ flex:none; padding:6px 16px; }
     .week{ grid-template-columns: 1fr auto; row-gap:6px; }
     .week .times{ grid-column:1 / -1; margin-bottom:8px; }
     .set-ctl{ justify-content:flex-start; }
@@ -2257,7 +2260,7 @@ function drawCompany(){
 
     <section class="chart-card">
       <div class="chart-head"><h2>${METRICS[S.metric]} ${longRange ? 'by month' : 'by day'}</h2>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="seg" role="group" aria-label="Measure">${Object.entries(METRICS).map(([k, n]) => `<button data-metric="${k}" class="${S.metric === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="chart-ctl" style="display:flex;gap:8px;flex-wrap:wrap"><div class="seg" role="group" aria-label="Measure">${Object.entries(METRICS).map(([k, n]) => `<button data-metric="${k}" class="${S.metric === k ? 'on' : ''}">${n}</button>`).join('')}</div>
         <div class="seg" role="group" aria-label="View"><button data-view="chart" class="${showTable ? '' : 'on'}">Chart</button><button data-view="table" class="${showTable ? 'on' : ''}">Table</button></div></div></div>
       <div id="chart-main"></div>
     </section>
