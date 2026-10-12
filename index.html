@@ -636,6 +636,11 @@
   @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{ animation: none !important; transition: none !important; }
   }
+
+  @keyframes slideR{ from{ opacity:0; transform: translateX(36px); } to{ opacity:1; transform:none; } }
+  @keyframes slideL{ from{ opacity:0; transform: translateX(-36px); } to{ opacity:1; transform:none; } }
+  #view.enter.from-r > *, #view.enter.from-r .frame, #view.enter.from-r .tile, #view.enter.from-r .panel, #view.enter.from-r .chart-card, #view.enter.from-r .overview{ animation-name: slideR; animation-delay:0s; }
+  #view.enter.from-l > *, #view.enter.from-l .frame, #view.enter.from-l .tile, #view.enter.from-l .panel, #view.enter.from-l .chart-card, #view.enter.from-l .overview{ animation-name: slideL; animation-delay:0s; }
 </style>
 </head>
 <body>
@@ -1431,6 +1436,27 @@ window.addEventListener('resize', () => fitHeader());
 window.addEventListener('load', () => fitHeader());
 window.addEventListener('scroll', () => { const h = document.querySelector('header'); if(h) h.classList.toggle('stuck', window.scrollY > 4); }, { passive: true });
 
+// ── swipe left/right between pages (phones) ──
+let swipeDir = 0;
+(() => {
+  let x0 = 0, y0 = 0, t0 = 0, ok = false;
+  const blocked = el => !!(el && el.closest && el.closest('.seg, .tbl-wrap, .chart-box, input, select, textarea, .notif-panel, .shot-overlay, .stabs, [data-noswipe]'));
+  document.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    ok = e.touches.length === 1 && isMobile() && !!document.querySelector('.tabs') && t.clientX > 24 && t.clientX < window.innerWidth - 24 && !blocked(e.target);
+    x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if(!ok) return; ok = false;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+    if(Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6 || Date.now() - t0 > 700) return;
+    const i = PAGES.indexOf(view), n = i + (dx < 0 ? 1 : -1);
+    if(i < 0 || n < 0 || n >= PAGES.length) return;
+    swipeDir = dx < 0 ? 1 : -1;
+    location.hash = '#/' + PAGES[n];
+  }, { passive: true });
+})();
+
 function showPage(p){
   if(!PAGES.includes(p)) p = 'booths';
   view = p;
@@ -1439,7 +1465,7 @@ function showPage(p){
   window.scrollTo(0, 0);
   placeTabInd(true);
   const v = document.getElementById('view');
-  if(v){ v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); clearTimeout(window._enterT); window._enterT = setTimeout(() => v.classList.remove('enter'), 900); }
+  if(v){ v.classList.remove('enter', 'from-r', 'from-l'); void v.offsetWidth; v.classList.add('enter'); if(swipeDir) v.classList.add(swipeDir > 0 ? 'from-r' : 'from-l'); swipeDir = 0; clearTimeout(window._enterT); window._enterT = setTimeout(() => v.classList.remove('enter', 'from-r', 'from-l'), 900); }
   ({ booths: renderBoothsPage, company: renderCompanyPage, support: renderSupportPage, settings: renderSettingsPage })[p]();
 }
 
