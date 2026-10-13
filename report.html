@@ -27,7 +27,10 @@
     width:100%; background:var(--tile); border:2px solid transparent; border-radius:14px; padding:14px 16px; font-family:inherit; font-weight:500; font-size:16px; color:var(--ink); }
   textarea{ min-height:110px; resize:vertical; font-weight:500; line-height:1.45; }
   input:focus, select:focus, textarea:focus{ outline:none; border-color:var(--accent); background:#fff; }
-  .row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .row{ display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:10px; }
+  .row > *{ min-width:0; max-width:100%; }
+  input[type=date], input[type=time]{ -webkit-appearance:none; appearance:none; display:block; min-width:0; max-width:100%; min-height:50px; text-align:left; }
+  input[type=date]::-webkit-date-and-time-value, input[type=time]::-webkit-date-and-time-value{ text-align:left; min-width:0; }
   .booth-fixed{ background:var(--tile); border-radius:16px; padding:14px 16px; font-weight:700; }
   .booth-fixed small{ display:block; color:var(--muted); font-weight:600; font-size:12px; margin-bottom:2px; }
   button.go{ width:100%; background:var(--accent); color:#fff; border:0; border-radius:999px; padding:17px; font-family:inherit; font-weight:600; font-size:16px; cursor:pointer; }
