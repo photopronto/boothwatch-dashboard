@@ -1788,15 +1788,30 @@ async function loadBoothStats(id){
   }
   return all;
 }
+async function loadSessionTimes(id){
+  const since = new Date(Date.now() - 90 * 86400000).toISOString();
+  let all = [], from = 0;
+  try {
+    for(;;){
+      const { data, error } = await sb.from('booth_events').select('at').eq('booth_id', id).eq('kind', 'session').gte('at', since).order('at').range(from, from + 999);
+      if(error) return all;
+      all = all.concat(data.map(r => r.at));
+      if(data.length < 1000 || from > 20000) break;
+      from += 1000;
+    }
+  } catch(e){}
+  return all;
+}
 async function loadBoothHistory(id){
   const safe = async q => { try { const r = await q; return r.error ? [] : (r.data || []); } catch(e){ return []; } };
-  const [alerts, outages, commands, reports] = await Promise.all([
+  const [alerts, outages, commands, reports, events] = await Promise.all([
     safe(sb.from('alerts').select('*').eq('booth_id', id).order('created_at', { ascending: false }).limit(200)),
     safe(sb.from('booth_outages').select('*').eq('booth_id', id).order('started_at', { ascending: false }).limit(100)),
     safe(sb.from('booth_commands').select('id, kind, args, status, result, created_at, completed_at').eq('booth_id', id).order('id', { ascending: false }).limit(100)),
     safe(sb.from('support_reports').select('id, created_at, issue, status, outcome').eq('booth_id', id).order('created_at', { ascending: false }).limit(50)),
+    safe(sb.from('booth_events').select('at, kind, n, detail').eq('booth_id', id).order('at', { ascending: false }).limit(800)),
   ]);
-  return { alerts, outages, commands, reports };
+  return { alerts, outages, commands, reports, events };
 }
 
 async function renderBoothPage(id){
@@ -1829,10 +1844,11 @@ async function refreshBoothPage(){
   bpBusy = true;
   try {
     const id = bpId;
-    const [booths, cmds, rows, history] = await Promise.all([
+    const [booths, cmds, rows, history, sess] = await Promise.all([
       loadBooths(), loadLastCommands([id]),
       (bpData && Date.now() - bpData.statsAt < 25000) ? Promise.resolve(bpData.rows) : loadBoothStats(id).catch(e => { console.error(e); return (bpData && bpData.rows) || []; }),
       (boothTab === 'logs' || boothTab === 'overview') ? ((bpData && Date.now() - bpData.histAt < 25000) ? Promise.resolve(bpData.history) : loadBoothHistory(id)) : Promise.resolve((bpData && bpData.history) || null),
+      (bpData && bpData.sess && Date.now() - bpData.sessAt < 60000) ? Promise.resolve(bpData.sess) : loadSessionTimes(id),
     ]);
     if(view !== 'booth' || bpId !== id) return;
     boothCache = booths;
@@ -1840,7 +1856,7 @@ async function refreshBoothPage(){
     if(!b){ mainEl().innerHTML = `<div class="empty">That booth was not found. <a href="#/booths">Back to the booths</a></div>`; return; }
     b.lastCommand = cmds[id] || null;
     const prev = bpData || {};
-    bpData = { b, rows, history, statsAt: (prev.rows === rows) ? prev.statsAt : Date.now(), histAt: (prev.history === history) ? prev.histAt : Date.now() };
+    bpData = { b, rows, history, sess, sessAt: (prev.sess === sess) ? prev.sessAt : Date.now(), statsAt: (prev.rows === rows) ? prev.statsAt : Date.now(), histAt: (prev.history === history) ? prev.histAt : Date.now() };
     drawBoothTop();
     drawBoothBody();
   } finally { bpBusy = false; }
@@ -1964,6 +1980,10 @@ function bpOverviewHtml(){
       <div id="bp-chart-wd"></div>
     </section>
     <section class="chart-card">
+      <div class="chart-head"><h2>Busiest hours <span class="muted-h">sessions by time of day, last 90 days</span></h2></div>
+      <div id="bp-chart-h"></div>
+    </section>
+    <section class="chart-card">
       <div class="chart-head"><h2>Sessions by month <span class="muted-h">last 12 months</span></h2></div>
       <div id="bp-chart-m"></div>
     </section>`;
@@ -1987,6 +2007,14 @@ function wireBpOverview(host){
     cmp: YP.buckets.map(x => x.sessions), cmpLabels: YP.buckets.map(x => fmtMonth(x.day)), cmpName: 'The 12 months before',
     extra: Y.buckets.map(x => (priced ? `Takings ${money0(x.sales)} · ` : '') + `${fmt1(x.sessions / Math.max(1, monthDays(x.day)))} sessions a day`),
   });
+  const hrs = Array(24).fill(0), sess = bpData.sess || [];
+  for(const t of sess) hrs[new Date(t).getHours()]++;
+  const hh = n => String(n).padStart(2, '0') + ':00';
+  if(sess.length) drawBarChart(host.querySelector('#bp-chart-h'), {
+    metric: 'sessions', table: false, cur: hrs, curLabels: hrs.map((_, i) => hh(i) + ' to ' + hh((i + 1) % 24)), xLabels: hrs.map((_, i) => String(i)), curName: 'Sessions',
+    extra: hrs.map(v => sess.length ? Math.round(100 * v / sess.length) + '% of sessions' : ''),
+  });
+  else host.querySelector('#bp-chart-h').innerHTML = '<div class="no-data">No timeline yet. This fills in once the booth runs agent 0.10.0 or newer (and migration 019 is run). Each new session is then timed exactly.</div>';
   window.__redrawCharts = () => { if(view === 'booth'){ bpHtml = {}; drawBoothBody(); } };
 }
 
@@ -1994,7 +2022,7 @@ function wireBpOverview(host){
 const fmtDT = d => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const CMD_NAMES = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program'), read_paper: 'Read paper now' };
 function bpLogEntries(){
-  const { b, history } = bpData, h = history || { alerts: [], outages: [], commands: [], reports: [] }, out = [];
+  const { b, history } = bpData, h = history || { alerts: [], outages: [], commands: [], reports: [], events: [] }, out = [];
   for(const a of h.alerts){
     const msg = a.message || a.title || a.kind;
     out.push({ t: new Date(a.created_at), type: 'alert', title: msg, detail: 'Alert raised', tone: 'bad' });
@@ -2011,10 +2039,22 @@ function bpLogEntries(){
   for(const r of h.reports){
     out.push({ t: new Date(r.created_at), type: 'support', title: 'Customer report: ' + r.issue, detail: r.status === 'resolved' ? 'Done' : (r.status === 'contacted' ? 'Customer contacted' : 'New'), tone: '' });
   }
+  for(const e of (h.events || [])){
+    const d = e.detail || {}, t = new Date(e.at);
+    if(e.kind === 'session') out.push({ t, type: 'session', title: 'Session', detail: '', tone: '' });
+    else if(e.kind === 'print') out.push({ t, type: 'session', title: e.n + ' print' + (e.n === 1 ? '' : 's'), detail: '', tone: '' });
+    else if(e.kind === 'software' || e.kind === 'device') out.push({ t, type: 'pc', title: (d.name || e.kind) + (d.ok ? ' back to normal' : ' problem'), detail: d.note || '', tone: d.ok ? 'ok' : 'bad' });
+    else if(e.kind === 'pc_boot') out.push({ t, type: 'pc', title: 'PC started', detail: '', tone: '' });
+    else if(e.kind === 'agent_start') out.push({ t, type: 'pc', title: 'BoothWatch agent started', detail: d.version ? 'Version ' + d.version : '', tone: '' });
+    else if(e.kind === 'agent_update') out.push({ t, type: 'pc', title: 'BoothWatch agent updated', detail: (d.from ? d.from + ' to ' : '') + (d.version || ''), tone: '' });
+    else if(e.kind === 'closed') out.push({ t, type: 'pc', title: 'Booth closed', detail: 'Closed screen on', tone: '' });
+    else if(e.kind === 'opened') out.push({ t, type: 'pc', title: 'Booth opened', detail: '', tone: '' });
+  }
   if(b.created_at) out.push({ t: new Date(b.created_at), type: 'system', title: 'Booth added to BoothWatch', detail: '', tone: '' });
   return out.sort((x, y) => y.t - x.t);
 }
-const LOG_TYPES = [['all', 'Everything'], ['alert', 'Alerts'], ['outage', 'Offline periods'], ['button', 'Button presses'], ['support', 'Customer reports']];
+const LOG_TYPES = [['all', 'Everything'], ['session', 'Sessions and prints'], ['pc', 'Software and PC'], ['alert', 'Alerts'], ['outage', 'Offline periods'], ['button', 'Button presses'], ['support', 'Customer reports']];
+let bpLogMax = 250;
 function bpLogsHtml(){
   const { b, history } = bpData, h = history || { alerts: [], outages: [] };
   const now = Date.now(), since = now - 30 * 86400000;
@@ -2023,14 +2063,23 @@ function bpLogsHtml(){
   const outs = h.outages.filter(o => new Date(o.started_at) > since);
   const outMins = outs.reduce((s, o) => s + (new Date(o.ended_at) - new Date(o.started_at)) / 60000, 0);
   const openCount = h.alerts.filter(a => !a.resolved_at).length;
+  const ev = h.events || [], lastOf = k => { const e = ev.find(x => x.kind === k); return e ? e.at : null; };
+  const lastSess = lastOf('session'), lastPrint = lastOf('print'), boot = lastOf('pc_boot');
+  const startMs = Math.max(since, b.created_at ? new Date(b.created_at).getTime() : since), periodMin = Math.max(60, (now - startMs) / 60000);
+  const downMin = outs.reduce((s2, o) => s2 + (o.open_minutes != null ? o.open_minutes : (new Date(o.ended_at) - new Date(o.started_at)) / 60000), 0);
+  const uptimePct = h.outages.length || ev.length ? Math.max(0, 100 - 100 * downMin / periodMin) : null;
   const fact = (k, v) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`;
   const all = bpLogEntries(), list = bpFilter === 'all' ? all : all.filter(e => e.type === bpFilter);
-  const rows = list.slice(0, 250).map(e => `<div class="log ${e.tone}"><div class="log-t">${esc(fmtDT(e.t))}</div><div class="log-b"><b>${esc(e.title)}</b>${e.detail ? `<span>${esc(e.detail)}</span>` : ''}</div><span class="log-tag">${esc((LOG_TYPES.find(x => x[0] === e.type) || [0, e.type])[1])}</span></div>`).join('');
+  const rows = list.slice(0, bpLogMax).map(e => `<div class="log ${e.tone}"><div class="log-t">${esc(fmtDT(e.t))}</div><div class="log-b"><b>${esc(e.title)}</b>${e.detail ? `<span>${esc(e.detail)}</span>` : ''}</div><span class="log-tag">${esc((LOG_TYPES.find(x => x[0] === e.type) || [0, e.type])[1])}</span></div>`).join('');
   return `
     <section class="panel">
       <h2>Health</h2>
       <div class="facts">
         ${fact('Last check-in', b.last_heartbeat_at ? esc(fmtAgo(b.last_heartbeat_at)) : 'never')}
+        ${fact('Last session', lastSess ? esc(fmtDT(new Date(lastSess))) + ' · ' + esc(fmtAgo(lastSess)) : 'not recorded yet')}
+        ${fact('Last print', lastPrint ? esc(fmtDT(new Date(lastPrint))) + ' · ' + esc(fmtAgo(lastPrint)) : 'not recorded yet')}
+        ${fact('PC last started', boot ? esc(fmtDT(new Date(boot))) + ' · ' + esc(fmtAgo(boot)) : 'not recorded yet')}
+        ${fact('Uptime, 30 days', uptimePct != null ? (Math.round(uptimePct * 10) / 10) + '%' : 'not enough data yet')}
         ${fact('Checks in every', checkInterval(b) + ' s')}
         ${fact('Offline alerts, 30 days', offAlerts.length ? `${offAlerts.length} · ${esc(fmtDuration(offMins))}` : 'none')}
         ${fact('Unplanned outages, 30 days', outs.length ? `${outs.length} · ${esc(fmtDuration(outMins))}` : 'none logged')}
@@ -2039,15 +2088,17 @@ function bpLogsHtml(){
         ${fact('Added', b.created_at ? esc(new Date(b.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })) : '–')}
         ${fact('Paper reading', b.paper_left != null ? `${b.paper_left} pages · ${esc(fmtAgo(b.paper_left_at))}` : 'not read yet')}
       </div>
-      <p class="help" style="margin:10px 0 0">Offline alerts follow your alert delay and opening hours. Unplanned outages are logged by the booth when it comes back and say why (power, Windows restart, network and so on); planned closures are left out.</p>
+      <p class="help" style="margin:10px 0 0">Uptime is the share of the last 30 days without an unplanned outage (planned closures and time outside opening hours do not count against it). Offline alerts follow your alert delay and opening hours. Unplanned outages are logged by the booth when it comes back and say why (power, Windows restart, network and so on); planned closures are left out.</p>
     </section>
     <section class="panel">
       <div class="chart-head"><h2>Log</h2><div class="seg" role="group" aria-label="Filter the log">${LOG_TYPES.map(([k, n]) => `<button type="button" data-log-f="${k}" class="${bpFilter === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
       <div class="logs">${rows || '<div class="no-data">Nothing logged yet.</div>'}</div>
+      ${list.length > bpLogMax ? `<div class="save-row"><button type="button" class="btn-sm" id="bp-more-log">Show more (${list.length - bpLogMax} older)</button></div>` : ''}
     </section>`;
 }
 function wireBpLogs(host){
-  host.querySelectorAll('[data-log-f]').forEach(btn => btn.onclick = () => { bpFilter = btn.dataset.logF; bpHtml = {}; drawBoothBody(); });
+  host.querySelectorAll('[data-log-f]').forEach(btn => btn.onclick = () => { bpFilter = btn.dataset.logF; bpLogMax = 250; bpHtml = {}; drawBoothBody(); });
+  const mo = host.querySelector('#bp-more-log'); if(mo) mo.onclick = () => { bpLogMax += 250; bpHtml = {}; drawBoothBody(); };
 }
 
 

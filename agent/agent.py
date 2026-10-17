@@ -53,7 +53,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.9.1"
+VERSION = "0.10.0"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -91,6 +91,7 @@ CONFIG_PATH = BASE / "config.json"
 STATE_PATH = BASE / "agent_state.json"      # holds this booth's secret token
 CODE_PATH = BASE / "pairing_code.txt"
 LOG_PATH = BASE / "boothwatch.log"
+EVENTS_PATH = BASE / "events.json"                  # event timeline waiting to be sent, and what was already seen
 RUNTIME_PATH = BASE / "runtime.json"                # last time the agent was alive, and outages not yet reported
 REMOTE_CACHE_PATH = BASE / "remote_cache.json"      # last settings from the dashboard (kept if the internet drops)
 CLOSED_MESSAGE_PATH = BASE / "closed_message.txt"   # text shown on the closed screen
@@ -1901,6 +1902,118 @@ class OutageTracker:
             self.save(force=True)
 
 
+# ───────────────────────── event timeline ─────────────────────────
+# Notes what happens on the booth (each session, prints, software or device going up or down, PC boot,
+# booth closed/opened) so the dashboard can show a full log, last session time and busiest hours.
+EVENT_KEEP = 2000
+
+def session_times(images_root, day):
+    """When each session picture for the day was saved (epoch seconds, oldest first)."""
+    folder = Path(images_root) / day / "prints"
+    try:
+        return sorted(f.stat().st_mtime for f in folder.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTS)
+    except OSError:
+        return []
+
+def pc_boot_epoch():
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        k.GetTickCount64.restype = ctypes.c_ulonglong
+        return time.time() - k.GetTickCount64() / 1000.0
+    except Exception:
+        return None
+
+def _iso(t):
+    return datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+class EventRecorder:
+    def __init__(self):
+        self.st = {}
+        try:
+            if EVENTS_PATH.exists():
+                self.st = json.loads(EVENTS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            self.st = {}
+        self.queue = list(self.st.get("queue") or [])
+        self.last_session = self.st.get("last_session")      # newest session picture time already recorded
+        self.counter = None
+        self.prog = {}
+        self.closed = None
+        self.dirty = False
+        now = time.time()
+        boot = pc_boot_epoch()
+        if boot and abs(boot - (self.st.get("boot") or 0)) > 120:
+            self.add("pc_boot", boot)
+            self.st["boot"] = boot
+        if self.st.get("version") != VERSION:
+            self.add("agent_update" if self.st.get("version") else "agent_start", now, detail={"version": VERSION, "from": self.st.get("version")})
+            self.st["version"] = VERSION
+        elif now - (self.st.get("alive") or 0) > 180:
+            self.add("agent_start", now, detail={"version": VERSION})
+        self.save()
+
+    def add(self, kind, t=None, n=1, detail=None):
+        ev = {"at": _iso(time.time() if t is None else t), "kind": kind, "n": n, "detail": detail or {}}
+        self.queue.append(ev)
+        self.queue = self.queue[-EVENT_KEEP:]
+        self.dirty = True
+
+    def save(self):
+        self.st["queue"] = self.queue
+        self.st["last_session"] = self.last_session
+        self.st["alive"] = time.time()
+        try:
+            EVENTS_PATH.write_text(json.dumps(self.st), encoding="utf-8")
+        except Exception as e:
+            log.info("Could not save event timeline: %s", e)
+
+    def observe(self, results, counter, images_root, today, closed):
+        try:
+            # sessions: pictures newer than the last one recorded (the first time, all of today's)
+            if images_root:
+                times = session_times(images_root, today)
+                fresh = [t for t in times if self.last_session is None or t > self.last_session + 0.001]
+                for t in fresh[-200:]:
+                    self.add("session", t)
+                if times:
+                    self.last_session = max(times[-1], self.last_session or 0)
+                elif self.last_session is None:
+                    self.last_session = time.time() - 1
+            # prints: the booth software's counter went up
+            if counter is not None:
+                if self.counter is not None and counter > self.counter:
+                    self.add("print", n=int(counter - self.counter))
+                self.counter = counter
+            # software and devices: only changes
+            for r in results or []:
+                name = r.get("name")
+                if not name:
+                    continue
+                ok = bool(r.get("ok"))
+                if name in self.prog and self.prog[name] != ok:
+                    self.add("device" if r.get("device") else "software", detail={"name": name, "ok": ok, "note": r.get("note") or ""})
+                self.prog[name] = ok
+            if self.closed is not None and self.closed != bool(closed):
+                self.add("closed" if closed else "opened")
+            self.closed = bool(closed)
+            if self.dirty:
+                self.save(); self.dirty = False
+        except Exception as e:
+            log.info("Event timeline problem: %s", e)
+
+    def flush(self, local_cfg, token):
+        if not self.queue:
+            return
+        batch = self.queue[:250]
+        try:
+            rpc(local_cfg, "report_events", {"p_token": token, "p_events": batch})
+            self.queue = self.queue[len(batch):]
+            self.save()
+        except Exception as e:
+            log.info("Could not send event timeline yet: %s", e)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--discover", action="store_true")
@@ -1987,6 +2100,7 @@ def main():
     last_poll_error = None
     print_matcher = PrintMatcher()
     outages = OutageTracker()
+    timeline = EventRecorder()
 
     while True:
         outages.tick(remote_cfg)
@@ -2099,6 +2213,7 @@ def main():
                 missing = print_matcher.update(today.isoformat(), sessions, counter, pm_grace)
                 if closed_shown or not watching(cfg, "printer"):
                     missing = 0
+                timeline.observe(results, counter, folder, today.isoformat(), bool(cfg.get("closed")) or bool(cfg.get("scheduled_closed")))
                 status = {"closed_shown": closed_shown, "folder_found": sessions is not None,
                           "print_missing": missing,
                           "counter_seen": counter is not None,
@@ -2113,6 +2228,7 @@ def main():
                     "p_status": status,
                     **({"p_paper_left": paper} if paper is not None else {}),
                 })
+                timeline.flush(local_cfg, state["agent_token"])
             except Exception as e:
                 outages.failed(e, local_cfg.get("supabase_url"))
                 log.info("Check-in failed (will retry): %s", e)
