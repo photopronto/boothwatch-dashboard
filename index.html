@@ -648,6 +648,58 @@
   .outage{ display:flex; flex-direction:column; gap:1px; padding:5px 0; font-size:12.5px; }
   .outage b{ font-weight:600; font-variant-numeric: tabular-nums; }
   .outage span{ color: var(--muted); font-weight:500; line-height:1.35; }
+
+  /* ── booth overview cards and booth pages ── */
+  a.bcard{ color:inherit; text-decoration:none; cursor:pointer; gap:14px; transition: transform .15s ease, box-shadow .15s ease; }
+  a.bcard:hover{ transform: translateY(-2px); box-shadow: 0 8px 24px rgba(10,10,11,.08); }
+  a.bcard:focus-visible{ outline:3px solid var(--accent); outline-offset:2px; }
+  .bcard .go{ width:20px; height:20px; color: var(--muted); flex:none; }
+  .bcard .kpis{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  .kpi{ background: var(--inner); border-radius:18px; padding:12px 14px; min-width:0; }
+  .kpi .k{ display:block; color: var(--muted); font-size:11.5px; font-weight:500; margin-bottom:4px; }
+  .kpi b{ display:block; font-weight:800; font-size:30px; line-height:1; letter-spacing:-.02em; font-variant-numeric: tabular-nums; }
+  .kpi .sub{ display:block; margin-top:5px; font-family: var(--mono); font-size:12px; font-weight:500; color: var(--muted); white-space:nowrap; }
+  .bcard-foot{ font-family: var(--mono); font-size:12px; font-weight:500; color: var(--muted); }
+  .bcard-foot .warn, .bcard-foot .alert{ color: var(--ink); font-weight:700; }
+  .bp-back{ display:inline-flex; align-items:center; gap:4px; margin:14px 0 0; font-size:13px; font-weight:600; color: var(--muted); text-decoration:none; }
+  .bp-back svg{ width:16px; height:16px; }
+  .bp-back:hover{ color: var(--accent); }
+  .bp-title{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:6px; }
+  .bp-title .page-title{ margin-top:8px; }
+  .bp-title .pill{ margin-top:14px; }
+  .bp-now{ display:grid; grid-template-columns: 1fr minmax(220px, 320px); gap:20px; align-items:start; margin-top:12px; }
+  .bp-now-main{ min-width:0; }
+  .bp-roll-top{ font-size:13px; font-weight:500; color: var(--muted); margin-bottom:8px; }
+  .bp-roll-top b{ color: var(--ink); font-size:20px; font-weight:800; margin-right:2px; }
+  .bp-alerts{ margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .bp-alert{ background: var(--inner); border-radius:14px; padding:10px 14px; font-size:13px; display:flex; flex-direction:column; gap:2px; }
+  .bp-alert span{ color: var(--muted); font-size:12px; font-weight:500; }
+  .bs-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:4px 16px; margin-bottom:10px; }
+  .bs-grid .fld{ margin-bottom:10px; }
+  .bs-grid .fld input[type=text], .bs-grid .fld select{ width:100%; min-width:0; }
+  .tbl td.num, .tbl th.num{ text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .facts{ display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap:10px; margin-top:12px; }
+  .fact{ background: var(--inner); border-radius:16px; padding:12px 14px; min-width:0; }
+  .fact span{ display:block; color: var(--muted); font-size:11.5px; font-weight:500; margin-bottom:4px; }
+  .fact b{ font-size:15px; font-weight:700; overflow-wrap:anywhere; }
+  .logs{ display:flex; flex-direction:column; margin-top:6px; }
+  .log{ display:grid; grid-template-columns: 170px 1fr auto; gap:6px 14px; align-items:start; padding:11px 0; border-top:1px solid var(--line); font-size:13px; }
+  .log:first-child{ border-top:0; }
+  .log-t{ font-family: var(--mono); font-size:12px; font-weight:500; color: var(--muted); }
+  .log-b{ min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .log-b span{ color: var(--muted); font-size:12px; font-weight:500; overflow-wrap:anywhere; }
+  .log.bad .log-b b{ color: var(--ink); }
+  .log.ok .log-b b::before{ content:"✓ "; color: var(--accent); }
+  .log.bad .log-b b::before{ content:"● "; color: var(--ink); }
+  .log-tag{ font-size:11px; font-weight:600; color: var(--muted); background: var(--inner); border-radius:999px; padding:3px 9px; white-space:nowrap; }
+  .muted-h{ color: var(--muted); font-weight:500; font-size:13px; margin-left:6px; }
+  @media (max-width: 760px){
+    .bp-now{ grid-template-columns: 1fr; }
+    .log{ grid-template-columns: 1fr auto; }
+    .log-t{ grid-column: 1 / -1; }
+    .kpi b{ font-size:26px; }
+    .bp-title{ flex-wrap:wrap; }
+  }
 </style>
 </head>
 <body>
@@ -927,6 +979,8 @@ function renderNotifPanel(){
 }
 
 function showBooth(id){
+  goBooth(id);
+  return;
   if(view !== 'booths'){ pendingFocus = id; goPage('booths'); return; }
   if(isMobile()){ openBooths.add(id); saveOpen(); }
   const card = document.querySelector(`[data-frame="${CSS.escape(id)}"]`);
@@ -1151,7 +1205,7 @@ async function loadPeriodStats(booths){
   return out;
 }
 
-function boothFrame(b){
+function boothParts(b){
   const online = isOnline(b);
   const programs = programList(b);
   const badPrograms = programs.filter(p => !p.ok);
@@ -1221,7 +1275,7 @@ function boothFrame(b){
     : schedClosed ? '<span class="badge-closed">Closed · hours</span>'
     : (hrs && !hrs.open ? '<span class="badge-closed">Outside hours</span>' : ''));
   const modeText = { none: '', pause_alerts: 'alerts pause outside hours', auto_close: 'closes itself outside hours' }[(cfg.hours && cfg.hours.mode) || 'none'];
-  const paperLine = b.paper_left != null ? `<div class="agent-info">Printer said ${b.paper_left} pages left · read ${esc(fmtAgo(b.paper_left_at))}</div>` : '';
+  const paperLine = b.paper_left != null ? `<div class="agent-info">Last time you asked, the printer said ${b.paper_left} pages left (${esc(fmtAgo(b.paper_left_at))}). The count above ticks down from there.</div>` : '';
   const hoursLine = hrs ? `<div class="agent-info">${esc(hrs.text)} · ${esc(modeText)}</div>` : '';
 
   // One button that does the right thing for the booth's state
@@ -1230,55 +1284,68 @@ function boothFrame(b){
   else if(schedClosed) closeBtn = `<button data-open-now="${esc(b.id)}" ${online ? '' : 'disabled'}>Open now…</button>`;
   else closeBtn = `<button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>Close booth…</button>`;
 
-  const detailsOpen = openDetails.has(b.id) !== !!getPrefs().openDetails;
-
-  return `
-    <div class="frame ${openBooths.has(b.id) ? 'open' : ''}" data-frame="${esc(b.id)}">
-      <div class="frame-top" data-toggle="${esc(b.id)}">
-        <div>
-          <div class="frame-name">${esc(b.name)}${badge}</div>
-          <div class="frame-loc">${esc(b.location || "")}</div>
-          <div class="checkin" data-hb="${esc(b.last_heartbeat_at || '')}" data-iv="${checkInterval(b)}" data-online="${online ? 1 : 0}"></div>
-        </div>
-        <div class="right">
-          <span class="pill ${online ? (overallDot === 'ok' ? 'ok' : 'alert') : 'off'}">${overallLabel}</span>
-          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </div>
-      </div>
-      <div class="sales">
-        ${[['today', 'Today'], ['month', 'This month'], ['year', 'This year']].map(([k, n]) => saleCell(b, k, n)).join('')}
-      </div>
-      <div class="frame-body">
-        <div class="stats">
-          ${[['yesterday', 'Yesterday'], ['week', 'This week']].map(([k, n]) => `<div class="stat">${saleCell(b, k, n, true)}</div>`).join('')}
-          <div class="stat ${rollState}"><b>${remaining}</b><span>prints left</span></div>
-        </div>
-        <div class="roll-bar" title="${Math.round(pct)}% of the roll left"><div class="roll-fill ${rollState}" style="width:${pct}%"></div></div>
-        ${chips ? `<div class="chips">${chips}</div>` : ''}
-        ${badLine}
-        <div class="actions">
-          <button data-shot="${esc(b.id)}" ${waiting || !online ? 'disabled' : ''}>${waiting ? 'Waiting for booth…' : 'Screenshot'}</button>
-          ${closeBtn}
-          <button class="more ${detailsOpen ? 'on' : ''}" data-details="${esc(b.id)}" aria-expanded="${detailsOpen}">Details <span class="caret">▾</span></button>
-        </div>
-        <div class="details" ${detailsOpen ? '' : 'hidden'}>
-          ${programRows ? `<div class="programs">${programRows}</div>` : ''}
-          <div class="controls">
-            <button data-readpaper="${esc(b.id)}" ${busy || !online ? 'disabled' : ''} title="Ask the printer how many pages are left on the roll. Safe while the booth is running.">Read paper now</button>
-            <button data-reset="${esc(b.id)}" title="Use after fitting a new roll, if the printer reading has not picked it up">Roll changed</button>
-            <button class="danger" data-restart-pc="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart PC</button>
-          </div>
-          ${cmdLine}
-          ${warns}
-          ${outageRows(b.outages)}
-          ${paperLine}
-          ${hoursLine}
-          <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'} · ${esc(b.channel || 'live')} channel</div>
-        </div>
-      </div>
-    </div>`;
+  return { online, programs, badPrograms, remaining, pct, rollState, cfg, st, manualClosed, schedClosed, isClosed, overallDot, overallLabel, chips, badLine, programRows, cmdLine, warns, badge, paperLine, hoursLine, closeBtn, busy, waiting, hrs };
 }
 
+// Compact overview card on the Booths page; the whole card opens that booth's page.
+function kpi(b, key, label){
+  const p = (b.periods && b.periods[key]) || { sessions: 0, prints: 0, sales: 0 };
+  const m = (b.config && b.config.money) || {};
+  const priced = m.free !== true && Number(m.price || 0) > 0;
+  return `<div class="kpi"><span class="k">${esc(label)}</span><b>${p.sessions}</b><span class="sub">${priced ? money(p.sales) : (m.free === true ? 'free to use' : 'no price set')}</span></div>`;
+}
+function boothFrame(b){
+  const P = boothParts(b);
+  return `
+    <a class="frame bcard" data-frame="${esc(b.id)}" href="#/booth/${encodeURIComponent(b.id)}" aria-label="Open ${esc(b.name)}">
+      <div class="frame-top">
+        <div>
+          <div class="frame-name">${esc(b.name)}${P.badge}</div>
+          <div class="frame-loc">${esc(b.location || "")}</div>
+          <div class="checkin" data-hb="${esc(b.last_heartbeat_at || '')}" data-iv="${checkInterval(b)}" data-online="${P.online ? 1 : 0}"></div>
+        </div>
+        <div class="right">
+          <span class="pill ${P.online ? (P.overallDot === 'ok' ? 'ok' : 'alert') : 'off'}">${P.overallLabel}</span>
+          <svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+      <div class="kpis">${kpi(b, 'today', 'Today')}${kpi(b, 'week', 'This week')}</div>
+      ${P.chips ? `<div class="chips">${P.chips}</div>` : ''}
+      ${P.badLine}
+      <div class="bcard-foot"><span class="${P.rollState}">${P.remaining} prints left</span></div>
+    </a>`;
+}
+
+// The buttons and detail list, shown on the booth page's Controls tab.
+function boothControls(b){
+  const P = boothParts(b), { online, busy, waiting } = P;
+  return `
+    <section class="panel">
+      <h2>Controls</h2>
+      <div class="actions">
+        <button data-shot="${esc(b.id)}" ${waiting || !online ? 'disabled' : ''}>${waiting ? 'Waiting for booth…' : 'Screenshot'}</button>
+        ${P.closeBtn}
+      </div>
+      ${P.cmdLine}
+      ${P.warns}
+    </section>
+    <section class="panel">
+      <h2>Software</h2>
+      ${P.programRows ? `<div class="programs">${P.programRows}</div>` : '<div class="help" style="margin:0">No programs are being watched.</div>'}
+    </section>
+    <section class="panel">
+      <h2>Restart and paper</h2>
+      <p class="help">Restarting the PC takes the booth offline for a couple of minutes. Paper left ticks down one for every print. Ask the printer for its own count only when you need to check.</p>
+      <div class="controls">
+        <button data-readpaper="${esc(b.id)}" ${busy || !online ? 'disabled' : ''} title="Ask the printer how many pages are left on the roll. Safe while the booth is running.">Read paper now</button>
+        <button data-reset="${esc(b.id)}" title="Use after fitting a new roll">Roll changed</button>
+        <button class="danger" data-restart-pc="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart PC</button>
+      </div>
+      ${P.paperLine}
+      ${P.hoursLine}
+      <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'} · ${esc(b.channel || 'live')} channel</div>
+    </section>`;
+}
 
 // ── screenshots ──
 const waitingShots = new Set();
@@ -1457,6 +1524,7 @@ function renderApp(){
 
 function routeFromHash(){
   const h = (location.hash || '').replace(/^#\/?/, '');
+  if(/^booth\/./.test(h)) return h;
   return PAGES.includes(h) ? h : getPrefs().startPage;
 }
 function goPage(p){ if(location.hash === '#/' + p) showPage(p); else location.hash = '#/' + p; }
@@ -1498,7 +1566,7 @@ let swipeDir = 0;
     if(!ok) return; ok = false;
     const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
     if(Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6 || Date.now() - t0 > 700) return;
-    const i = PAGES.indexOf(view), n = i + (dx < 0 ? 1 : -1);
+    const i = PAGES.indexOf(view), n = i + (dx < 0 ? 1 : -1);  // booth pages are not in PAGES, so no swiping there
     if(i < 0 || n < 0 || n >= PAGES.length) return;
     swipeDir = dx < 0 ? 1 : -1;
     location.hash = '#/' + PAGES[n];
@@ -1506,14 +1574,18 @@ let swipeDir = 0;
 })();
 
 function showPage(p){
-  if(!PAGES.includes(p)) p = 'booths';
+  let boothRoute = null;
+  if(/^booth\/./.test(p)){ boothRoute = decodeURIComponent(p.slice(6)); p = 'booth'; }
+  else if(!PAGES.includes(p)) p = 'booths';
   view = p;
   currentRefresh = null;
-  document.querySelectorAll('.tabs a').forEach(a => { a.classList.toggle('on', a.dataset.tab === p); if(a.dataset.tab === p) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  const navKey = p === 'booth' ? 'booths' : p;
+  document.querySelectorAll('.tabs a').forEach(a => { a.classList.toggle('on', a.dataset.tab === navKey); if(a.dataset.tab === navKey) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   window.scrollTo(0, 0);
   placeTabInd(true);
   const v = document.getElementById('view');
   if(v){ v.classList.remove('enter', 'from-r', 'from-l'); void v.offsetWidth; v.classList.add('enter'); if(swipeDir) v.classList.add(swipeDir > 0 ? 'from-r' : 'from-l'); swipeDir = 0; clearTimeout(window._enterT); window._enterT = setTimeout(() => v.classList.remove('enter', 'from-r', 'from-l'), 900); }
+  if(p === 'booth'){ renderBoothPage(boothRoute); return; }
   ({ booths: renderBoothsPage, company: renderCompanyPage, support: renderSupportPage, settings: renderSettingsPage })[p]();
 }
 
@@ -1602,11 +1674,12 @@ async function refreshBooths(){
   if(pendingFocus){ const id = pendingFocus; pendingFocus = null; showBooth(id); }
 }
 
+const refreshView = () => { if(view === 'booth') return refreshBoothPage(); return refreshBooths(); };
 async function sendCommand(boothId, kind, args){
   const { error } = await sb.rpc('queue_command', { p_booth_id: boothId, p_kind: kind, p_args: args || {} });
   if(error){ alert(error.message); return; }
-  refreshBooths();
-  setTimeout(refreshBooths, 4000); setTimeout(refreshBooths, 9000); setTimeout(refreshBooths, 20000);   // see the result quickly
+  refreshView();
+  setTimeout(refreshView, 4000); setTimeout(refreshView, 9000); setTimeout(refreshView, 20000);   // see the result quickly
 }
 
 function wireBoothCards(framesEl, booths){
@@ -1634,7 +1707,7 @@ function wireBoothCards(framesEl, booths){
     };
   });
   framesEl.querySelectorAll('[data-shot]').forEach(btn => {
-    btn.onclick = () => requestScreenshot(find(btn.dataset.shot), () => { lastFramesHtml = null; refreshBooths(); });
+    btn.onclick = () => requestScreenshot(find(btn.dataset.shot), () => { lastFramesHtml = null; bpHtml = {}; refreshView(); });
   });
   framesEl.querySelectorAll('[data-restart-prog]').forEach(btn => {
     btn.onclick = () => {
@@ -1667,8 +1740,8 @@ function wireBoothCards(framesEl, booths){
       }
       const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: patch });
       if(error){ alert(error.message); return; }
-      lastFramesHtml = null; refreshBooths();
-      setTimeout(() => { lastFramesHtml = null; refreshBooths(); }, 12000);
+      lastFramesHtml = null; bpHtml = {}; refreshView();
+      setTimeout(() => { lastFramesHtml = null; bpHtml = {}; refreshView(); }, 12000);
     };
   });
   framesEl.querySelectorAll('[data-open-now]').forEach(btn => {
@@ -1684,16 +1757,427 @@ function wireBoothCards(framesEl, booths){
       const { error } = await sb.rpc('update_booth_config', { p_booth_id: booth.id, p_patch: { hours_open_until: until } });
       if(error){ alert(error.message); return; }
       toast('Opening ' + booth.name + '…');
-      lastFramesHtml = null; refreshBooths();
-      setTimeout(() => { lastFramesHtml = null; refreshBooths(); }, 12000);
+      lastFramesHtml = null; bpHtml = {}; refreshView();
+      setTimeout(() => { lastFramesHtml = null; bpHtml = {}; refreshView(); }, 12000);
     };
   });
   framesEl.querySelectorAll('[data-reset]').forEach(btn => {
     btn.onclick = async () => {
       if(!confirm('Mark the paper roll as replaced? The prints-left counter goes back to a full roll.')) return;
       await sb.rpc('reset_roll', { p_booth_id: btn.dataset.reset });
-      lastFramesHtml = null; refreshBooths();
+      lastFramesHtml = null; bpHtml = {}; refreshView();
     };
+  });
+}
+
+// ═══════════════ One page per booth ═══════════════
+const BOOTH_TABS = [['overview', 'Overview'], ['controls', 'Controls'], ['settings', 'Settings'], ['logs', 'Logs']];
+let boothTab = (() => { try { const t = localStorage.getItem('bw-booth-tab'); return BOOTH_TABS.some(x => x[0] === t) ? t : 'overview'; } catch(e){ return 'overview'; } })();
+let showPrintsCol = (() => { try { return localStorage.getItem('bw-prints-col') === '1'; } catch(e){ return false; } })();
+let bpId = null, bpData = null, bpHtml = {}, bpFilter = 'all', bpSettingsDrawn = false;
+const goBooth = id => { location.hash = '#/booth/' + encodeURIComponent(id); };
+
+async function loadBoothStats(id){
+  let all = [], from = 0;
+  for(;;){
+    const { data, error } = await sb.from('daily_stats').select('booth_id, day, sessions, prints').eq('booth_id', id).order('day').range(from, from + 999);
+    if(error) throw error;
+    all = all.concat(data);
+    if(data.length < 1000) break;
+    from += 1000;
+  }
+  return all;
+}
+async function loadBoothHistory(id){
+  const safe = async q => { try { const r = await q; return r.error ? [] : (r.data || []); } catch(e){ return []; } };
+  const [alerts, outages, commands, reports] = await Promise.all([
+    safe(sb.from('alerts').select('*').eq('booth_id', id).order('created_at', { ascending: false }).limit(200)),
+    safe(sb.from('booth_outages').select('*').eq('booth_id', id).order('started_at', { ascending: false }).limit(100)),
+    safe(sb.from('booth_commands').select('id, kind, args, status, result, created_at, completed_at').eq('booth_id', id).order('id', { ascending: false }).limit(100)),
+    safe(sb.from('support_reports').select('id, created_at, issue, status, outcome').eq('booth_id', id).order('created_at', { ascending: false }).limit(50)),
+  ]);
+  return { alerts, outages, commands, reports };
+}
+
+async function renderBoothPage(id){
+  bpId = id; bpData = null; bpHtml = {}; bpSettingsDrawn = false;
+  const el = mainEl();
+  el.innerHTML = `<div class="empty">Loading…</div>`;
+  const booths = await loadBooths();
+  if(view !== 'booth' || bpId !== id) return;
+  boothCache = booths;
+  if(!booths.find(x => x.id === id)){ el.innerHTML = `<div class="empty">That booth was not found. <a href="#/booths">Back to the booths</a></div>`; return; }
+  el.innerHTML = `
+    <a class="bp-back" href="#/booths"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Booths</a>
+    <div id="bp-top"></div>
+    <div class="stabs" role="tablist" aria-label="Booth sections">${BOOTH_TABS.map(([k, n]) => `<button role="tab" type="button" data-bp-tab="${k}" class="${k === boothTab ? 'on' : ''}" aria-selected="${k === boothTab}">${n}</button>`).join('')}</div>
+    <div id="bp-body"></div>`;
+  el.querySelectorAll('[data-bp-tab]').forEach(btn => btn.onclick = () => {
+    boothTab = btn.dataset.bpTab;
+    try { localStorage.setItem('bw-booth-tab', boothTab); } catch(e){}
+    el.querySelectorAll('[data-bp-tab]').forEach(x => { x.classList.toggle('on', x === btn); x.setAttribute('aria-selected', x === btn); });
+    bpHtml = {}; bpSettingsDrawn = false;
+    drawBoothBody();
+  });
+  currentRefresh = refreshBoothPage;
+  await refreshBoothPage();
+}
+
+let bpBusy = false;
+async function refreshBoothPage(){
+  if(view !== 'booth' || bpBusy) return;
+  bpBusy = true;
+  try {
+    const id = bpId;
+    const [booths, cmds, rows, history] = await Promise.all([
+      loadBooths(), loadLastCommands([id]),
+      (bpData && Date.now() - bpData.statsAt < 25000) ? Promise.resolve(bpData.rows) : loadBoothStats(id).catch(e => { console.error(e); return (bpData && bpData.rows) || []; }),
+      (boothTab === 'logs' || boothTab === 'overview') ? ((bpData && Date.now() - bpData.histAt < 25000) ? Promise.resolve(bpData.history) : loadBoothHistory(id)) : Promise.resolve((bpData && bpData.history) || null),
+    ]);
+    if(view !== 'booth' || bpId !== id) return;
+    boothCache = booths;
+    const b = booths.find(x => x.id === id);
+    if(!b){ mainEl().innerHTML = `<div class="empty">That booth was not found. <a href="#/booths">Back to the booths</a></div>`; return; }
+    b.lastCommand = cmds[id] || null;
+    const prev = bpData || {};
+    bpData = { b, rows, history, statsAt: (prev.rows === rows) ? prev.statsAt : Date.now(), histAt: (prev.history === history) ? prev.histAt : Date.now() };
+    drawBoothTop();
+    drawBoothBody();
+  } finally { bpBusy = false; }
+}
+
+function drawBoothTop(){
+  const { b } = bpData, P = boothParts(b);
+  const html = `
+    <div class="bp-title">
+      <div class="bp-name">
+        <h1 class="page-title">${esc(b.name)}${P.badge}</h1>
+        <div class="frame-loc">${esc(b.location || '')}</div>
+        <div class="checkin" data-hb="${esc(b.last_heartbeat_at || '')}" data-iv="${checkInterval(b)}" data-online="${P.online ? 1 : 0}"></div>
+      </div>
+      <span class="pill ${P.online ? (P.overallDot === 'ok' ? 'ok' : 'alert') : 'off'}">${P.overallLabel}</span>
+    </div>`;
+  if(html !== bpHtml.top){ bpHtml.top = html; document.getElementById('bp-top').innerHTML = html; }
+  tick();
+}
+
+function drawBoothBody(){
+  if(!bpData) return;
+  const host = document.getElementById('bp-body'); if(!host) return;
+  const { b } = bpData;
+  if(boothTab === 'settings'){
+    if(bpSettingsDrawn) return;
+    bpSettingsDrawn = true;
+    drawBoothSettings(host, b);
+    return;
+  }
+  const html = boothTab === 'overview' ? bpOverviewHtml() : boothTab === 'controls' ? boothControls(b) : bpLogsHtml();
+  if(html === bpHtml.body && bpHtml.tab === boothTab) return;
+  bpHtml.body = html; bpHtml.tab = boothTab;
+  host.innerHTML = html;
+  if(boothTab === 'overview') wireBpOverview(host);
+  else if(boothTab === 'controls') wireBoothCards(host, [bpData.b]);
+  else wireBpLogs(host);
+}
+
+// ── Overview tab ──
+const fmt1 = n => String(Math.round(n * 10) / 10);
+const fmtInt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+function bpNumbers(b, rows){
+  const today = ymd(new Date());
+  const first = rows.length ? rows.reduce((m, r) => r.day < m ? r.day : m, rows[0].day) : today;
+  const per = r => computeRange(rows, [b], r, 'day', []).per[b.id];
+  const table = [['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week'], ['lastweek', 'Last week'], ['month', 'This month'], ['lastmonth', 'Last month'], ['year', 'This year']]
+    .map(([k, n]) => ({ label: n, ...per(periodRange(k)) }));
+  table.push({ label: 'All time', ...per([first, today]) });
+  const byDay = new Map(rows.map(r => [r.day, r]));
+  const window_ = (from, to) => {
+    const f = from < first ? first : from, days = Math.max(1, spanDays(f, to));
+    const t = per([f, to]);
+    let trading = 0;
+    for(let d = f; d <= to; d = addDays(d, 1)){ const r = byDay.get(d); if(r && r.sessions > 0) trading++; }
+    return { days, sessions: t.sessions, prints: t.prints, sales: t.sales, trading };
+  };
+  const wins = [['Last 30 days', window_(addDays(today, -29), today)], ['Last 90 days', window_(addDays(today, -89), today)], ['This year', window_(periodRange('year')[0], today)], ['All time', window_(first, today)]];
+  // average sessions for each weekday over the last 90 days
+  const wd = Array.from({ length: 7 }, () => ({ s: 0, n: 0, sales: 0 }));
+  const price = (b.config && b.config.money && b.config.money.free !== true && Number(b.config.money.price)) || 0;
+  const from90 = addDays(today, -89);
+  for(let d = from90 < first ? first : from90; d <= today; d = addDays(d, 1)){
+    const i = (fromYmd(d).getDay() + 6) % 7, r = byDay.get(d);
+    wd[i].n++; wd[i].s += r ? r.sessions : 0; wd[i].sales += (r ? r.sessions : 0) * price;
+  }
+  // best day
+  let best = null;
+  for(const r of rows){ if(!best || r.sessions > best.sessions) best = r; }
+  return { table, wins, wd, best, first };
+}
+
+function bpOverviewHtml(){
+  const { b, rows, history } = bpData, P = boothParts(b);
+  const m = (b.config && b.config.money) || {}, free = m.free === true, priced = !free && Number(m.price || 0) > 0;
+  const N = bpNumbers(b, rows);
+  const openAlerts = ((history && history.alerts) || []).filter(a => !a.resolved_at);
+  const th = (label, cls) => `<th class="num ${cls || ''}">${label}</th>`;
+  const trows = N.table.map(r => `<tr><td>${esc(r.label)}</td><td class="num">${fmtInt(r.sessions)}</td>${priced ? `<td class="num">${money(r.sales)}</td>` : ''}${showPrintsCol ? `<td class="num">${fmtInt(r.prints)}</td>` : ''}</tr>`).join('');
+  const arow = (label, fn, cls) => `<tr><td>${label}</td>${N.wins.map(([, w]) => `<td class="num">${fn(w)}</td>`).join('')}</tr>`;
+  const perDay = w => w.sessions / w.days;
+  const perTrading = w => w.trading ? w.sessions / w.trading : 0;
+  const alertsHtml = openAlerts.length ? `<div class="bp-alerts">${openAlerts.map(a => `<div class="bp-alert"><b>${esc(a.message || a.title || a.kind)}</b><span>since ${esc(fmtDT(new Date(a.created_at)))}</span></div>`).join('')}</div>` : '';
+  const rollHtml = `<div class="bp-roll"><div class="bp-roll-top"><b>${P.remaining}</b> prints left on the roll <span>of ${b.roll_capacity}</span></div><div class="roll-bar"><div class="roll-fill ${P.rollState}" style="width:${P.pct}%"></div></div>${P.paperLine}</div>`;
+  return `
+    <section class="panel">
+      <h2>Right now</h2>
+      <div class="bp-now">
+        <div class="bp-now-main">${P.chips ? `<div class="chips">${P.chips}</div>` : '<div class="help" style="margin:0">No programs are being watched.</div>'}${P.badLine}</div>
+        ${rollHtml}
+      </div>
+      ${alertsHtml}
+    </section>
+
+    <section class="panel">
+      <div class="chart-head"><h2>Sessions${priced ? ' and takings' : ''}</h2>
+        <button type="button" class="btn-sm" id="bp-prints-toggle">${showPrintsCol ? 'Hide prints' : 'Show prints'}</button></div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th></th>${th('Sessions')}${priced ? th('Takings') : ''}${showPrintsCol ? th('Prints') : ''}</tr></thead>
+        <tbody>${trows}</tbody></table></div>
+      <p class="help" style="margin:10px 0 0">${priced ? `Takings are sessions × ${money(Number(m.price))} per session, before costs and refunds.` : free ? 'This booth is free to use, so only sessions are counted.' : 'No price is set for this booth, so takings are not shown. Set one in the Settings tab.'}</p>
+    </section>
+
+    <section class="panel">
+      <h2>Averages</h2>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th></th>${N.wins.map(([n]) => th(esc(n))).join('')}</tr></thead>
+        <tbody>
+          ${arow('Sessions per day', w => fmt1(perDay(w)))}
+          ${arow('Sessions per busy day', w => fmt1(perTrading(w)))}
+          ${arow('Sessions per week', w => fmt1(perDay(w) * 7))}
+          ${arow('Sessions per month', w => fmtInt(perDay(w) * 30.44))}
+          ${priced ? arow('Takings per day', w => money(w.sales / w.days)) + arow('Takings per week', w => money0(w.sales / w.days * 7)) + arow('Takings per month', w => money0(w.sales / w.days * 30.44)) : ''}
+          ${showPrintsCol ? arow('Prints per session', w => w.sessions ? fmt1(w.prints / w.sessions) : '–') : ''}
+        </tbody></table></div>
+      <p class="help" style="margin:10px 0 0">A busy day is one with at least one session.${N.best ? ` Best day so far: <b>${esc(fmtDay(N.best.day))}</b> with ${N.best.sessions} session${N.best.sessions === 1 ? '' : 's'}.` : ''}</p>
+    </section>
+
+    <section class="chart-card">
+      <div class="chart-head"><h2>Average sessions by day of the week <span class="muted-h">last 90 days</span></h2></div>
+      <div id="bp-chart-wd"></div>
+    </section>
+    <section class="chart-card">
+      <div class="chart-head"><h2>Sessions by month <span class="muted-h">last 12 months</span></h2></div>
+      <div id="bp-chart-m"></div>
+    </section>`;
+}
+
+function wireBpOverview(host){
+  const t = host.querySelector('#bp-prints-toggle');
+  if(t) t.onclick = () => { showPrintsCol = !showPrintsCol; try { localStorage.setItem('bw-prints-col', showPrintsCol ? '1' : '0'); } catch(e){} bpHtml = {}; drawBoothBody(); };
+  const { b, rows } = bpData, N = bpNumbers(b, rows);
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], full = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const wdv = N.wd.map(x => x.n ? x.s / x.n : 0);
+  drawBarChart(host.querySelector('#bp-chart-wd'), {
+    metric: 'avg', table: false, cur: wdv, curLabels: full, xLabels: names, curName: 'Average sessions per day',
+    extra: N.wd.map(x => x.n ? `${x.n} ${x.n === 1 ? 'day' : 'days'} counted` : ''),
+  });
+  const today = ymd(new Date()), thisM = monthStart(today), y0 = monthStart(thisM, -11), p0 = monthStart(thisM, -23);
+  const Y = computeRange(rows, [b], [y0, today], 'month', []), YP = computeRange(rows, [b], [p0, monthEnd(monthStart(thisM, -12))], 'month', []);
+  const priced = Number((b.config && b.config.money && b.config.money.free !== true && b.config.money.price) || 0) > 0;
+  drawBarChart(host.querySelector('#bp-chart-m'), {
+    metric: 'sessions', table: false, cur: Y.buckets.map(x => x.sessions), curLabels: Y.buckets.map(x => fmtMonth(x.day)), xLabels: Y.buckets.map(x => fmtMonth(x.day)), curName: 'Last 12 months',
+    cmp: YP.buckets.map(x => x.sessions), cmpLabels: YP.buckets.map(x => fmtMonth(x.day)), cmpName: 'The 12 months before',
+    extra: Y.buckets.map(x => (priced ? `Takings ${money0(x.sales)} · ` : '') + `${fmt1(x.sessions / Math.max(1, monthDays(x.day)))} sessions a day`),
+  });
+  window.__redrawCharts = () => { if(view === 'booth'){ bpHtml = {}; drawBoothBody(); } };
+}
+
+// ── Logs tab ──
+const fmtDT = d => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const CMD_NAMES = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program'), read_paper: 'Read paper now' };
+function bpLogEntries(){
+  const { b, history } = bpData, h = history || { alerts: [], outages: [], commands: [], reports: [] }, out = [];
+  for(const a of h.alerts){
+    const msg = a.message || a.title || a.kind;
+    out.push({ t: new Date(a.created_at), type: 'alert', title: msg, detail: 'Alert raised', tone: 'bad' });
+    if(a.resolved_at) out.push({ t: new Date(a.resolved_at), type: 'alert', title: msg, detail: 'Alert cleared · lasted ' + fmtDuration((new Date(a.resolved_at) - new Date(a.created_at)) / 60000), tone: 'ok' });
+  }
+  for(const o of h.outages){
+    out.push({ t: new Date(o.ended_at), type: 'outage', title: 'Back online after ' + fmtDuration((new Date(o.ended_at) - new Date(o.started_at)) / 60000), detail: outageCause(o) + ' · offline from ' + fmtDT(new Date(o.started_at)), tone: 'bad' });
+  }
+  for(const c of h.commands){
+    const label = typeof CMD_NAMES[c.kind] === 'function' ? CMD_NAMES[c.kind](c) : (CMD_NAMES[c.kind] || c.kind);
+    const word = { pending: 'waiting for the booth', running: 'in progress', done: 'done', failed: 'failed', expired: 'expired (booth did not pick it up)' }[c.status] || c.status;
+    out.push({ t: new Date(c.completed_at || c.created_at), type: 'button', title: label + ': ' + word, detail: (c.result || '') + (c.completed_at ? ' · requested ' + fmtDT(new Date(c.created_at)) : ''), tone: (c.status === 'failed' || c.status === 'expired') ? 'bad' : '' });
+  }
+  for(const r of h.reports){
+    out.push({ t: new Date(r.created_at), type: 'support', title: 'Customer report: ' + r.issue, detail: r.status === 'resolved' ? 'Done' : (r.status === 'contacted' ? 'Customer contacted' : 'New'), tone: '' });
+  }
+  if(b.created_at) out.push({ t: new Date(b.created_at), type: 'system', title: 'Booth added to BoothWatch', detail: '', tone: '' });
+  return out.sort((x, y) => y.t - x.t);
+}
+const LOG_TYPES = [['all', 'Everything'], ['alert', 'Alerts'], ['outage', 'Offline periods'], ['button', 'Button presses'], ['support', 'Customer reports']];
+function bpLogsHtml(){
+  const { b, history } = bpData, h = history || { alerts: [], outages: [] };
+  const now = Date.now(), since = now - 30 * 86400000;
+  const offAlerts = h.alerts.filter(a => a.kind === 'offline' && (new Date(a.resolved_at || now)) > since);
+  const offMins = offAlerts.reduce((s, a) => s + (new Date(a.resolved_at || now) - Math.max(new Date(a.created_at), since)) / 60000, 0);
+  const outs = h.outages.filter(o => new Date(o.started_at) > since);
+  const outMins = outs.reduce((s, o) => s + (new Date(o.ended_at) - new Date(o.started_at)) / 60000, 0);
+  const openCount = h.alerts.filter(a => !a.resolved_at).length;
+  const fact = (k, v) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`;
+  const all = bpLogEntries(), list = bpFilter === 'all' ? all : all.filter(e => e.type === bpFilter);
+  const rows = list.slice(0, 250).map(e => `<div class="log ${e.tone}"><div class="log-t">${esc(fmtDT(e.t))}</div><div class="log-b"><b>${esc(e.title)}</b>${e.detail ? `<span>${esc(e.detail)}</span>` : ''}</div><span class="log-tag">${esc((LOG_TYPES.find(x => x[0] === e.type) || [0, e.type])[1])}</span></div>`).join('');
+  return `
+    <section class="panel">
+      <h2>Health</h2>
+      <div class="facts">
+        ${fact('Last check-in', b.last_heartbeat_at ? esc(fmtAgo(b.last_heartbeat_at)) : 'never')}
+        ${fact('Checks in every', checkInterval(b) + ' s')}
+        ${fact('Offline alerts, 30 days', offAlerts.length ? `${offAlerts.length} · ${esc(fmtDuration(offMins))}` : 'none')}
+        ${fact('Unplanned outages, 30 days', outs.length ? `${outs.length} · ${esc(fmtDuration(outMins))}` : 'none logged')}
+        ${fact('Open alerts now', openCount)}
+        ${fact('Agent', (b.agent_version ? esc(b.agent_version) : 'unknown') + ' · ' + esc(b.channel || 'live'))}
+        ${fact('Added', b.created_at ? esc(new Date(b.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })) : '–')}
+        ${fact('Paper reading', b.paper_left != null ? `${b.paper_left} pages · ${esc(fmtAgo(b.paper_left_at))}` : 'not read yet')}
+      </div>
+      <p class="help" style="margin:10px 0 0">Offline alerts follow your alert delay and opening hours. Unplanned outages are logged by the booth when it comes back and say why (power, Windows restart, network and so on); planned closures are left out.</p>
+    </section>
+    <section class="panel">
+      <div class="chart-head"><h2>Log</h2><div class="seg" role="group" aria-label="Filter the log">${LOG_TYPES.map(([k, n]) => `<button type="button" data-log-f="${k}" class="${bpFilter === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+      <div class="logs">${rows || '<div class="no-data">Nothing logged yet.</div>'}</div>
+    </section>`;
+}
+function wireBpLogs(host){
+  host.querySelectorAll('[data-log-f]').forEach(btn => btn.onclick = () => { bpFilter = btn.dataset.logF; bpHtml = {}; drawBoothBody(); });
+}
+
+
+// ── Settings tab on a booth page (this booth only; the main Settings page still has the all-booths tables) ──
+function drawBoothSettings(host, b){
+  const cfg = b.config || {}, hrs = cfg.hours || {}, w = cfg.watch || {}, m = cfg.money || {};
+  const mode = ['pause_alerts', 'auto_close'].includes(hrs.mode) ? hrs.mode : 'none';
+  const A = k => cfgAlert(cfg, k);
+  const num = (v, d = 2) => (v == null || v === '') ? '' : String(Number(v).toFixed(d)).replace(/\.?0+$/, '');
+  const alertRow = (kind, name, desc, extra) => `
+    <div class="set-row"><div><div class="name">${name}</div><div class="desc">${desc}</div></div>
+      <div class="set-ctl ${A(kind).on ? '' : 'off'}">${extra || ''}<label class="sw"><input type="checkbox" data-a-on="${kind}" ${A(kind).on ? 'checked' : ''}/> On</label></div></div>`;
+  const delayCtl = kind => `<span class="after">after <input type="number" min="1" max="180" step="1" data-a-delay="${kind}" value="${A(kind).delay}" aria-label="Minutes before alerting"/> <span class="unit">min</span></span>`;
+  const days = DAY_KEYS.map((k, i) => {
+    const d = hrs.days && Array.isArray(hrs.days[k]) ? hrs.days[k] : null;
+    return `<div class="dayname">${DAY_NAMES[i]}</div>
+      <label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-h-open="${k}" ${d ? 'checked' : ''}/> Open</label>
+      <div class="times ${d ? '' : 'off'}" data-h-times="${k}"><input type="time" data-h-from="${k}" value="${d ? d[0] : '09:00'}"/> <span class="unit">to</span> <input type="time" data-h-to="${k}" value="${d ? d[1] : '18:00'}"/></div>`;
+  }).join('');
+  const watchBox = (k, label) => `<label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-w="${k}" ${w[k] === false ? '' : 'checked'}/> ${label}</label>`;
+
+  host.innerHTML = `
+    <section class="panel">
+      <h2>Booth details</h2>
+      <div class="bs-grid">
+        <label class="fld"><span>Name</span><input type="text" id="bs-name" value="${esc(b.name)}"/></label>
+        <label class="fld"><span>Location</span><input type="text" id="bs-loc" value="${esc(b.location || '')}" placeholder="Location"/></label>
+        <label class="fld"><span>Stage</span><select id="bs-stage"><option value="live" ${cfg.stage === 'build' ? '' : 'selected'}>live</option><option value="build" ${cfg.stage === 'build' ? 'selected' : ''}>build (left out of Company figures)</option></select></label>
+        <label class="fld"><span>Updates</span><select id="bs-channel"><option value="live" ${b.channel === 'live' ? 'selected' : ''}>live</option><option value="test" ${b.channel === 'test' ? 'selected' : ''}>test (gets new versions first)</option></select></label>
+        <label class="fld"><span>Prints on a full roll</span><input type="number" min="1" max="2000" step="1" id="bs-roll" value="${b.roll_capacity}"/></label>
+      </div>
+      <div class="set-row"><div><div class="name">Auto-restart</div><div class="desc">Bring crashed booth software back by itself.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-auto" ${cfg.auto_restart ? 'checked' : ''}/> On</label></div></div>
+      <p class="help" style="margin:8px 0 0">Prints left ticks down by one for every print the booth makes. Set the roll size to how many prints one roll gives, and press <b>Roll changed</b> on the Controls tab when you fit a new one.</p>
+      <div class="save-row"><button class="btn-primary" id="bs-save-details">Save</button><span class="save-msg" id="bs-msg-details"></span></div>
+    </section>
+
+    <section class="panel">
+      <h2>What this booth watches</h2>
+      <p class="help">Untick anything this booth does not have. It is then ignored: no alerts and nothing shown on the card.</p>
+      <div class="set-ctl" style="gap:22px;flex-wrap:wrap">${watchBox('printer', 'Printer')}${watchBox('camera', 'Camera')}${watchBox('payment', 'Payment software (MDB)')}</div>
+      <div class="save-row"><button class="btn-primary" id="bs-save-watch">Save</button><span class="save-msg" id="bs-msg-watch"></span></div>
+    </section>
+
+    <section class="panel">
+      <h2>Prices and costs</h2>
+      <label class="sw" style="display:flex;align-items:center;gap:6px;margin-bottom:12px"><input type="checkbox" id="bs-free" ${m.free ? 'checked' : ''}/> Free to use (sessions are counted, no sales)</label>
+      <div class="bs-grid">
+        <label class="fld"><span>Price per session</span><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-bm="price" value="${num(m.price)}" placeholder="0.00" ${m.free ? 'disabled' : ''}/></span></label>
+        <label class="fld"><span>Cost per print</span><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-bm="cost_per_print" value="${num(m.cost_per_print)}" placeholder="0.00"/></span></label>
+        <label class="fld"><span>Running cost per month</span><span class="money-in"><i>£</i><input type="number" min="0" step="1" data-bm="monthly_cost" value="${num(m.monthly_cost)}" placeholder="0"/></span></label>
+        <label class="fld"><span>Card fee</span><span class="money-in"><input type="number" min="0" max="100" step="0.01" data-bm="card_fee_pct" value="${num(m.card_fee_pct)}" placeholder="0"/><i>%</i></span></label>
+      </div>
+      <div class="save-row"><button class="btn-primary" id="bs-save-money">Save</button><span class="save-msg" id="bs-msg-money"></span></div>
+    </section>
+
+    <section class="panel">
+      <h2>Alerts</h2>
+      ${alertRow('offline', 'Booth offline', 'The booth PC stops checking in.', delayCtl('offline'))}
+      ${alertRow('software', 'Booth software problem', 'DSLR Remote Pro or MDB Payment is not running or shows an error.', delayCtl('software'))}
+      ${alertRow('device', 'Camera or printer problem', 'Camera disconnected, printer off, door open, out of ribbon or paper.', delayCtl('device'))}
+      ${alertRow('print_missing', 'Session without a print', 'A session was saved but no print was counted.', delayCtl('print_missing'))}
+      ${alertRow('low_prints', 'Low on prints', 'Warn when the roll is nearly used up.', `<span class="after">at <input type="number" min="1" max="90" step="1" data-a-threshold value="${A('low_prints').threshold}"/> <span class="unit">% left</span></span>`)}
+      ${alertRow('out_of_prints', 'Out of prints', 'The roll has run out.', '')}
+      ${alertRow('command_failed', 'A button press fails', 'Restart, screenshot or paper read did not work.', '')}
+      <div class="set-row"><div><div class="name">Mute everything</div><div class="desc">No alerts or notifications for this booth.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-muted" ${cfg.alerts_muted ? 'checked' : ''}/> Muted</label></div></div>
+      <div class="save-row"><button class="btn-primary" id="bs-save-alerts">Save alerts</button><span class="save-msg" id="bs-msg-alerts"></span></div>
+    </section>
+
+    <section class="panel">
+      <h2>Opening hours</h2>
+      <label class="mode"><input type="radio" name="bs-hmode" value="none" ${mode === 'none' ? 'checked' : ''}/><div><b>Always on</b><span>No schedule. Alerts any time of day.</span></div></label>
+      <label class="mode"><input type="radio" name="bs-hmode" value="pause_alerts" ${mode === 'pause_alerts' ? 'checked' : ''}/><div><b>Only pause alerts outside opening hours</b><span>You are not alerted when it is meant to be off.</span></div></label>
+      <label class="mode"><input type="radio" name="bs-hmode" value="auto_close" ${mode === 'auto_close' ? 'checked' : ''}/><div><b>Close and open by itself</b><span>The closed screen shows outside opening hours.</span></div></label>
+      <div id="bs-week" ${mode === 'none' ? 'style="opacity:.4;pointer-events:none"' : ''}>
+        <div class="week">${days}</div>
+        <div class="save-row" style="margin-top:12px"><button class="btn-sm" id="bs-copy-mon">Copy Monday to every day</button></div>
+      </div>
+      <div class="save-row"><button class="btn-primary" id="bs-save-hours">Save opening hours</button><span class="save-msg" id="bs-msg-hours"></span></div>
+    </section>`;
+
+  const $ = id => host.querySelector('#' + id);
+  const msg = (id, text, bad) => { const el = $(id); if(!el) return; el.textContent = text; el.style.color = bad ? 'var(--ink)' : 'var(--accent)'; clearTimeout(el._t); if(text) el._t = setTimeout(() => { el.textContent = ''; }, 4000); };
+  const patchCfg = async patch => { const { error } = await sb.rpc('update_booth_config', { p_booth_id: b.id, p_patch: patch }); if(error) throw error; };
+  const after = async () => { boothCache = await loadBooths(); const nb = boothCache.find(x => x.id === b.id); if(nb && bpData){ nb.lastCommand = bpData.b.lastCommand; bpData.b = nb; bpHtml.top = null; drawBoothTop(); } };
+  const guard = (btnId, msgId, fn) => { $(btnId).onclick = async () => { $(btnId).disabled = true; try { await fn(); await after(); msg(msgId, 'Saved'); } catch(e){ msg(msgId, e.message || String(e), true); } $(btnId).disabled = false; }; };
+
+  guard('bs-save-details', 'bs-msg-details', async () => {
+    const roll = Math.round(Number($('bs-roll').value));
+    if(!(roll >= 1)) throw new Error('Enter how many prints a full roll gives.');
+    const { error } = await sb.from('booths').update({ name: $('bs-name').value.trim() || b.name, location: $('bs-loc').value.trim() || null, channel: $('bs-channel').value, roll_capacity: roll }).eq('id', b.id);
+    if(error) throw error;
+    await patchCfg({ auto_restart: $('bs-auto').checked, stage: $('bs-stage').value });
+  });
+  guard('bs-save-watch', 'bs-msg-watch', async () => {
+    const o = {}; host.querySelectorAll('[data-w]').forEach(i => { o[i.dataset.w] = i.checked; });
+    await patchCfg({ watch: o });
+  });
+  $('bs-free').onchange = e => { host.querySelector('[data-bm="price"]').disabled = e.target.checked; };
+  guard('bs-save-money', 'bs-msg-money', async () => {
+    const o = {}; host.querySelectorAll('[data-bm]').forEach(i => { o[i.dataset.bm] = i.value === '' ? 0 : Number(i.value); });
+    o.free = $('bs-free').checked; if(o.free) o.price = 0;
+    await patchCfg({ money: o });
+  });
+  host.querySelectorAll('[data-a-on]').forEach(box => { box.onchange = () => box.closest('.set-ctl').classList.toggle('off', !box.checked); });
+  guard('bs-save-alerts', 'bs-msg-alerts', async () => {
+    const alerts = {};
+    for(const kind of ['offline', 'software', 'device', 'print_missing', 'low_prints', 'out_of_prints', 'command_failed']){
+      const o = { on: host.querySelector(`[data-a-on="${kind}"]`).checked };
+      const d = host.querySelector(`[data-a-delay="${kind}"]`); if(d && d.value !== '') o.delay = Number(d.value);
+      if(kind === 'low_prints'){ const t = host.querySelector('[data-a-threshold]'); if(t && t.value !== '') o.threshold = Number(t.value); }
+      alerts[kind] = o;
+    }
+    await patchCfg({ alerts, alerts_muted: $('bs-muted').checked });
+  });
+  const radios = () => [...host.querySelectorAll('input[name=bs-hmode]')];
+  radios().forEach(r => r.onchange = () => { const none = radios().find(x => x.checked).value === 'none'; $('bs-week').style.opacity = none ? '.4' : ''; $('bs-week').style.pointerEvents = none ? 'none' : ''; });
+  host.querySelectorAll('[data-h-open]').forEach(box => { box.onchange = () => host.querySelector(`[data-h-times="${box.dataset.hOpen}"]`).classList.toggle('off', !box.checked); });
+  $('bs-copy-mon').onclick = () => {
+    const open = host.querySelector('[data-h-open="mon"]').checked, from = host.querySelector('[data-h-from="mon"]').value, to = host.querySelector('[data-h-to="mon"]').value;
+    DAY_KEYS.forEach(k => { host.querySelector(`[data-h-open="${k}"]`).checked = open; host.querySelector(`[data-h-from="${k}"]`).value = from; host.querySelector(`[data-h-to="${k}"]`).value = to; host.querySelector(`[data-h-times="${k}"]`).classList.toggle('off', !open); });
+  };
+  guard('bs-save-hours', 'bs-msg-hours', async () => {
+    const hm = radios().find(x => x.checked).value, dd = {};
+    for(const k of DAY_KEYS){
+      const open = host.querySelector(`[data-h-open="${k}"]`).checked, from = host.querySelector(`[data-h-from="${k}"]`).value, to = host.querySelector(`[data-h-to="${k}"]`).value;
+      if(open && (!from || !to)) throw new Error('Fill in the opening and closing time for ' + DAY_NAMES[DAY_KEYS.indexOf(k)]);
+      dd[k] = open ? [from, to] : null;
+    }
+    if(hm !== 'none' && !Object.values(dd).some(Boolean)) throw new Error('Tick at least one open day, or choose "Always on".');
+    await patchCfg({ hours: { mode: hm, days: dd } });
   });
 }
 
@@ -2306,9 +2790,9 @@ function computeRange(rows, booths, [f, t], bucket, refunds){
   return { per, totals, buckets: [...buckets.values()].sort((a, b) => a.key < b.key ? -1 : 1), missing };
 }
 
-const METRICS = { sales: 'Sales', costs: 'Costs', refunds: 'Refunds', profit: 'Profit', sessions: 'Sessions', prints: 'Prints' };
+const METRICS = { sales: 'Sales', costs: 'Costs', refunds: 'Refunds', profit: 'Profit', sessions: 'Sessions', prints: 'Prints', avg: 'Sessions per day' };
 const isMoneyMetric = m => ['sales', 'costs', 'refunds', 'profit'].includes(m);
-const fmtMetric = (m, v) => isMoneyMetric(m) ? money(v) : String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const fmtMetric = (m, v) => m === 'avg' ? String(Math.round(v * 10) / 10) : isMoneyMetric(m) ? money(v) : String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 function deltaText(metric, cur, prev, label){
   if(prev == null) return '';
@@ -2488,7 +2972,7 @@ function drawBarChart(host, o){
   const y = v => m.t + ph * (1 - (v - lo) / (hi - lo));
   const y0 = y(0);
   const band = pw / Math.max(n, hasCmp ? o.cmp.length : 0, 1), bw = Math.max(2, Math.min(18, band * (hasCmp ? 0.36 : 0.6)));
-  const tickFmt = v => isMoneyMetric(o.metric) ? (Math.abs(v) >= 1000 ? '£' + (v / 1000).toFixed(v % 1000 ? 1 : 0) + 'k' : '£' + Math.round(v)) : String(Math.round(v));
+  const tickFmt = v => o.metric === 'avg' ? String(Math.round(v * 10) / 10) : isMoneyMetric(o.metric) ? (Math.abs(v) >= 1000 ? '£' + (v / 1000).toFixed(v % 1000 ? 1 : 0) + 'k' : '£' + Math.round(v)) : String(Math.round(v));
   let g = '';
   for(let v = lo; v <= hi + step / 2; v += step){
     g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="${v === 0 ? '#9AA0AA' : '#E1E3E8'}" stroke-width="1"/>`;
@@ -2539,7 +3023,7 @@ function niceStep(raw){
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
 }
 let resizeT = null;
-window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if(view === 'company' && statsCache && window.__redrawCharts) window.__redrawCharts(); }, 200); });
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if(view === 'company' && statsCache && window.__redrawCharts) window.__redrawCharts(); else if(view === 'booth' && boothTab === 'overview'){ bpHtml = {}; drawBoothBody(); } }, 200); });
 
 
 // ═══════════════ Support page (customer fault reports) ═══════════════
