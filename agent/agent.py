@@ -53,7 +53,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.9.0"
+VERSION = "0.9.1"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -2072,11 +2072,14 @@ def main():
                 paper = _forced_paper["value"]
                 _forced_paper["value"] = None
                 idle_now = booth_idle(results, closed_shown)      # call every beat so it can track screen changes
-                due = time.time() - paper_state["last"] >= PAPER_READ_SECONDS
+                # 0.9.1: paper left just ticks down with each print on the server. The printer is only asked when the
+                # dashboard's "Read paper now" button is pressed (or if config.json has printer.read_paper_left = true).
+                auto_paper = (local_cfg.get("printer") or {}).get("read_paper_left", False) is True
+                due = auto_paper and time.time() - paper_state["last"] >= PAPER_READ_SECONDS
                 if due and not idle_now and time.time() - paper_state.get("warned", 0) > 600:
                     paper_state["warned"] = time.time()
                     log.info("Paper read is due but the booth looks busy, waiting for a quiet moment")
-                if paper is None and ((local_cfg.get("printer") or {}).get("read_paper_left", True) is not False
+                if paper is None and ((local_cfg.get("printer") or {}).get("read_paper_left", False) is True
                         and watching(cfg, "printer") and due and idle_now):
                     paper_state["last"] = time.time()
                     try:
