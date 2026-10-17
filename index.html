@@ -641,6 +641,13 @@
   @keyframes slideL{ from{ opacity:0; transform: translateX(-36px); } to{ opacity:1; transform:none; } }
   #view.enter.from-r > *, #view.enter.from-r .frame, #view.enter.from-r .tile, #view.enter.from-r .panel, #view.enter.from-r .chart-card, #view.enter.from-r .overview{ animation-name: slideR; animation-delay:0s; }
   #view.enter.from-l > *, #view.enter.from-l .frame, #view.enter.from-l .tile, #view.enter.from-l .panel, #view.enter.from-l .chart-card, #view.enter.from-l .overview{ animation-name: slideL; animation-delay:0s; }
+
+  .outages{ margin-top:10px; border-top:1px solid var(--line); padding-top:10px; }
+  .outages-h{ font-weight:600; font-size:12.5px; margin-bottom:6px; }
+  .outages-h em{ font-style:normal; font-weight:500; color: var(--muted); margin-left:6px; }
+  .outage{ display:flex; flex-direction:column; gap:1px; padding:5px 0; font-size:12.5px; }
+  .outage b{ font-weight:600; font-variant-numeric: tabular-nums; }
+  .outage span{ color: var(--muted); font-weight:500; line-height:1.35; }
 </style>
 </head>
 <body>
@@ -1070,6 +1077,44 @@ function setPrefs(p){ try { localStorage.setItem('bw-prefs', JSON.stringify({ ..
 const openDetails = new Set((() => { try { return JSON.parse(localStorage.getItem('bw-details') || '[]'); } catch(e){ return []; } })());
 function saveDetails(){ try { localStorage.setItem('bw-details', JSON.stringify([...openDetails])); } catch(e){} }
 
+// ── outage log ──
+const OUTAGE_CAUSES = {
+  power_loss: 'Power cut or hard switch-off', crash: 'The PC crashed', shutdown: 'The PC was shut down', restart: 'The PC restarted',
+  windows_update: 'Windows restarted for an update', sleep: 'The PC went to sleep', agent_stopped: 'The BoothWatch agent was not running (the PC stayed on)',
+  network: 'Lost its internet connection', unknown: 'Reason unknown',
+};
+function outageCause(o){
+  const d = o.detail || {};
+  let t = OUTAGE_CAUSES[o.cause] || OUTAGE_CAUSES.unknown;
+  if(o.cause === 'network'){
+    const k = { no_internet: 'the PC could not reach the internet', dns: 'the internet worked but names would not resolve', service_unreachable: 'the internet worked but BoothWatch could not be reached', intermittent: 'on and off' }[d.kind];
+    if(k) t += ' (' + k + ')';
+  } else if(o.cause === 'crash' && d.bugcheck){ t += ' (stop code ' + esc(d.bugcheck) + ')'; }
+  return t;
+}
+function fmtDuration(mins){ mins = Math.max(1, Math.round(mins)); return mins >= 120 ? Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min' : mins + ' min'; }
+function outageRows(list){
+  if(!list || !list.length) return '';
+  const rows = list.map(o => {
+    const a = new Date(o.started_at), b = new Date(o.ended_at), mins = (b - a) / 60000;
+    const day = a.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    const hm = d => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return `<div class="outage"><b>${esc(day)} · ${hm(a)}–${hm(b)} · ${fmtDuration(mins)}</b><span>${outageCause(o)}</span></div>`;
+  }).join('');
+  return `<div class="outages"><div class="outages-h">Unplanned offline periods <em>last 30 days</em></div>${rows}</div>`;
+}
+async function loadOutages(ids){
+  if(!ids.length) return {};
+  try {
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data, error } = await sb.from('booth_outages').select('booth_id, started_at, ended_at, cause, detail').in('booth_id', ids).gte('started_at', since).order('started_at', { ascending: false }).limit(200);
+    if(error) return {};
+    const out = {};
+    for(const o of data || []){ (out[o.booth_id] = out[o.booth_id] || []).push(o); }
+    return out;
+  } catch(e){ return {}; }
+}
+
 // ── sales / sessions per booth ──
 let countKind = (() => { try { return localStorage.getItem('bw-count') === 'prints' ? 'prints' : 'sessions'; } catch(e){ return 'sessions'; } })();
 function toggleCountKind(){
@@ -1223,6 +1268,7 @@ function boothFrame(b){
           </div>
           ${cmdLine}
           ${warns}
+          ${outageRows(b.outages)}
           ${paperLine}
           ${hoursLine}
           <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'} · ${esc(b.channel || 'live')} channel</div>
@@ -1515,9 +1561,9 @@ async function refreshBooths(){
   if(view !== 'booths') return;
   boothCache = booths;
   const ids = booths.map(b => b.id);
-  const [periods, lastCmds] = await Promise.all([loadPeriodStats(booths), loadLastCommands(ids)]);
+  const [periods, lastCmds, outageMap] = await Promise.all([loadPeriodStats(booths), loadLastCommands(ids), loadOutages(ids)]);
   if(view !== 'booths') return;
-  booths = booths.map(b => ({ ...b, periods: periods[b.id] || null, lastCommand: lastCmds[b.id] || null }));
+  booths = booths.map(b => ({ ...b, periods: periods[b.id] || null, outages: outageMap[b.id] || [], lastCommand: lastCmds[b.id] || null }));
 
   const onlineCount = booths.filter(isOnline).length;
   const attentionCount = booths.filter(needsAttention).length;

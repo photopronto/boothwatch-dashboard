@@ -30,6 +30,7 @@ import logging
 import logging.handlers
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -52,7 +53,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.8.3"
+VERSION = "0.9.0"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -90,6 +91,7 @@ CONFIG_PATH = BASE / "config.json"
 STATE_PATH = BASE / "agent_state.json"      # holds this booth's secret token
 CODE_PATH = BASE / "pairing_code.txt"
 LOG_PATH = BASE / "boothwatch.log"
+RUNTIME_PATH = BASE / "runtime.json"                # last time the agent was alive, and outages not yet reported
 REMOTE_CACHE_PATH = BASE / "remote_cache.json"      # last settings from the dashboard (kept if the internet drops)
 CLOSED_MESSAGE_PATH = BASE / "closed_message.txt"   # text shown on the closed screen
 
@@ -1650,6 +1652,255 @@ def show_startup():
         print(f"{prog['name']}: " + (f"would restart using {how}\n    {cmd}" if cmd else "NO WAY to restart it found"))
 
 
+# ───────────────────────── outage log ─────────────────────────
+# When the booth comes back after an unplanned gap, work out when it went quiet and why, and tell the
+# dashboard. Gaps that fall outside opening hours (or while the booth was closed on the dashboard) are
+# planned and are not reported.
+OUTAGE_MIN_SECONDS = 180      # shorter gaps are ordinary hiccups
+SUSPEND_GAP_SECONDS = 240     # the agent loop did not run for this long while the program stayed open = PC was asleep
+RUNTIME_SAVE_SECONDS = 30
+_WIN_UPDATE_RE = re.compile(r"wuauclt|mousocore|tiworker|trustedinstaller|usoclient|musnotification|windows update|sihclient", re.I)
+_EVT_NS = {"e": "http://schemas.microsoft.com/win/2004/08/events/event"}
+
+
+def read_windows_events(since_utc):
+    """Shutdown, restart, crash and sleep events from the Windows System log, oldest first.
+    Returns [] when the log cannot be read (not Windows, no permission)."""
+    if sys.platform != "win32":
+        return []
+    query = ("*[System[(EventID=41 or EventID=42 or EventID=1074 or EventID=6005 or EventID=6006 or EventID=6008)"
+             " and TimeCreated[@SystemTime>='%s']]]" % since_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
+    try:
+        out = subprocess.run(["wevtutil", "qe", "System", "/q:" + query, "/c:60", "/rd:true", "/f:xml"],
+                             capture_output=True, text=True, timeout=30, creationflags=CREATE_NO_WINDOW).stdout
+        return parse_windows_events(out)
+    except Exception as e:
+        log.info("Could not read the Windows event log: %s", e)
+        return []
+
+
+def parse_windows_events(xml_text):
+    import xml.etree.ElementTree as ET
+    events = []
+    if not xml_text or "<Event" not in xml_text:
+        return events
+    root = ET.fromstring("<Events>" + re.sub(r"<\?xml[^>]*\?>", "", xml_text) + "</Events>")
+    for ev in root.findall("e:Event", _EVT_NS) or root.findall("Event"):
+        def find(path):
+            return ev.find(path, _EVT_NS)
+        sysnode = find("e:System")
+        eid = int((sysnode.find("e:EventID", _EVT_NS).text or "0").strip())
+        stamp = sysnode.find("e:TimeCreated", _EVT_NS).get("SystemTime")
+        t = datetime.datetime.fromisoformat(re.sub(r"\.\d+Z?$|Z$", "", stamp) + "+00:00")
+        data = {}
+        order = []
+        ed = find("e:EventData")
+        if ed is not None:
+            for d in ed.findall("e:Data", _EVT_NS):
+                order.append((d.text or "").strip())
+                if d.get("Name"):
+                    data[d.get("Name")] = (d.text or "").strip()
+        events.append({"id": eid, "time": t, "data": data, "list": order})
+    events.sort(key=lambda x: x["time"])
+    return events
+
+
+def classify_gap(events, start, end):
+    """Most likely reason the PC went quiet between start and end (aware datetimes)."""
+    window = [e for e in events if start - datetime.timedelta(minutes=3) <= e["time"] <= end]
+    by = lambda i: [e for e in window if e["id"] == i]
+    if by(1074):                                         # a shutdown or restart somebody or something asked for
+        e = by(1074)[-1]
+        lst = e["list"]
+        proc = lst[0] if lst else ""
+        reason = lst[2] if len(lst) > 2 else ""
+        kind = (lst[4] if len(lst) > 4 else "").lower()
+        detail = {"process": re.split(r"[\\/]", proc.split(" (")[0])[-1][:80], "reason": reason[:120], "type": kind}
+        if _WIN_UPDATE_RE.search(proc + " " + reason):
+            return "windows_update", detail
+        return ("restart" if "restart" in kind or "reboot" in kind else "shutdown"), detail
+    if by(41) or by(6008):
+        e = (by(41) or by(6008))[-1]
+        bug = str(e["data"].get("BugcheckCode", "0")).strip()
+        if by(41) and bug not in ("", "0"):
+            return "crash", {"bugcheck": bug}
+        return "power_loss", {}
+    if by(42):
+        return "sleep", {}
+    if by(6006):
+        return "shutdown", {}
+    return "agent_stopped", {}
+
+
+def probe_network(supabase_url):
+    """Quick look at why a request failed: can this PC reach the internet at all, and the dashboard's server?"""
+    host = re.sub(r"^https?://", "", supabase_url or "").split("/")[0]
+    result = {"t": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
+
+    def tcp(h, port=443):
+        try:
+            socket.create_connection((h, port), timeout=3).close()
+            return True
+        except OSError:
+            return False
+    try:
+        socket.gethostbyname(host)
+        result["dns"] = True
+    except OSError:
+        result["dns"] = False
+    result["internet"] = tcp("1.1.1.1") or tcp("8.8.8.8")
+    result["service"] = bool(result["dns"]) and tcp(host)
+    return result
+
+
+def summarise_probes(probes):
+    if not probes:
+        return "network", {"kind": "unknown"}
+    if all(not p.get("internet") for p in probes):
+        return "network", {"kind": "no_internet", "checks": len(probes)}
+    if any(p.get("internet") and not p.get("dns") for p in probes):
+        return "network", {"kind": "dns", "checks": len(probes)}
+    if any(p.get("internet") and not p.get("service") for p in probes):
+        return "network", {"kind": "service_unreachable", "checks": len(probes)}
+    return "network", {"kind": "intermittent", "checks": len(probes)}
+
+
+def open_minutes_between(start, end, hours, closed_manual):
+    """Minutes of start..end (aware datetimes) when the booth was meant to be open."""
+    if closed_manual:
+        return 0
+    span = (end - start).total_seconds()
+    step = max(60, int(span // 1500) + 1)
+    n = 0
+    t = start
+    while t < end:
+        try:
+            if in_opening_hours(hours, t.astimezone()):
+                n += step
+        except Exception:
+            n += step
+        t += datetime.timedelta(seconds=step)
+    return int(min(n, span) // 60)
+
+
+class OutageTracker:
+    def __init__(self):
+        self.rt = {}
+        try:
+            if RUNTIME_PATH.exists():
+                self.rt = json.loads(RUNTIME_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            self.rt = {}
+        self.pending = list(self.rt.get("pending") or [])
+        self.restart_gap = None
+        self.probes = []
+        self.last_probe = 0.0
+        self.fail_since = None
+        self.last_error = None
+        self.last_tick = time.time()
+        self.suspend = None
+        self.last_save = 0.0
+        self.last_ok = self.rt.get("last_ok_beat")          # epoch seconds of the last report the dashboard received
+        prev_alive = self.rt.get("last_alive")
+        now = time.time()
+        if prev_alive and self.last_ok and now - prev_alive > OUTAGE_MIN_SECONDS:
+            start = datetime.datetime.fromtimestamp(self.last_ok, datetime.timezone.utc)
+            events = read_windows_events(start - datetime.timedelta(minutes=5))
+            cause, detail = classify_gap(events, datetime.datetime.fromtimestamp(prev_alive, datetime.timezone.utc),
+                                         datetime.datetime.now(datetime.timezone.utc))
+            self.restart_gap = {"start": self.last_ok, "cause": cause, "detail": detail,
+                                "hours": self.rt.get("hours"), "closed_manual": bool(self.rt.get("closed_manual"))}
+            log.info("Agent started after a gap of %d min; most likely cause: %s", (now - self.last_ok) / 60, cause)
+        elif prev_alive and now - prev_alive > 60:
+            log.info("Agent restarted after %d seconds (too short to count as an outage)", now - prev_alive)
+
+    def save(self, remote_cfg=None, force=False):
+        now = time.time()
+        if not force and now - self.last_save < RUNTIME_SAVE_SECONDS:
+            return
+        self.last_save = now
+        if isinstance(remote_cfg, dict):
+            self.rt["hours"] = remote_cfg.get("hours")
+            self.rt["closed_manual"] = remote_cfg.get("closed") is True
+        self.rt["last_alive"] = now
+        self.rt["last_ok_beat"] = self.last_ok
+        self.rt["pending"] = self.pending
+        try:
+            RUNTIME_PATH.write_text(json.dumps(self.rt), encoding="utf-8")
+        except Exception as e:
+            log.info("Could not save runtime state: %s", e)
+
+    def tick(self, remote_cfg):
+        """Call every loop. Notices when the whole PC was frozen or asleep."""
+        now = time.time()
+        gap = now - self.last_tick
+        if gap > SUSPEND_GAP_SECONDS:
+            self.suspend = {"start": self.last_tick, "end": now}
+            log.info("The PC was asleep or frozen for about %d minutes", gap / 60)
+        self.last_tick = now
+        self.save(remote_cfg)
+
+    def failed(self, error, supabase_url):
+        if self.fail_since is None:
+            self.fail_since = time.time()
+        self.last_error = str(error)[:160]
+        if time.time() - self.last_probe >= 60 and len(self.probes) < 40:
+            self.last_probe = time.time()
+            try:
+                self.probes.append(probe_network(supabase_url))
+            except Exception:
+                pass
+
+    def succeeded(self, remote_cfg, interval=60):
+        """Call after a report the dashboard accepted. Turns any gap since the last one into an outage entry."""
+        now = time.time()
+        if self.last_ok is not None or self.restart_gap:
+            gap_start = (self.restart_gap or {}).get("start") or self.last_ok
+            gap = now - gap_start if gap_start else 0
+            threshold = max(OUTAGE_MIN_SECONDS, 3 * interval)
+            if gap > threshold:
+                if self.restart_gap:
+                    cause, detail = self.restart_gap["cause"], self.restart_gap["detail"]
+                    hours, closed_manual = self.restart_gap["hours"], self.restart_gap["closed_manual"]
+                elif self.suspend and self.suspend["end"] >= gap_start:
+                    cause, detail = "sleep", {}
+                    hours, closed_manual = self.rt.get("hours"), bool(self.rt.get("closed_manual"))
+                else:
+                    cause, detail = summarise_probes(self.probes)
+                    if self.last_error:
+                        detail["last_error"] = self.last_error
+                    hours, closed_manual = self.rt.get("hours"), bool(self.rt.get("closed_manual"))
+                start = datetime.datetime.fromtimestamp(gap_start, datetime.timezone.utc)
+                end = datetime.datetime.fromtimestamp(now, datetime.timezone.utc)
+                open_min = open_minutes_between(start, end, hours, closed_manual)
+                if open_min >= 3:
+                    self.pending.append({"started_at": start.isoformat(timespec="seconds"), "ended_at": end.isoformat(timespec="seconds"),
+                                         "cause": cause, "detail": detail, "open_minutes": open_min})
+                    log.info("Offline for %d min (%d of them in opening hours); most likely: %s", gap / 60, open_min, cause)
+                else:
+                    log.info("Offline for %d min, but while the booth was closed - not logged", gap / 60)
+        self.restart_gap = None
+        self.suspend = None
+        self.fail_since = None
+        self.last_error = None
+        self.probes = []
+        self.last_ok = now
+        self.save(remote_cfg, force=True)
+
+    def flush(self, local_cfg, token):
+        keep = []
+        for o in self.pending:
+            try:
+                rpc(local_cfg, "report_outage", {"p_token": token, "p_started_at": o["started_at"], "p_ended_at": o["ended_at"],
+                                                 "p_cause": o["cause"], "p_detail": o["detail"], "p_open_minutes": o["open_minutes"]})
+            except Exception as e:
+                log.info("Could not send outage report yet: %s", e)
+                keep.append(o)
+        if len(keep) != len(self.pending):
+            self.pending = keep
+            self.save(force=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--discover", action="store_true")
@@ -1735,8 +1986,10 @@ def main():
     last_beat = 0.0
     last_poll_error = None
     print_matcher = PrintMatcher()
+    outages = OutageTracker()
 
     while True:
+        outages.tick(remote_cfg)
         # 1. Ask the dashboard for settings, screenshot requests and button presses (every ~10s)
         commands = []
         try:
@@ -1751,6 +2004,7 @@ def main():
             commands = poll.get("commands") or []
             last_poll_error = None
         except Exception as e:
+            outages.failed(e, local_cfg.get("supabase_url"))
             if str(e) != last_poll_error:       # don't repeat the same error every 10s
                 log.info("Settings check failed (using saved settings): %s", e)
                 last_poll_error = str(e)
@@ -1809,6 +2063,8 @@ def main():
                     "p_agent_version": VERSION,
                 })
                 last_beat = time.time()
+                outages.succeeded(remote_cfg, int(cfg["interval_seconds"]))
+                outages.flush(local_cfg, state["agent_token"])
                 bad = [r for r in results if not r["ok"]]
                 if bad:
                     log.info("Problems: %s", "; ".join(f"{r['name']}: {r['note']}" for r in bad))
@@ -1855,6 +2111,7 @@ def main():
                     **({"p_paper_left": paper} if paper is not None else {}),
                 })
             except Exception as e:
+                outages.failed(e, local_cfg.get("supabase_url"))
                 log.info("Check-in failed (will retry): %s", e)
 
         time.sleep(POLL_SECONDS)
