@@ -1126,9 +1126,10 @@ const countWord = (n, kind) => n + ' ' + (kind === 'prints' ? 'print' : 'session
 // One figure: the money made (or, with no price set, the session count) with the sessions/prints under it. Tap the small line to switch to prints.
 function saleCell(b, key, label, plain){
   const p = (b.periods && b.periods[key]) || { sessions: 0, prints: 0, sales: 0 };
-  const priced = Number((b.config && b.config.money && b.config.money.price) || 0) > 0;
-  const big = priced ? (key === 'today' || key === 'yesterday' ? money(p.sales) : money0(p.sales)) : String(p.sessions);
-  const sub = priced ? countWord(p[countKind], countKind) : (countKind === 'prints' ? countWord(p.prints, 'prints') : 'no price set');
+  const m = (b.config && b.config.money) || {};
+  const free = m.free === true, priced = !free && Number(m.price || 0) > 0;
+  const big = priced ? (key === 'today' || key === 'yesterday' ? money(p.sales) : money0(p.sales)) : String(p[countKind]);
+  const sub = priced ? countWord(p[countKind], countKind) : (free || countKind === 'prints' ? countKind : 'no price set');
   const inner = `<span class="k">${esc(label)}</span><b>${big}</b><button type="button" class="sub" data-count-toggle title="Switch between sessions and prints">${sub}</button>`;
   return plain ? inner : `<div class="sale">${inner}</div>`;
 }
@@ -1214,7 +1215,8 @@ function boothFrame(b){
   if(online && st.folder_found === false) warns += `<div class="warn-line">Session counting: today's photo folder was not found on the booth (normal until the first session of the day).</div>`;
   if(online && !isClosed && st.counter_seen === false) warns += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
 
-  const buildBadge = cfg.stage === 'build' ? '<span class="badge-closed" title="Left out of the Company figures">Build</span>' : '';
+  const freeBadge = (cfg.money && cfg.money.free === true) ? '<span class="badge-closed" title="Free to use: sessions are counted, no sales">Free</span>' : '';
+  const buildBadge = freeBadge + (cfg.stage === 'build' ? '<span class="badge-closed" title="Left out of the Company figures">Build</span>' : '');
   const badge = buildBadge + (manualClosed ? '<span class="badge-closed">Closed</span>'
     : schedClosed ? '<span class="badge-closed">Closed · hours</span>'
     : (hrs && !hrs.open ? '<span class="badge-closed">Outside hours</span>' : ''));
@@ -1768,7 +1770,8 @@ function drawSettings(){
     const m = (b.config && b.config.money) || {};
     return `<tr data-money="${esc(b.id)}">
       <td>${esc(b.name)}</td>
-      <td data-label="Price per session"><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-m="price" value="${num(m.price)}" placeholder="0.00" aria-label="Price per session for ${esc(b.name)}"/></span></td>
+      <td data-label="Free to use"><label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-m-free ${m.free ? 'checked' : ''} aria-label="${esc(b.name)} is free to use"/> Free</label></td>
+      <td data-label="Price per session"><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-m="price" value="${num(m.price)}" placeholder="0.00" ${m.free ? 'disabled' : ''} aria-label="Price per session for ${esc(b.name)}"/></span></td>
       <td data-label="Cost per print"><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-m="cost_per_print" value="${num(m.cost_per_print)}" placeholder="0.00" aria-label="Cost per print for ${esc(b.name)}"/></span></td>
       <td data-label="Running cost per month"><span class="money-in"><i>£</i><input type="number" min="0" step="1" data-m="monthly_cost" value="${num(m.monthly_cost)}" placeholder="0" aria-label="Monthly running cost for ${esc(b.name)}"/></span></td>
       <td data-label="Card fee"><span class="money-in"><input type="number" min="0" max="100" step="0.01" data-m="card_fee_pct" value="${num(m.card_fee_pct)}" placeholder="0" aria-label="Card fee percent for ${esc(b.name)}"/><i>%</i></span></td>
@@ -1833,9 +1836,9 @@ function drawSettings(){
 
     <section class="panel" id="p-money" data-stab="hours">
       <h2>Prices and costs</h2>
-      <p class="help">Used by the Company page to work out sales and profit. Sales are sessions × price per session. Costs are prints × cost per print, plus card fees, plus the monthly running cost (spread evenly over each day). Changes apply to all dates, past and future.</p>
+      <p class="help">Used by the Company page to work out sales and profit. Sales are sessions × price per session. Tick <b>Free to use</b> for a booth that does not take payment: its sessions are still counted, but it shows no sales and is not flagged for a missing price. Costs are prints × cost per print, plus card fees, plus the monthly running cost (spread evenly over each day). Changes apply to all dates, past and future.</p>
       <div class="tbl-wrap"><table class="tbl stack">
-        <thead><tr><th>Booth</th><th>Price per session</th><th>Cost per print</th><th>Running cost per month</th><th>Card fee</th></tr></thead>
+        <thead><tr><th>Booth</th><th>Free to use</th><th>Price per session</th><th>Cost per print</th><th>Running cost per month</th><th>Card fee</th></tr></thead>
         <tbody>${moneyRows}</tbody></table></div>
       <div class="save-row"><button class="btn-primary" id="save-money">Save prices and costs</button>${booths.length > 1 ? '<button class="btn-sm" id="copy-money">Copy first booth to all</button>' : ''}<span class="save-msg" id="msg-money"></span></div>
     </section>
@@ -2065,11 +2068,17 @@ function wireSettings(booths, targets){
   const readMoney = tr => {
     const o = {};
     tr.querySelectorAll('[data-m]').forEach(i => { o[i.dataset.m] = i.value === '' ? 0 : Number(i.value); });
+    o.free = !!tr.querySelector('[data-m-free]').checked;
+    if(o.free) o.price = 0;
     return o;
   };
+  document.querySelectorAll('[data-m-free]').forEach(cb => cb.onchange = () => { const inp = cb.closest('tr').querySelector('[data-m="price"]'); inp.disabled = cb.checked; });
   if($('copy-money')) $('copy-money').onclick = () => {
     const rows = [...document.querySelectorAll('[data-money]')];
-    rows.slice(1).forEach(tr => rows[0].querySelectorAll('[data-m]').forEach(i => { tr.querySelector(`[data-m="${i.dataset.m}"]`).value = i.value; }));
+    rows.slice(1).forEach(tr => {
+      rows[0].querySelectorAll('[data-m]').forEach(i => { tr.querySelector(`[data-m="${i.dataset.m}"]`).value = i.value; });
+      const f = tr.querySelector('[data-m-free]'); f.checked = rows[0].querySelector('[data-m-free]').checked; f.dispatchEvent(new Event('change'));
+    });
     msg('msg-money', 'Copied. Press Save to keep it.');
   };
   if($('save-money')) $('save-money').onclick = async () => {
@@ -2262,8 +2271,8 @@ function computeRange(rows, booths, [f, t], bucket, refunds){
   let missing = false;
   for(const b of booths){
     const m = (b.config && b.config.money) || {};
-    const price = Number(m.price) || 0, cpp = Number(m.cost_per_print) || 0, monthly = Number(m.monthly_cost) || 0, fee = Number(m.card_fee_pct) || 0;
-    if(!price) missing = true;
+    const price = m.free === true ? 0 : (Number(m.price) || 0), cpp = Number(m.cost_per_print) || 0, monthly = Number(m.monthly_cost) || 0, fee = Number(m.card_fee_pct) || 0;
+    if(!price && m.free !== true) missing = true;
     const startDay = b.created_at ? ymd(new Date(b.created_at)) : '0000-00-00';
     per[b.id] = zero();
     for(let d = f; d <= end; d = addDays(d, 1)){
@@ -2352,7 +2361,7 @@ function drawCompany(){
   const B = cmp ? computeRange(rows, booths, cmp, bucket, RF) : null;
   const cmpLabel = cmp ? (cmp[0] === cmp[1] ? fmtShort(cmp[0]) : fmtShort(cmp[0]) + ' – ' + fmtShort(cmp[1])) : '';
   const T = A.totals, TB = B && B.totals;
-  const price0 = booths.filter(b => !(b.config && b.config.money && Number(b.config.money.price) > 0));
+  const price0 = booths.filter(b => !(b.config && b.config.money && (b.config.money.free === true || Number(b.config.money.price) > 0)));
 
   const tile = (metric, cls, sub) => `<div class="tile ${cls || ''}"><div class="tile-label">${METRICS[metric]}</div><div class="tile-num co">${isMoneyMetric(metric) ? money0(T[metric]) : fmtMetric(metric, T[metric])}</div>${sub ? `<div class="tile-sub">${sub}</div>` : ''}${deltaText(metric, T[metric], TB && TB[metric], cmpLabel)}</div>`;
   const perSession = T.sessions ? T.profit / T.sessions : 0;
