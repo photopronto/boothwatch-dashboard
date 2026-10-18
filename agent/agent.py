@@ -53,7 +53,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.10.0"
+VERSION = "0.10.1"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -279,7 +279,7 @@ def rpc(cfg, fn, payload):
         json=payload,
         timeout=20,
     )
-    if not r.ok:
+    if not r.ok or r.status_code >= 300:     # 300 = the database could not pick between two versions of the function
         raise RuntimeError(f"{fn} failed ({r.status_code}): {r.text[:300]}")
     return r.json() if r.content else None
 
