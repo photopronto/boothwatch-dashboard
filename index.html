@@ -700,6 +700,20 @@
     .kpi b{ font-size:26px; }
     .bp-title{ flex-wrap:wrap; }
   }
+
+  .tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+  .tag{ display:inline-flex; align-items:center; height:22px; padding:0 10px; border-radius:999px; font-size:11.5px; font-weight:600; line-height:1; white-space:nowrap;
+    color: var(--muted); background: var(--inner); border:1px solid var(--line); }
+  .tag.acc{ color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+  .bcard .checkin{ margin-top:10px; }
+  .reorder-bar{ display:flex; justify-content:flex-end; align-items:center; gap:10px; margin:0 0 10px; }
+  .reorder-bar .help{ margin:0; font-size:12.5px; color: var(--muted); font-weight:500; }
+  .bcard.reordering{ cursor:default; }
+  .bcard.reordering:hover{ transform:none; box-shadow:none; }
+  .bcard .mv{ display:flex; gap:6px; }
+  .bcard .mv button{ width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background: var(--inner); color: var(--ink); font-size:16px; font-weight:700; cursor:pointer; padding:0; line-height:1; }
+  .bcard .mv button:hover:not(:disabled){ border-color: var(--accent); color: var(--accent); }
+  .bcard .mv button:disabled{ opacity:.35; cursor:default; }
 </style>
 </head>
 <body>
@@ -803,7 +817,8 @@ async function loadBooths(){
     .select('*')
     .order('name');
   if(error){ console.error(error); return []; }
-  return data;
+  const ord = b => { const o = b.config && b.config.order; return Number.isFinite(Number(o)) && o !== null ? Number(o) : 1e9; };
+  return data.slice().sort((a, b) => ord(a) - ord(b) || String(a.name).localeCompare(String(b.name)));
 }
 
 // Text from agents is shown on this page, so always escape it.
@@ -1269,11 +1284,11 @@ function boothParts(b){
   if(online && st.folder_found === false) warns += `<div class="warn-line">Session counting: today's photo folder was not found on the booth (normal until the first session of the day).</div>`;
   if(online && !isClosed && st.counter_seen === false) warns += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
 
-  const freeBadge = (cfg.money && cfg.money.free === true) ? '<span class="badge-closed" title="Free to use: sessions are counted, no sales">Free</span>' : '';
-  const buildBadge = freeBadge + (cfg.stage === 'build' ? '<span class="badge-closed" title="Left out of the Company figures">Build</span>' : '');
-  const badge = buildBadge + (manualClosed ? '<span class="badge-closed">Closed</span>'
-    : schedClosed ? '<span class="badge-closed">Closed · hours</span>'
-    : (hrs && !hrs.open ? '<span class="badge-closed">Outside hours</span>' : ''));
+  const freeBadge = (cfg.money && cfg.money.free === true) ? '<span class="tag acc" title="Free to use: sessions are counted, no sales">Free</span>' : '';
+  const buildBadge = freeBadge + (cfg.stage === 'build' ? '<span class="tag acc" title="Left out of the Company figures">Build</span>' : '');
+  const badge = buildBadge + (manualClosed ? '<span class="tag">Closed</span>'
+    : schedClosed ? '<span class="tag">Closed by hours</span>'
+    : (hrs && !hrs.open ? '<span class="tag">Outside hours</span>' : ''));
   const modeText = { none: '', pause_alerts: 'alerts pause outside hours', auto_close: 'closes itself outside hours' }[(cfg.hours && cfg.hours.mode) || 'none'];
   const paperLine = b.paper_left != null ? `<div class="agent-info">Last time you asked, the printer said ${b.paper_left} pages left (${esc(fmtAgo(b.paper_left_at))}). The count above ticks down from there.</div>` : '';
   const hoursLine = hrs ? `<div class="agent-info">${esc(hrs.text)} · ${esc(modeText)}</div>` : '';
@@ -1294,26 +1309,30 @@ function kpi(b, key, label){
   const priced = m.free !== true && Number(m.price || 0) > 0;
   return `<div class="kpi"><span class="k">${esc(label)}</span><b>${p.sessions}</b><span class="sub">${priced ? money(p.sales) : (m.free === true ? 'free to use' : 'no price set')}</span></div>`;
 }
-function boothFrame(b){
+let reorderMode = false, orderDraft = [];
+function boothFrame(b, idx, total){
   const P = boothParts(b);
+  const mv = reorderMode ? `<div class="mv"><button type="button" data-mv="-1" data-id="${esc(b.id)}" aria-label="Move ${esc(b.name)} earlier" ${idx === 0 ? 'disabled' : ''}>↑</button><button type="button" data-mv="1" data-id="${esc(b.id)}" aria-label="Move ${esc(b.name)} later" ${idx === total - 1 ? 'disabled' : ''}>↓</button></div>` : '';
+  const open = reorderMode ? `<div class="frame bcard reordering" data-frame="${esc(b.id)}">` : `<a class="frame bcard" data-frame="${esc(b.id)}" href="#/booth/${encodeURIComponent(b.id)}" aria-label="Open ${esc(b.name)}">`;
   return `
-    <a class="frame bcard" data-frame="${esc(b.id)}" href="#/booth/${encodeURIComponent(b.id)}" aria-label="Open ${esc(b.name)}">
+    ${open}
       <div class="frame-top">
         <div>
-          <div class="frame-name">${esc(b.name)}${P.badge}</div>
+          <div class="frame-name">${esc(b.name)}</div>
           <div class="frame-loc">${esc(b.location || "")}</div>
+          ${P.badge ? `<div class="tags">${P.badge}</div>` : ''}
           <div class="checkin" data-hb="${esc(b.last_heartbeat_at || '')}" data-iv="${checkInterval(b)}" data-online="${P.online ? 1 : 0}"></div>
         </div>
         <div class="right">
           <span class="pill ${P.online ? (P.overallDot === 'ok' ? 'ok' : 'alert') : 'off'}">${P.overallLabel}</span>
-          <svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          ${reorderMode ? mv : '<svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'}
         </div>
       </div>
       <div class="kpis">${kpi(b, 'today', 'Today')}${kpi(b, 'week', 'This week')}</div>
       ${P.chips ? `<div class="chips">${P.chips}</div>` : ''}
       ${P.badLine}
       <div class="bcard-foot"><span class="${P.rollState}">${P.remaining} prints left</span></div>
-    </a>`;
+    ${reorderMode ? '</div>' : '</a>'}`;
 }
 
 // The buttons and detail list, shown on the booth page's Controls tab.
@@ -1617,11 +1636,12 @@ function renderBoothsPage(){
       </div>` : ''}
     </div>
     <div class="summary" id="summary"></div>
+    <div class="reorder-bar" id="reorder-bar" hidden></div>
     <div class="frames" id="frames"></div>`;
   const lbl = document.getElementById('today-label');
   if(lbl) lbl.textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   tick();
-  lastFramesHtml = null;
+  lastFramesHtml = null; reorderMode = false;
   currentRefresh = refreshBooths;
   refreshBooths();
 }
@@ -1641,16 +1661,20 @@ async function refreshBooths(){
 
   const onlineCount = booths.filter(isOnline).length;
   const attentionCount = booths.filter(needsAttention).length;
+  if(reorderMode && orderDraft.length){ const pos = id => { const i = orderDraft.indexOf(id); return i < 0 ? 1e6 : i; }; booths = booths.slice().sort((a, b) => pos(a.id) - pos(b.id)); }
+  else orderDraft = booths.map(b => b.id);
+  const isFree = b => !!(b.config && b.config.money && b.config.money.free === true);
   const counted = booths.filter(b => !(b.config && b.config.stage === 'build'));
   const todayOf = b => (b.periods && b.periods.today) || { sessions: 0, prints: 0, sales: 0 };
   const salesToday = counted.reduce((s,b) => s + todayOf(b).sales, 0);
-  const countToday = counted.reduce((s,b) => s + todayOf(b)[countKind], 0);
+  const freeLeftOut = countKind === 'sessions' && counted.some(isFree);
+  const countToday = counted.reduce((s,b) => s + ((countKind === 'sessions' && isFree(b)) ? 0 : todayOf(b)[countKind]), 0);
 
   document.getElementById('summary').innerHTML = `
     <div class="tile hero"><div class="tile-label">Online</div><div class="tile-num">${onlineCount}/${booths.length}</div><div class="tile-sub">booths checking in</div></div>
     <div class="tile ${attentionCount ? 'dark' : ''}"><div class="tile-label">Need attention</div><div class="tile-num">${attentionCount}</div><div class="tile-sub">${attentionCount ? 'open the cards below' : 'all clear'}</div></div>
     <div class="tile"><div class="tile-label">Sales today</div><div class="tile-num">${money0(salesToday)}</div><div class="tile-sub">live booths</div></div>
-    <div class="tile tile-toggle" data-count-toggle role="button" tabindex="0" title="Tap to switch between sessions and prints"><div class="tile-label">${countKind === 'prints' ? 'Prints' : 'Sessions'} today</div><div class="tile-num">${countToday}</div><div class="tile-sub">live booths · tap for ${countKind === 'prints' ? 'sessions' : 'prints'}</div></div>`;
+    <div class="tile tile-toggle" data-count-toggle role="button" tabindex="0" title="Tap to switch between sessions and prints"><div class="tile-label">${countKind === 'prints' ? 'Prints' : 'Sessions'} today</div><div class="tile-num">${countToday}</div><div class="tile-sub">${freeLeftOut ? 'paid booths' : 'live booths'} · tap for ${countKind === 'prints' ? 'sessions' : 'prints'}</div></div>`;
   document.querySelectorAll('#summary [data-count-toggle]').forEach(el => { el.onclick = toggleCountKind; el.onkeydown = e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleCountKind(); } }; });
 
   fleetBeats = booths.filter(b => b.last_heartbeat_at).map(b => ({ t: new Date(b.last_heartbeat_at).getTime(), iv: checkInterval(b) }));
@@ -1659,7 +1683,13 @@ async function refreshBooths(){
   // card only moves the cards beneath it, never the ones in the next column.
   const colCount = booths.length ? Math.max(1, Math.min(booths.length, Math.floor((framesEl.clientWidth + 14) / (380 + 14)))) : 1;
   framesEl.classList.toggle('cols', colCount > 1);
-  const cards = booths.map(boothFrame);
+  const bar = document.getElementById('reorder-bar');
+  if(bar){
+    bar.hidden = booths.length < 2;
+    const barHtml = reorderMode ? `<span class="help">Use the arrows to move booths, then press Done.</span><button type="button" class="btn-primary" id="reorder-done">Done</button><button type="button" class="btn-sm" id="reorder-cancel">Cancel</button>` : `<button type="button" class="btn-sm" id="reorder-btn">Reorder booths</button>`;
+    if(bar.dataset.html !== barHtml){ bar.dataset.html = barHtml; bar.innerHTML = barHtml; wireReorder(bar); }
+  }
+  const cards = booths.map((b, i) => boothFrame(b, i, booths.length));
   const html = booths.length
     ? (colCount > 1
         ? Array.from({ length: colCount }, (_, c) => `<div class="frame-col">${cards.filter((_, i) => i % colCount === c).join('')}</div>`).join('')
@@ -1675,6 +1705,22 @@ async function refreshBooths(){
 }
 
 const refreshView = () => { if(view === 'booth') return refreshBoothPage(); return refreshBooths(); };
+function wireReorder(bar){
+  const redraw = () => { lastFramesHtml = null; bar.dataset.html = ''; refreshBooths(); };
+  const b1 = bar.querySelector('#reorder-btn'); if(b1) b1.onclick = () => { reorderMode = true; orderDraft = boothCache.map(b => b.id); redraw(); };
+  const c = bar.querySelector('#reorder-cancel'); if(c) c.onclick = () => { reorderMode = false; orderDraft = []; redraw(); };
+  const d = bar.querySelector('#reorder-done'); if(d) d.onclick = async () => {
+    d.disabled = true;
+    try {
+      for(let i = 0; i < orderDraft.length; i++){
+        const { error } = await sb.rpc('update_booth_config', { p_booth_id: orderDraft[i], p_patch: { order: i + 1 } });
+        if(error) throw error;
+      }
+      toast('Order saved');
+    } catch(e){ alert(e.message || String(e)); d.disabled = false; return; }
+    reorderMode = false; orderDraft = []; redraw();
+  };
+}
 async function sendCommand(boothId, kind, args){
   const { error } = await sb.rpc('queue_command', { p_booth_id: boothId, p_kind: kind, p_args: args || {} });
   if(error){ alert(error.message); return; }
@@ -1684,6 +1730,13 @@ async function sendCommand(boothId, kind, args){
 
 function wireBoothCards(framesEl, booths){
   const find = id => booths.find(x => x.id === id);
+  framesEl.querySelectorAll('[data-mv]').forEach(btn => btn.onclick = e => {
+    e.preventDefault(); e.stopPropagation();
+    const id = btn.dataset.id, d = Number(btn.dataset.mv), i = orderDraft.indexOf(id), j = i + d;
+    if(i < 0 || j < 0 || j >= orderDraft.length) return;
+    [orderDraft[i], orderDraft[j]] = [orderDraft[j], orderDraft[i]];
+    lastFramesHtml = null; refreshBooths();
+  });
   framesEl.querySelectorAll('[data-toggle]').forEach(el => {
     el.onclick = () => {
       if(!isMobile()) return;
@@ -1867,8 +1920,9 @@ function drawBoothTop(){
   const html = `
     <div class="bp-title">
       <div class="bp-name">
-        <h1 class="page-title">${esc(b.name)}${P.badge}</h1>
+        <h1 class="page-title">${esc(b.name)}</h1>
         <div class="frame-loc">${esc(b.location || '')}</div>
+        ${P.badge ? `<div class="tags">${P.badge}</div>` : ''}
         <div class="checkin" data-hb="${esc(b.last_heartbeat_at || '')}" data-iv="${checkInterval(b)}" data-online="${P.online ? 1 : 0}"></div>
       </div>
       <span class="pill ${P.online ? (P.overallDot === 'ok' ? 'ok' : 'alert') : 'off'}">${P.overallLabel}</span>
@@ -2796,7 +2850,7 @@ async function loadStatsRows(since){
 }
 
 // Sales, costs and profit for a date range. Prices and costs are each booth's current settings.
-function computeRange(rows, booths, [f, t], bucket, refunds){
+function computeRange(rows, booths, [f, t], bucket, refunds, excludeFree){
   const today = ymd(new Date());
   const end = t > today ? today : t;
   const byKey = new Map(rows.map(r => [r.booth_id + '|' + r.day, r]));
@@ -2817,6 +2871,7 @@ function computeRange(rows, booths, [f, t], bucket, refunds){
       const running = (d >= startDay || r) ? monthly / monthDays(d) : 0;
       const x = { sessions, prints, sales, printCost, fees, running, costs: printCost + fees + running, profit: sales - (printCost + fees + running) };
       add(per[b.id], x);
+      if(excludeFree && m.free === true) x.sessions = 0;   // free booths keep their own figures but are left out of the totals
       const key = bucket === 'month' ? d.slice(0, 7) : d;
       if(!buckets.has(key)) buckets.set(key, { key, day: d, ...zero() });
       add(buckets.get(key), x);
@@ -2837,7 +2892,7 @@ function computeRange(rows, booths, [f, t], bucket, refunds){
     for(const o of [per[r.booth_id], bk]){ if(o){ o.refunds += amt; o.refundCount += 1; o.profit -= amt; } }
   }
   const totals = zero();
-  Object.values(per).forEach(p => add(totals, p));
+  booths.forEach(b => { const p = per[b.id]; add(totals, (excludeFree && b.config && b.config.money && b.config.money.free === true) ? { ...p, sessions: 0 } : p); });
   return { per, totals, buckets: [...buckets.values()].sort((a, b) => a.key < b.key ? -1 : 1), missing };
 }
 
@@ -2892,8 +2947,8 @@ function drawCompany(){
   const longRange = spanDays(cur[0], cur[1]) > 62;
   const bucket = longRange ? 'month' : 'day';
   const RF = statsCache.refunds || [];
-  const A = computeRange(rows, booths, cur, bucket, RF);
-  const B = cmp ? computeRange(rows, booths, cmp, bucket, RF) : null;
+  const A = computeRange(rows, booths, cur, bucket, RF, true);
+  const B = cmp ? computeRange(rows, booths, cmp, bucket, RF, true) : null;
   const cmpLabel = cmp ? (cmp[0] === cmp[1] ? fmtShort(cmp[0]) : fmtShort(cmp[0]) + ' – ' + fmtShort(cmp[1])) : '';
   const T = A.totals, TB = B && B.totals;
   const price0 = booths.filter(b => !(b.config && b.config.money && (b.config.money.free === true || Number(b.config.money.price) > 0)));
@@ -2910,7 +2965,7 @@ function drawCompany(){
 
   // Overview first: sessions and sales for today, yesterday, this week, this month, this year
   const OV = [['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week'], ['month', 'This month'], ['year', 'This year']].map(([k, n]) => {
-    const t = computeRange(rows, booths, periodRange(k), 'day', []).totals;
+    const t = computeRange(rows, booths, periodRange(k), 'day', [], true).totals;
     return `<div class="ov ${k === 'today' ? 'ov-main' : ''}"><div class="k">${n}</div><div class="v">${money0(t.sales)}</div><button type="button" class="sub" data-count-toggle title="Switch between sessions and prints">${countWord(Math.round(t[countKind]), countKind)}</button></div>`;
   }).join('');
 
@@ -2984,8 +3039,8 @@ function drawCompany(){
 
   // last 12 months vs the 12 before
   const thisM = monthStart(ymd(new Date())), y0 = monthStart(thisM, -11), p0 = monthStart(thisM, -23);
-  const Y = computeRange(rows, booths, [y0, ymd(new Date())], 'month', RF);
-  const YP = computeRange(rows, booths, [p0, monthEnd(monthStart(thisM, -12))], 'month', RF);
+  const Y = computeRange(rows, booths, [y0, ymd(new Date())], 'month', RF, true);
+  const YP = computeRange(rows, booths, [p0, monthEnd(monthStart(thisM, -12))], 'month', RF, true);
   drawBarChart($('chart-year'), {
     metric: 'profit', table: monthTable,
     cur: Y.buckets.map(b => b.profit), curLabels: Y.buckets.map(b => fmtMonth(b.day)), xLabels: Y.buckets.map(b => fmtMonth(b.day)), curName: 'Last 12 months',
