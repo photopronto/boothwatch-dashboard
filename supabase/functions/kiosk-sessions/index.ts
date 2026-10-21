@@ -8,7 +8,8 @@
 //
 //   Kiosk  (header x-kiosk-token)
 //     {action:"list", after}  -> sessions that became ready after `after` (oldest first, max 100),
-//                                each with short-lived download links
+//                                each with short-lived download links, and `pending`: how many
+//                                sessions booths started uploading in the last 5 minutes
 //
 //   Daily cleanup (header x-cleanup-key, from a scheduled database job)
 //     {action:"cleanup"}  -> removes sessions older than app_settings.kiosk_retention_days
@@ -129,7 +130,10 @@ async function list(k: any, body: any) {
     print: r.print_file ? { name: r.print_file, url: links[`${r.folder}/${r.print_file}`] } : null,
     photos: r.photo_files.map((n: string) => ({ name: n, url: links[`${r.folder}/${n}`] })),
   }));
-  return json({ sessions, retention_days: days, more: (rows ?? []).length === 100 });
+  // sessions a booth is part-way through uploading (a guest may be on their way to the kiosk with one)
+  const { count: pending } = await db.from("kiosk_sessions").select("id", { count: "exact", head: true })
+    .eq("status", "uploading").gt("created_at", new Date(Date.now() - 5 * 60000).toISOString());
+  return json({ sessions, retention_days: days, more: (rows ?? []).length === 100, pending: pending ?? 0 });
 }
 
 async function cleanup() {
