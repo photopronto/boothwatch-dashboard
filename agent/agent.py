@@ -18,6 +18,7 @@ closed message, send a screenshot).
   python agent.py --screenshot    save a test screenshot to screenshot-test.jpg
   python agent.py --pair          make a new pairing code (if the old one is lost)
   python agent.py --kiosk         list the sessions that would be sent to the giant strip kiosk
+                                  (add --days 30 to look back further)
 
 Normally this file is started by launcher.py, which keeps it up to date.
 """
@@ -54,7 +55,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.11.0"
+VERSION = "0.11.1"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -2028,6 +2029,7 @@ KIOSK_SETTLE_SECONDS = 20        # leave files alone until Breeze has finished w
 KIOSK_NO_PRINT_WAIT = 600        # a session with no print yet is sent without one after this long
 KIOSK_LOOK_BACK_DAYS = 2         # today and yesterday (sessions after midnight, a PC that was off)
 KIOSK_PASS_SECONDS = 30
+KIOSK_BACKFILL_PER_PASS = 10     # older sessions sent per pass, so new ones never queue behind them
 
 
 def _xml_text(node, tag):
@@ -2245,9 +2247,27 @@ class KioskUploader:
         root = resolve_images_root(self.local_cfg, self.state)
         waiting = 0
         now = time.time()
-        for s in find_kiosk_sessions(root):
+        # "kiosk_backfill_days" (dashboard or config.json) also sends older sessions, e.g. 30 = the last month
+        bf = self.local_cfg.get("kiosk_backfill_days", (self.get_remote() or {}).get("kiosk_backfill_days", 0))
+        try:
+            bf = max(0, min(31, int(bf or 0)))
+        except (TypeError, ValueError):
+            bf = 0
+        found = find_kiosk_sessions(root, days=max(KIOSK_LOOK_BACK_DAYS, bf + 1))
+        recent_days = {(datetime.date.today() - datetime.timedelta(days=b)).isoformat()
+                       for b in range(KIOSK_LOOK_BACK_DAYS)}
+        recent = [s for s in found if s["key"].split("/")[0] in recent_days]
+        older = [s for s in found if s["key"].split("/")[0] not in recent_days and s["key"] not in self.sent]
+        older.reverse()                                  # newest of the old ones first
+        self.status["backfill_left"] = len(older)
+        backfilled = 0
+        for s in recent + older:
             if s["key"] in self.sent:
                 continue
+            if s not in recent:
+                if backfilled >= KIOSK_BACKFILL_PER_PASS:
+                    break                                # the rest next pass, after any new sessions
+                backfilled += 1
             ready, _ = kiosk_session_ready(s, now)
             if not ready:
                 waiting += 1
@@ -2273,6 +2293,8 @@ class KioskUploader:
             self.sent[s["key"]] = time.time()
             self.retry.pop(s["key"], None)
             self._save()
+            if s not in recent:
+                self.status["backfill_left"] = max(0, self.status.get("backfill_left", 1) - 1)
             if result == "sent":
                 self.status["sent_today"] += 1
                 self.status["last_sent_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
@@ -2297,8 +2319,8 @@ class KioskUploader:
         threading.Thread(target=self.run_forever, name="kiosk-upload", daemon=True).start()
 
 
-def show_kiosk_sessions(local_cfg, state):
-    """--kiosk: list the sessions the kiosk upload would send, without sending anything."""
+def show_kiosk_sessions(local_cfg, state, days=KIOSK_LOOK_BACK_DAYS):
+    """--kiosk [--days N]: list the sessions the kiosk upload would send, without sending anything."""
     root = resolve_images_root(local_cfg, state)
     print(f"Photo folder: {root}")
     sent = {}
@@ -2306,9 +2328,9 @@ def show_kiosk_sessions(local_cfg, state):
         sent = json.loads(KIOSK_STATE_PATH.read_text(encoding="utf-8")).get("sent", {})
     except Exception:
         pass
-    sessions = find_kiosk_sessions(root)
+    sessions = find_kiosk_sessions(root, days=max(1, days))
     if not sessions:
-        print("No sessions found for today or yesterday.")
+        print(f"No sessions found in the last {days} day(s).")
     for s in sessions:
         ready, why = kiosk_session_ready(s)
         flag = "sent" if s["key"] in sent else ("ready" if ready else why)
@@ -2335,6 +2357,7 @@ def main():
     ap.add_argument("--printer-info", action="store_true")
     ap.add_argument("--paper-left", action="store_true")
     ap.add_argument("--kiosk", action="store_true")
+    ap.add_argument("--days", type=int, default=KIOSK_LOOK_BACK_DAYS)
     args = ap.parse_args()
 
     make_dpi_aware()
@@ -2380,7 +2403,7 @@ def main():
             pass
         return
     if args.kiosk:
-        show_kiosk_sessions(local_cfg, load_state())
+        show_kiosk_sessions(local_cfg, load_state(), args.days)
         return
     if args.screenshot:
         Path("screenshot-test.jpg").write_bytes(base64.b64decode(take_screenshot_b64()))
