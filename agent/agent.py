@@ -17,6 +17,7 @@ closed message, send a screenshot).
   python agent.py --test-closed   show the closed message for 8 seconds
   python agent.py --screenshot    save a test screenshot to screenshot-test.jpg
   python agent.py --pair          make a new pairing code (if the old one is lost)
+  python agent.py --kiosk         list the sessions that would be sent to the giant strip kiosk
 
 Normally this file is started by launcher.py, which keeps it up to date.
 """
@@ -53,7 +54,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.10.1"
+VERSION = "0.11.0"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -2014,6 +2015,310 @@ class EventRecorder:
             log.info("Could not send event timeline yet: %s", e)
 
 
+# ───────────────────────── giant strip kiosk: send sessions to the cloud ─────────────────────────
+# When the dashboard has "kiosk_upload" switched on for this booth, every finished session
+# (the print plus the original camera photos) is uploaded so the giant strip kiosk can match
+# a guest's strip and rebuild it from the originals. Runs in its own thread, so a slow
+# connection never holds up the normal checks. Anything that fails is retried later.
+
+KIOSK_STATE_PATH = BASE / "kiosk_uploads.json"
+KIOSK_MAX_SIDE = 3600            # originals are shrunk to this many pixels on the long side
+KIOSK_JPEG_QUALITY = 90
+KIOSK_SETTLE_SECONDS = 20        # leave files alone until Breeze has finished writing them
+KIOSK_NO_PRINT_WAIT = 600        # a session with no print yet is sent without one after this long
+KIOSK_LOOK_BACK_DAYS = 2         # today and yesterday (sessions after midnight, a PC that was off)
+KIOSK_PASS_SECONDS = 30
+
+
+def _xml_text(node, tag):
+    el = node.find(tag) if node is not None else None
+    return (el.text or "").strip() if el is not None and el.text else ""
+
+
+def _rel(folder, name):
+    """Breeze writes paths like 'prints\\261019_104701.jpg' relative to the day folder."""
+    parts = [p for p in re.split(r"[\\/]+", name or "") if p and p != ".."]
+    return Path(folder, *parts) if parts else None
+
+
+def parse_breeze_session(xml_path):
+    """One session from the XML file Breeze saves next to its first photo. None if it isn't one."""
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.parse(xml_path).getroot()
+    except Exception:
+        return None
+    info = root.find("photo_information")
+    photos_el = info.find("photos") if info is not None else None
+    if photos_el is None:
+        return None
+    folder = Path(xml_path).parent
+    originals = []
+    for p in photos_el.findall("photo"):
+        f = _rel(folder, p.text or "")
+        if f is not None:
+            originals.append((int(p.get("image") or len(originals) + 1), f))
+    originals = [f for _, f in sorted(originals, key=lambda t: t[0])]
+    out = photos_el.find("output")
+    print_path = _rel(folder, out.text) if out is not None and out.text else None
+    taken = None
+    try:
+        taken = datetime.datetime.fromtimestamp(int(root.get("t")), datetime.timezone.utc)
+    except (TypeError, ValueError):
+        try:
+            d, t = _xml_text(info, "date"), _xml_text(info, "time")
+            taken = datetime.datetime.strptime(f"{d} {t}", "%Y/%m/%d %H:%M:%S").astimezone()
+        except ValueError:
+            taken = datetime.datetime.fromtimestamp(Path(xml_path).stat().st_mtime).astimezone()
+    event = root.find("event")
+    return {
+        "key": f"{folder.name}/{Path(xml_path).stem}",
+        "xml": Path(xml_path),
+        "print": print_path,
+        "photos": originals,
+        "taken_at": taken.isoformat(),
+        "event_name": _xml_text(event, "eventName"),
+        "info": {
+            "source": "breeze_xml",
+            "booth_name": root.get("name") or "",
+            "uid": _xml_text(info, "uid"),
+            "bw_mode": _xml_text(info, "bw_mode"),
+            "mirror_output": _xml_text(info, "mirror_output"),
+            "camera_orientation": _xml_text(info, "camera_orientation"),
+            "digital_zoom": _xml_text(info, "digital_zoom"),
+            "print_name": print_path.name if print_path else "",
+        },
+    }
+
+
+def find_kiosk_sessions(images_root, days=KIOSK_LOOK_BACK_DAYS, now=None):
+    """Finished sessions in the last few day folders, oldest first. Prints with no XML
+    (Breeze not saving session files) are included on their own, so they can still be matched."""
+    now = now or time.time()
+    found = []
+    for back in range(days):
+        day = (datetime.date.today() - datetime.timedelta(days=back)).isoformat()
+        folder = Path(images_root) / day
+        if not folder.is_dir():
+            continue
+        claimed = set()
+        try:
+            xmls = sorted(folder.glob("*.xml"))
+        except OSError:
+            continue
+        for x in xmls:
+            s = parse_breeze_session(x)
+            if not s:
+                continue
+            if s["print"] is not None:
+                claimed.add(s["print"].name.lower())
+            found.append(s)
+        prints = folder / "prints"
+        if prints.is_dir():
+            for p in prints.iterdir():
+                if p.is_file() and p.suffix.lower() in IMAGE_EXTS and p.name.lower() not in claimed:
+                    mt = p.stat().st_mtime
+                    found.append({"key": f"{day}/prints/{p.stem}", "xml": None, "print": p, "photos": [],
+                                  "taken_at": datetime.datetime.fromtimestamp(mt).astimezone().isoformat(),
+                                  "event_name": "", "info": {"source": "print_only", "print_name": p.name}})
+    return sorted(found, key=lambda s: s["taken_at"])
+
+
+def kiosk_session_ready(s, now=None):
+    """(ready, reason). Waits for Breeze to finish writing, and a little longer for the print."""
+    now = now or time.time()
+    newest = 0
+    for f in [s["xml"], *s["photos"]]:
+        if f is None:
+            continue
+        try:
+            newest = max(newest, f.stat().st_mtime)
+        except OSError:
+            return False, f"waiting for {f.name}"
+    if s["print"] is not None:
+        try:
+            newest = max(newest, s["print"].stat().st_mtime)
+        except OSError:
+            if s["xml"] is not None and now - s["xml"].stat().st_mtime < KIOSK_NO_PRINT_WAIT:
+                return False, "waiting for the print"
+            s["print"] = None
+    if now - newest < KIOSK_SETTLE_SECONDS:
+        return False, "still being written"
+    if s["print"] is None and not s["photos"]:
+        return False, "nothing to send"
+    return True, ""
+
+
+def shrink_photo(path, max_side=KIOSK_MAX_SIDE, quality=KIOSK_JPEG_QUALITY):
+    """JPEG bytes no bigger than max_side on the long side (pixels kept the way the camera stored them)."""
+    from PIL import Image
+    with Image.open(path) as im:
+        im = im.convert("RGB")
+        if max(im.size) > max_side:
+            s = max_side / float(max(im.size))
+            im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=quality, optimize=True)
+        return buf.getvalue()
+
+
+class KioskUploader:
+    """Background thread that sends finished sessions to the cloud for the giant strip kiosk."""
+
+    def __init__(self, local_cfg, state, get_remote):
+        self.local_cfg = local_cfg
+        self.state = state
+        self.get_remote = get_remote
+        self.sent = {}            # session key -> time sent
+        self.retry = {}           # session key -> (attempts, next try)
+        self.status = {"on": False, "waiting": 0, "sent_today": 0, "last_sent_at": None, "error": None}
+        self._load()
+
+    def _load(self):
+        try:
+            data = json.loads(KIOSK_STATE_PATH.read_text(encoding="utf-8"))
+            self.sent = {k: float(v) for k, v in (data.get("sent") or {}).items()}
+        except Exception:
+            self.sent = {}
+
+    def _save(self):
+        cutoff = time.time() - 40 * 86400
+        self.sent = {k: v for k, v in self.sent.items() if v > cutoff}
+        tmp = KIOSK_STATE_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"sent": self.sent}), encoding="utf-8")
+        os.replace(tmp, KIOSK_STATE_PATH)
+
+    def enabled(self):
+        local = self.local_cfg.get("kiosk_upload")
+        if isinstance(local, bool):
+            return local
+        return (self.get_remote() or {}).get("kiosk_upload") is True
+
+    def _call(self, payload):
+        cfg = self.local_cfg
+        key = cfg["supabase_anon_key"]
+        r = requests.post(f"{cfg['supabase_url']}/functions/v1/kiosk-sessions", json=payload, timeout=30,
+                          headers={"apikey": key, "Authorization": f"Bearer {key}",
+                                   "x-agent-token": self.state["agent_token"]})
+        try:
+            body = r.json()
+        except ValueError:
+            body = {"error": r.text[:200]}
+        if r.status_code >= 300:
+            raise RuntimeError(f"{payload['action']} failed ({r.status_code}): {body.get('error') or body}")
+        return body
+
+    def upload(self, s):
+        """Returns 'sent', 'skip' (booth switched off on the server) or raises."""
+        files = []
+        if s["print"] is not None:
+            files.append(("print" + (s["print"].suffix.lower() if s["print"].suffix.lower() in (".jpg", ".jpeg", ".png") else ".jpg"),
+                          "print", s["print"]))
+        for i, p in enumerate(s["photos"], 1):
+            files.append((f"photo_{i}.jpg", "photo", p))
+        res = self._call({"action": "begin", "session_key": s["key"], "taken_at": s["taken_at"],
+                          "event_name": s["event_name"], "info": s["info"],
+                          "files": [{"name": n, "kind": k} for n, k, _ in files]})
+        if res.get("done"):
+            return "sent"
+        if res.get("skip"):
+            return "old" if res.get("reason") == "too old" else "skip"
+        urls = {u["name"]: u["url"] for u in res.get("uploads", [])}
+        total = 0
+        for name, kind, path in files:
+            data = shrink_photo(path) if kind == "photo" else path.read_bytes()
+            total += len(data)
+            ctype = "image/png" if name.endswith(".png") else "image/jpeg"
+            r = requests.put(urls[name], data=data, timeout=180,
+                             headers={"Content-Type": ctype, "x-upsert": "true", "cache-control": "3600"})
+            if r.status_code >= 300:
+                raise RuntimeError(f"upload of {name} failed ({r.status_code}): {r.text[:200]}")
+        self._call({"action": "finish", "session_key": s["key"]})
+        log.info("Kiosk: sent session %s (%d photos, %.1f MB)", s["key"], len(s["photos"]), total / 1e6)
+        return "sent"
+
+    def one_pass(self):
+        if not self.enabled():
+            self.status.update(on=False, waiting=0)
+            return
+        self.status["on"] = True
+        root = resolve_images_root(self.local_cfg, self.state)
+        waiting = 0
+        now = time.time()
+        for s in find_kiosk_sessions(root):
+            if s["key"] in self.sent:
+                continue
+            ready, _ = kiosk_session_ready(s, now)
+            if not ready:
+                waiting += 1
+                continue
+            attempts, next_try = self.retry.get(s["key"], (0, 0))
+            if now < next_try:
+                waiting += 1
+                continue
+            try:
+                result = self.upload(s)
+            except Exception as e:
+                attempts += 1
+                self.retry[s["key"]] = (attempts, time.time() + min(3600, 60 * 2 ** min(attempts, 6)))
+                self.status["error"] = f"{s['key']}: {e}"
+                log.info("Kiosk: could not send %s yet (try %d): %s", s["key"], attempts, e)
+                waiting += 1
+                if "failed (5" in str(e) or isinstance(e, requests.RequestException):
+                    break                       # server or connection trouble: try the rest next pass
+                continue
+            if result == "skip":
+                self.status.update(on=False, waiting=0)
+                return                          # switched off on the dashboard since we last looked
+            self.sent[s["key"]] = time.time()
+            self.retry.pop(s["key"], None)
+            self._save()
+            if result == "sent":
+                self.status["sent_today"] += 1
+                self.status["last_sent_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+                self.status["error"] = None
+        self.status["waiting"] = waiting
+
+    def run_forever(self):
+        day = datetime.date.today()
+        while True:
+            try:
+                if datetime.date.today() != day:
+                    day = datetime.date.today()
+                    self.status["sent_today"] = 0
+                self.one_pass()
+            except Exception as e:
+                self.status["error"] = str(e)
+                log.info("Kiosk upload pass failed: %s", e)
+            time.sleep(KIOSK_PASS_SECONDS)
+
+    def start(self):
+        import threading
+        threading.Thread(target=self.run_forever, name="kiosk-upload", daemon=True).start()
+
+
+def show_kiosk_sessions(local_cfg, state):
+    """--kiosk: list the sessions the kiosk upload would send, without sending anything."""
+    root = resolve_images_root(local_cfg, state)
+    print(f"Photo folder: {root}")
+    sent = {}
+    try:
+        sent = json.loads(KIOSK_STATE_PATH.read_text(encoding="utf-8")).get("sent", {})
+    except Exception:
+        pass
+    sessions = find_kiosk_sessions(root)
+    if not sessions:
+        print("No sessions found for today or yesterday.")
+    for s in sessions:
+        ready, why = kiosk_session_ready(s)
+        flag = "sent" if s["key"] in sent else ("ready" if ready else why)
+        print(f"  {s['key']:<28} {s['taken_at'][:19]}  print: {s['print'].name if s['print'] else '-':<22}"
+              f" photos: {len(s['photos'])}  [{flag}]")
+        for p in s["photos"]:
+            if not p.exists():
+                print(f"      missing photo {p}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--discover", action="store_true")
@@ -2029,6 +2334,7 @@ def main():
     ap.add_argument("--watch-printer", action="store_true")
     ap.add_argument("--printer-info", action="store_true")
     ap.add_argument("--paper-left", action="store_true")
+    ap.add_argument("--kiosk", action="store_true")
     args = ap.parse_args()
 
     make_dpi_aware()
@@ -2073,6 +2379,9 @@ def main():
         except KeyboardInterrupt:
             pass
         return
+    if args.kiosk:
+        show_kiosk_sessions(local_cfg, load_state())
+        return
     if args.screenshot:
         Path("screenshot-test.jpg").write_bytes(base64.b64decode(take_screenshot_b64()))
         print("Saved screenshot-test.jpg")
@@ -2101,6 +2410,9 @@ def main():
     print_matcher = PrintMatcher()
     outages = OutageTracker()
     timeline = EventRecorder()
+    remote_box = {"cfg": remote_cfg}
+    kiosk = KioskUploader(local_cfg, state, lambda: remote_box["cfg"])
+    kiosk.start()
 
     while True:
         outages.tick(remote_cfg)
@@ -2112,6 +2424,7 @@ def main():
             if new_remote != remote_cfg:
                 remote_cfg = new_remote
                 save_remote_cache(remote_cfg)
+            remote_box["cfg"] = remote_cfg
             requested = poll.get("screenshot_requested_at")
             if requested and requested != state.get("last_shot"):
                 handle_screenshot_request(local_cfg, state, requested)
@@ -2220,6 +2533,8 @@ def main():
                           "closed_scheduled": bool(cfg.get("scheduled_closed"))}
                 if closed_screen.error:
                     status["closed_error"] = closed_screen.error
+                if kiosk.status.get("on"):
+                    status["kiosk"] = dict(kiosk.status)
                 rpc(local_cfg, "report_stats", {
                     "p_token": state["agent_token"],
                     "p_day": today.isoformat(),
