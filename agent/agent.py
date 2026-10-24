@@ -55,7 +55,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.11.2"
+VERSION = "0.11.3"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -72,7 +72,7 @@ DEFAULT_STOP_WHEN_CLOSED = {"DSLR Remote Pro"}
 # Programs restarted once the booth software is back up (after reopening, or after DSLR Remote Pro is restarted),
 # because MDB Payment that was left running loses its link to DSLR Remote Pro: the card machine is slow to take
 # payment and the session never starts. Set "restart_after_booth_software": false on the program to switch it off.
-DEFAULT_RESTART_AFTER_SOFTWARE = {"MDB Payment"}
+DEFAULT_RESTART_AFTER_SOFTWARE = set()      # off unless "restart_after_booth_software": true is set on a program
 
 DEFAULT_CLOSED_MESSAGE = "Sorry, this photo booth is closed right now."
 CREATE_NO_WINDOW = 0x08000000
@@ -1517,13 +1517,40 @@ def start_booth_software(cfg):
     return started
 
 
+def focus_booth_software(cfg):
+    """Bring the booth software (DSLR Remote Pro) to the front and give it keyboard focus. The card machine
+    software sends its 'paid' signal to whatever window is in front, so something else on top means no session."""
+    if not HAVE_WIN32:
+        return False
+    done = False
+    for prog in software_to_stop(cfg):
+        try:
+            pids = {m["pid"] for m in find_matches(prog, scan_processes())}
+            wins = top_windows(pids)
+            if not wins:
+                continue
+            hwnd = max(wins, key=lambda h: (lambda r: (r[2] - r[0]) * (r[3] - r[1]))(win32gui.GetWindowRect(h)))
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)          # tapping Alt lets this process take the foreground
+            ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)
+            win32gui.BringWindowToTop(hwnd)
+            win32gui.SetForegroundWindow(hwnd)
+            done = True
+            log.info("Brought %s to the front", prog["name"])
+        except Exception as e:
+            log.info("Could not bring %s to the front: %s", prog.get("name"), e)
+    return done
+
+
 def restart_payment_after_software(cfg):
     """Restart MDB Payment (or anything marked restart_after_booth_software) once DSLR Remote Pro is up in booth mode,
     so it connects to it afresh. Call only when booth_software_ready() is true."""
+    todo = [p for p in cfg.get("programs", []) if p.get("restart_after_booth_software") and p.get("name") not in {q.get("name") for q in software_to_stop(cfg)}]
+    if not todo:
+        return
     time.sleep(8)           # let DSLR Remote Pro finish going into booth mode
-    for prog in cfg.get("programs", []):
-        if not prog.get("restart_after_booth_software") or prog.get("name") in {p.get("name") for p in software_to_stop(cfg)}:
-            continue
+    for prog in todo:
         try:
             ok, text = restart_program(cfg, prog["name"])
             log.info("Restarted %s after the booth software: %s", prog["name"], text)
@@ -1595,8 +1622,9 @@ def handle_command(local_cfg, cfg, state, cmd):
                         break
                     time.sleep(1.5)
                 if booth_software_ready(cfg):
+                    time.sleep(3)
+                    focus_booth_software(cfg)
                     restart_payment_after_software(cfg)
-                    text += " MDB Payment was restarted afterwards so it reconnects."
         elif kind == "read_paper":
             started = time.time()
             pages = read_paper_left(local_cfg)
@@ -2512,18 +2540,21 @@ def main():
                 was_closed = True
             elif was_closed:
                 was_closed = False
+                # The closed screen goes first, so nothing sits in front of the booth software while it starts
+                # (the card machine's "paid" signal goes to whichever window is in front).
+                closed_shown = closed_screen.sync(False, message)
                 if start_booth_software(cfg):
                     reopen_until = time.time() + 120
-                closed_shown = closed_screen.sync(reopen_until is not None, message)
             elif reopen_until is not None:
-                if booth_software_ready(cfg) or time.time() > reopen_until:
+                closed_shown = closed_screen.sync(False, message)
+                if booth_software_ready(cfg):
                     time.sleep(3)
-                    if booth_software_ready(cfg):
-                        restart_payment_after_software(cfg)      # the closed screen is still up while this happens
+                    focus_booth_software(cfg)
+                    restart_payment_after_software(cfg)
                     reopen_until = None
-                    closed_shown = closed_screen.sync(False, message)
-                else:
-                    closed_shown = closed_screen.sync(True, message)
+                elif time.time() > reopen_until:
+                    focus_booth_software(cfg)
+                    reopen_until = None
             else:
                 closed_shown = closed_screen.sync(False, message)
         except Exception as e:
