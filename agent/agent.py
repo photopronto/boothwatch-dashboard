@@ -55,7 +55,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.11.1"
+VERSION = "0.11.2"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -69,6 +69,10 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
 # Programs that are closed while the booth is shut, so the card machine switches itself off
 # (MDB Payment disables the reader whenever the booth software is not running full screen).
 DEFAULT_STOP_WHEN_CLOSED = {"DSLR Remote Pro"}
+# Programs restarted once the booth software is back up (after reopening, or after DSLR Remote Pro is restarted),
+# because MDB Payment that was left running loses its link to DSLR Remote Pro: the card machine is slow to take
+# payment and the session never starts. Set "restart_after_booth_software": false on the program to switch it off.
+DEFAULT_RESTART_AFTER_SOFTWARE = {"MDB Payment"}
 
 DEFAULT_CLOSED_MESSAGE = "Sorry, this photo booth is closed right now."
 CREATE_NO_WINDOW = 0x08000000
@@ -149,6 +153,8 @@ def apply_defaults(cfg):
             prog["read_print_counter"] = True
         if "stop_when_closed" not in prog and prog.get("name") in DEFAULT_STOP_WHEN_CLOSED:
             prog["stop_when_closed"] = True
+        if "restart_after_booth_software" not in prog and prog.get("name") in DEFAULT_RESTART_AFTER_SOFTWARE:
+            prog["restart_after_booth_software"] = True
     return cfg
 
 
@@ -1511,6 +1517,21 @@ def start_booth_software(cfg):
     return started
 
 
+def restart_payment_after_software(cfg):
+    """Restart MDB Payment (or anything marked restart_after_booth_software) once DSLR Remote Pro is up in booth mode,
+    so it connects to it afresh. Call only when booth_software_ready() is true."""
+    time.sleep(8)           # let DSLR Remote Pro finish going into booth mode
+    for prog in cfg.get("programs", []):
+        if not prog.get("restart_after_booth_software") or prog.get("name") in {p.get("name") for p in software_to_stop(cfg)}:
+            continue
+        try:
+            ok, text = restart_program(cfg, prog["name"])
+            log.info("Restarted %s after the booth software: %s", prog["name"], text)
+            time.sleep(5)
+        except Exception as e:
+            log.info("Could not restart %s after the booth software: %s", prog.get("name"), e)
+
+
 def booth_software_ready(cfg):
     procs = scan_processes()
     for prog in software_to_stop(cfg):
@@ -1568,6 +1589,14 @@ def handle_command(local_cfg, cfg, state, cmd):
     try:
         if kind == "restart_program":
             ok, text = restart_program(cfg, str(args.get("program", "")))
+            if ok and str(args.get("program", "")) in {p.get("name") for p in software_to_stop(cfg)}:
+                for _ in range(40):                              # wait for it to be back full screen, then reconnect the card machine
+                    if booth_software_ready(cfg):
+                        break
+                    time.sleep(1.5)
+                if booth_software_ready(cfg):
+                    restart_payment_after_software(cfg)
+                    text += " MDB Payment was restarted afterwards so it reconnects."
         elif kind == "read_paper":
             started = time.time()
             pages = read_paper_left(local_cfg)
@@ -2484,11 +2513,13 @@ def main():
             elif was_closed:
                 was_closed = False
                 if start_booth_software(cfg):
-                    reopen_until = time.time() + 75
+                    reopen_until = time.time() + 120
                 closed_shown = closed_screen.sync(reopen_until is not None, message)
             elif reopen_until is not None:
                 if booth_software_ready(cfg) or time.time() > reopen_until:
                     time.sleep(3)
+                    if booth_software_ready(cfg):
+                        restart_payment_after_software(cfg)      # the closed screen is still up while this happens
                     reopen_until = None
                     closed_shown = closed_screen.sync(False, message)
                 else:
