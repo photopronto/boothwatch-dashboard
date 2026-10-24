@@ -2198,7 +2198,7 @@ function drawBoothSettings(host, b){
 
     <section class="panel">
       <h2>Giant strip kiosk</h2>
-      <div class="set-row"><div><div class="name">Upload sessions to the cloud</div><div class="desc">Each session's print and original photos are uploaded so the giant strip kiosk can recognise this booth's strips and rebuild them. Kept for 30 days, then deleted.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-kiosk" ${cfg.kiosk_upload ? 'checked' : ''}/> On</label></div></div>
+      <div class="set-row"><div><div class="name">Upload sessions to the cloud</div><div class="desc">Each session's print and original photos are uploaded so the giant strip kiosk can recognise this booth's strips and rebuild them. Kept for 6 months, then deleted.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-kiosk" ${cfg.kiosk_upload ? 'checked' : ''}/> On</label></div></div>
       ${(() => { const k = (b.status || {}).kiosk; if(!cfg.kiosk_upload || !k) return ''; const bits = [`${k.sent_today || 0} uploaded today`]; if(k.backfill_left) bits.push(`${k.backfill_left} older sessions still to upload`); if(k.error) bits.push(`last problem: ${esc(k.error)}`); return `<p class="help" style="margin:8px 0 0">${bits.join(' · ')}</p>`; })()}
       <div class="save-row"><button class="btn-primary" id="bs-save-kiosk">Save</button><span class="save-msg" id="bs-msg-kiosk"></span></div>
     </section>
