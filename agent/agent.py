@@ -2080,8 +2080,7 @@ class EventRecorder:
 # connection never holds up the normal checks. Anything that fails is retried later.
 
 KIOSK_STATE_PATH = BASE / "kiosk_uploads.json"
-KIOSK_MAX_SIDE = None            # originals are sent untouched (full camera quality); a number shrinks them to that
-                                 # many pixels on the long side (dashboard/config.json "kiosk_photo_max_side")
+KIOSK_MAX_SIDE = 3600            # originals are shrunk to this many pixels on the long side
 KIOSK_JPEG_QUALITY = 90
 KIOSK_SETTLE_SECONDS = 20        # leave files alone until Breeze has finished writing them
 KIOSK_NO_PRINT_WAIT = 600        # a session with no print yet is sent without one after this long
@@ -2210,10 +2209,7 @@ def kiosk_session_ready(s, now=None):
 
 
 def shrink_photo(path, max_side=KIOSK_MAX_SIDE, quality=KIOSK_JPEG_QUALITY):
-    """The photo's JPEG bytes: the camera file untouched, or (with max_side) no bigger than that on
-    the long side (pixels kept the way the camera stored them)."""
-    if not max_side:
-        return Path(path).read_bytes()
+    """JPEG bytes no bigger than max_side on the long side (pixels kept the way the camera stored them)."""
     from PIL import Image
     with Image.open(path) as im:
         im = im.convert("RGB")
@@ -2288,13 +2284,8 @@ class KioskUploader:
             return "old" if res.get("reason") == "too old" else "skip"
         urls = {u["name"]: u["url"] for u in res.get("uploads", [])}
         total = 0
-        max_side = self.local_cfg.get("kiosk_photo_max_side", (self.get_remote() or {}).get("kiosk_photo_max_side"))
-        try:
-            max_side = int(max_side) if max_side else None
-        except (TypeError, ValueError):
-            max_side = None
         for name, kind, path in files:
-            data = shrink_photo(path, max_side) if kind == "photo" else path.read_bytes()
+            data = shrink_photo(path) if kind == "photo" else path.read_bytes()
             total += len(data)
             ctype = "image/png" if name.endswith(".png") else "image/jpeg"
             r = requests.put(urls[name], data=data, timeout=180,
