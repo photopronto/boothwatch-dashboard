@@ -55,7 +55,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.11.3"
+VERSION = "0.11.4"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -2398,6 +2398,76 @@ def show_kiosk_sessions(local_cfg, state, days=KIOSK_LOOK_BACK_DAYS):
                 print(f"      missing photo {p}")
 
 
+# ───────────────────────── keeping the booth software in front ─────────────────────────
+# The card machine's "paid" signal goes to whichever window has the keyboard focus. If something else is in front
+# while the booth sits on its welcome screen (a pop-up, the desktop, another program), a payment is taken and no
+# session starts. This notes what had the focus and, unless "keep_booth_in_front": false in config.json, puts the
+# booth software back in front.
+FOCUS_IGNORE = ("mdbpayment", "teamviewer", "anydesk", "rustdesk", "screenconnect", "mstsc", "vnc", "parsec", "quicksupport")
+FOCUS_NOTICE_SECONDS = 20
+FOCUS_FIX_SECONDS = 30
+
+
+def foreground_info():
+    hwnd = win32gui.GetForegroundWindow()
+    if not hwnd:
+        return {"proc": "(nothing, e.g. a Windows security prompt)", "title": ""}
+    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+    try:
+        proc = psutil.Process(pid).name()
+    except Exception:
+        proc = "?"
+    try:
+        title = win32gui.GetWindowText(hwnd)[:80]
+    except Exception:
+        title = ""
+    return {"proc": proc, "title": title}
+
+
+class FocusWatcher:
+    def __init__(self, timeline):
+        self.tl = timeline
+        self.since = None
+        self.logged = False
+        self.last_fix = 0.0
+
+    def reset(self):
+        self.since = None
+        self.logged = False
+
+    def poll(self, cfg, local_cfg, quiet_ok):
+        """quiet_ok: the booth is open and nobody is in the middle of a session."""
+        if not HAVE_WIN32 or not quiet_ok:
+            self.reset()
+            return
+        booth = software_to_stop(cfg)
+        if not booth:
+            return
+        fg = foreground_info()
+        proc = (fg.get("proc") or "").lower()
+        needles = [n.lower() for prog in booth for n in prog.get("match", []) if n]
+        if any(n in proc for n in needles) or any(k in proc for k in FOCUS_IGNORE):
+            self.reset()
+            return
+        now = time.time()
+        if self.since is None:
+            self.since = now
+            return
+        held = now - self.since
+        if held >= FOCUS_NOTICE_SECONDS and not self.logged:
+            self.logged = True
+            log.info("Something else has the focus while the booth is idle: %s '%s'", fg.get("proc"), fg.get("title"))
+            self.tl.add("focus_lost", detail={"name": fg.get("proc"), "title": fg.get("title")})
+            self.tl.save()
+        keep = local_cfg.get("keep_booth_in_front", True) is not False
+        if keep and held >= FOCUS_FIX_SECONDS and now - self.last_fix > 60:
+            self.last_fix = now
+            if focus_booth_software(cfg):
+                self.tl.add("refocus", detail={"name": fg.get("proc"), "title": fg.get("title")})
+                self.tl.save()
+            self.reset()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--discover", action="store_true")
@@ -2490,6 +2560,8 @@ def main():
     print_matcher = PrintMatcher()
     outages = OutageTracker()
     timeline = EventRecorder()
+    focus_watch = FocusWatcher(timeline)
+    booth_state = {"idle": False}
     remote_box = {"cfg": remote_cfg}
     kiosk = KioskUploader(local_cfg, state, lambda: remote_box["cfg"])
     kiosk.start()
@@ -2561,6 +2633,12 @@ def main():
             closed_screen.error = f"Closed screen problem: {e}"
             log.info("%s", closed_screen.error)
 
+        # 3b. Is something else in front of the booth software while it sits idle?
+        try:
+            focus_watch.poll(cfg, local_cfg, booth_state["idle"] and not cfg.get("closed") and reopen_until is None)
+        except Exception as e:
+            log.info("Focus check problem: %s", e)
+
         # 4. Full check + report (every interval_seconds)
         if time.time() - last_beat >= max(15, int(cfg["interval_seconds"])):
             try:
@@ -2584,6 +2662,7 @@ def main():
                 paper = _forced_paper["value"]
                 _forced_paper["value"] = None
                 idle_now = booth_idle(results, closed_shown)      # call every beat so it can track screen changes
+                booth_state["idle"] = bool(idle_now) and not closed_shown
                 # 0.9.1: paper left just ticks down with each print on the server. The printer is only asked when the
                 # dashboard's "Read paper now" button is pressed (or if config.json has printer.read_paper_left = true).
                 auto_paper = (local_cfg.get("printer") or {}).get("read_paper_left", False) is True

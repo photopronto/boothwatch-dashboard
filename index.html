@@ -2111,6 +2111,8 @@ function bpLogEntries(){
     else if(e.kind === 'pc_boot') out.push({ t, type: 'pc', title: 'PC started', detail: '', tone: '' });
     else if(e.kind === 'agent_start') out.push({ t, type: 'pc', title: 'BoothWatch agent started', detail: d.version ? 'Version ' + d.version : '', tone: '' });
     else if(e.kind === 'agent_update') out.push({ t, type: 'pc', title: 'BoothWatch agent updated', detail: (d.from ? d.from + ' to ' : '') + (d.version || ''), tone: '' });
+    else if(e.kind === 'focus_lost') out.push({ t, type: 'pc', title: 'Something was in front of the booth software: ' + (d.name || 'unknown'), detail: d.title || 'A payment taken now would not start a session', tone: 'bad' });
+    else if(e.kind === 'refocus') out.push({ t, type: 'pc', title: 'Booth software brought back to the front', detail: 'It had been covered by ' + (d.name || 'another window'), tone: 'ok' });
     else if(e.kind === 'closed') out.push({ t, type: 'pc', title: 'Booth closed', detail: 'Closed screen on', tone: '' });
     else if(e.kind === 'opened') out.push({ t, type: 'pc', title: 'Booth opened', detail: '', tone: '' });
   }
