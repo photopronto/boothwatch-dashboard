@@ -2486,6 +2486,23 @@ function drawSettings(){
       <div class="save-row"><button class="btn-primary" id="sf-save">Save form</button><a class="btn-sm" style="text-decoration:none" href="${esc(reportLink(''))}" target="_blank" rel="noopener">Preview form</a><span class="save-msg" id="msg-sf"></span></div>
     </section>
 
+    <section class="panel" id="p-email" data-stab="support">
+      <h2>Reply emails</h2>
+      <p class="help">What is filled in when you press the email button on a support report. The words in curly brackets are replaced for each report, so the booth name and the problem are always the right ones.</p>
+      <div class="bs-grid">
+        <label class="fld"><span>Open emails with</span><select id="em-client">
+          <option value="mailto" ${emailSettings().client === 'mailto' ? 'selected' : ''}>My default mail app</option>
+          <option value="gmail" ${emailSettings().client === 'gmail' ? 'selected' : ''}>Gmail on the web</option>
+          <option value="outlook" ${emailSettings().client === 'outlook' ? 'selected' : ''}>Outlook on the web</option></select></label>
+        <label class="fld"><span>Send from</span><input type="text" id="em-from" value="${esc(emailSettings().from)}" placeholder="hello@photopronto.co.uk"/></label>
+      </div>
+      <p class="help" id="em-note" style="margin-top:-4px">Gmail on the web picks this account for you (you need to be signed in to it in this browser). A normal mail app decides the sender itself, so choose the account there, or make it the default account.</p>
+      <label class="fld"><span>Subject</span><input type="text" id="em-subject" maxlength="300" value="${esc(emailSettings().subject)}"/></label>
+      <label class="fld"><span>Message</span><textarea id="em-body" maxlength="4000" style="min-height:140px">${esc(emailSettings().body)}</textarea></label>
+      <p class="help">You can use: ${EMAIL_PLACEHOLDERS.map(([k, n]) => `<code>${k}</code> ${n}`).join(' · ')}</p>
+      <div class="save-row"><button class="btn-primary" id="em-save">Save</button><button class="btn-sm" id="em-reset">Back to the original wording</button><span class="save-msg" id="msg-em"></span></div>
+    </section>
+
     ${booths.length ? `<section class="panel" id="p-qr" data-stab="support">
       <h2>Support QR codes</h2>
       <p class="help">Customers scan the code in the booth and fill in a short form. You get the report on the Support tab and a notification on your phone. Each code is tied to one booth, so make sure the booth names here match the venue names customers will see.</p>
@@ -2746,6 +2763,22 @@ function wireSettings(booths, targets){
     issuesDraft = issues; drawIssues(); supportForm = { issues, intro: $('sf-intro').value, ask_when: $('sf-when').checked, ask_more: $('sf-more').checked };
     msg('msg-sf', 'Saved. The form is updated.');
   };
+
+  // reply emails
+  if($('em-save')){
+    const readEm = () => ({ client: $('em-client').value, from: $('em-from').value.trim(), subject: $('em-subject').value, body: $('em-body').value });
+    const note = () => { const n = $('em-note'); if(n) n.hidden = $('em-client').value === 'outlook'; };
+    $('em-client').onchange = note; note();
+    $('em-save').onclick = async () => {
+      $('em-save').disabled = true;
+      const e = readEm();
+      const { error } = await sb.rpc('save_support_email', { p_email: e });
+      $('em-save').disabled = false;
+      if(error){ msg('msg-em', error.message, true); return; }
+      supportForm = { ...supportForm, email: e }; msg('msg-em', 'Saved');
+    };
+    $('em-reset').onclick = () => { $('em-client').value = EMAIL_DEFAULTS.client; $('em-from').value = EMAIL_DEFAULTS.from; $('em-subject').value = EMAIL_DEFAULTS.subject; $('em-body').value = EMAIL_DEFAULTS.body; note(); msg('msg-em', 'Press Save to keep it.'); };
+  }
 
   // support QR codes
   document.querySelectorAll('[data-qr-pdf]').forEach(b => b.onclick = () => downloadCards(booths.filter(x => x.id === b.dataset.qrPdf), 'pdf'));
@@ -3182,6 +3215,7 @@ async function loadSupport(force){
   if(view !== 'support') return;
   if(error){ list.innerHTML = `<div class="empty">Could not load reports: ${esc(error.message)}</div>`; return; }
   boothCache = booths;
+  try { const r2 = await sb.from('support_settings').select('*').maybeSingle(); if(!r2.error && r2.data) supportForm = r2.data; } catch(e){}
   const rows = data || [];
   setSupportBadge(rows.filter(r => r.status === 'new').length);
   const json = JSON.stringify([rows, supportFilter]);
@@ -3194,7 +3228,8 @@ async function loadSupport(force){
     list.innerHTML = `<div class="empty">${rows.length ? 'Nothing here.' : 'No reports yet. Print the QR codes from Settings → Support QR codes and put one in each booth.'}</div>`;
     return;
   }
-  list.innerHTML = shown.map(r => supportCard(r, names[r.booth_id] || 'Unknown booth')).join('');
+  const byId = Object.fromEntries(booths.map(b => [b.id, b]));
+  list.innerHTML = shown.map(r => supportCard(r, names[r.booth_id] || 'Unknown booth', byId[r.booth_id])).join('');
   wireSupport(list, rows);
 }
 
@@ -3216,9 +3251,27 @@ function supportContext(r){
   return lines.join('');
 }
 
-function supportCard(r, boothName){
-  const subject = encodeURIComponent('Your Photo Pronto photobooth report');
-  const body = encodeURIComponent(`Hi,\n\nThanks for letting us know about "${r.issue}" at ${boothName} on ${dayTime(r.used_at)}.\n\n`);
+const EMAIL_DEFAULTS = {
+  client: 'mailto', from: 'hello@photopronto.co.uk',
+  subject: 'Your Photo Pronto photobooth report',
+  body: 'Hi,\n\nThanks for letting us know about "{issue}" at {booth} on {when}.\n\n',
+};
+const EMAIL_PLACEHOLDERS = [['{booth}', 'booth name'], ['{location}', 'booth location'], ['{issue}', 'what they reported'], ['{when}', 'day and time they used it'], ['{date}', 'day'], ['{time}', 'time'], ['{details}', 'what they wrote']];
+function emailSettings(){ return { ...EMAIL_DEFAULTS, ...((supportForm && supportForm.email) || {}) }; }
+function fillEmail(tpl, r, booth){
+  const d = new Date(r.used_at);
+  const vals = { booth: booth ? booth.name : 'the photobooth', location: (booth && booth.location) || '', issue: r.issue || '', when: dayTime(r.used_at),
+    date: d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }), time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), details: r.details || '' };
+  return String(tpl || '').replace(/\{(booth|location|issue|when|date|time|details)\}/g, (_, k) => vals[k]);
+}
+function replyLink(r, booth){
+  const E = emailSettings(), su = encodeURIComponent(fillEmail(E.subject, r, booth)), bo = encodeURIComponent(fillEmail(E.body, r, booth)), to = encodeURIComponent(r.email);
+  if(E.client === 'gmail') return `https://mail.google.com/mail/?view=cm&fs=1${E.from ? '&authuser=' + encodeURIComponent(E.from) : ''}&to=${to}&su=${su}&body=${bo}`;
+  if(E.client === 'outlook') return `https://outlook.office.com/mail/deeplink/compose?to=${to}&subject=${su}&body=${bo}`;
+  return `mailto:${r.email}?subject=${su}&body=${bo}`;
+}
+
+function supportCard(r, boothName, booth){
   const showRefund = r.outcome === 'refunded' || r.outcome === 'partial_refund';
   return `
   <article class="report ${r.status}" data-rid="${r.id}">
@@ -3228,7 +3281,7 @@ function supportCard(r, boothName){
       <span class="pill ${r.status === 'new' ? 'alert' : (r.status === 'contacted' ? 'ok' : 'off')}">${esc((SUPPORT_STATUS.find(s => s[0] === r.status) || [0, r.status])[1])}</span>
     </div>
     ${r.details ? `<div class="rep-details">${esc(r.details)}</div>` : ''}
-    <div class="rep-contact"><a class="btn-sm" href="mailto:${esc(r.email)}?subject=${subject}&body=${body}">Email ${esc(r.email)}</a></div>
+    <div class="rep-contact"><a class="btn-sm" href="${esc(replyLink(r, booth || { name: boothName }))}" ${emailSettings().client === 'mailto' ? '' : 'target="_blank" rel="noopener"'}>Email ${esc(r.email)}</a></div>
     <details class="rep-ctx"><summary>What BoothWatch saw</summary><div class="ctx">${supportContext(r)}</div></details>
     <div class="rep-edit">
       <label>Status<select data-f="status">${SUPPORT_STATUS.map(([v, n]) => `<option value="${v}" ${r.status === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
