@@ -1035,6 +1035,15 @@ async function refreshNotifs(){
 }
 
 // ── check-in timing, clock, mobile tabs ──
+// The giant strip kiosk shows as a booth, marked config.device = 'kiosk'. It checks in itself (no agent).
+const isKiosk = b => !!(b && b.config && b.config.device === 'kiosk');
+const kioskStatus = b => (isKiosk(b) && b.status && typeof b.status === 'object') ? b.status : {};
+function kioskSyncText(k){
+  const c = k.cloud || {};
+  if(!c.enabled) return 'Booth sessions: not switched on';
+  if(c.ok === false) return 'Booth sessions: not syncing';
+  return `${fmtInt(k.sessions_on_kiosk || 0)} booth sessions` + (c.catching_up ? ' · catching up' : '');
+}
 function checkInterval(b){
   const iv = b.config && Number(b.config.interval_seconds);
   return iv >= 15 ? iv : 60;
@@ -1277,7 +1286,7 @@ function boothParts(b){
             ${p.title ? `<div class="title" title="${esc(p.title)}">${esc(p.title)}</div>` : ''}
             ${detailRows(p)}
             ${p.ok ? (p.note ? `<div class="detail"><b>Status</b>${esc(p.note)}</div>` : '') : `<span class="note">${esc(p.note || 'Problem')}</span>`}
-            ${p.device ? '' : `<button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>`}
+            ${p.device || isKiosk(b) ? '' : `<button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>`}
           </span>
         </div>`).join('');
 
@@ -1295,7 +1304,8 @@ function boothParts(b){
   if(online && !isClosed && st.counter_seen === false) warns += `<div class="warn-line">Print counter not readable from the booth software right now.</div>`;
 
   const freeBadge = (cfg.money && cfg.money.free === true) ? '<span class="tag acc" title="Free to use: sessions are counted, no sales">Free</span>' : '';
-  const buildBadge = freeBadge + (cfg.stage === 'build' ? '<span class="tag acc" title="Left out of the Company figures">Build</span>' : '');
+  const kioskBadge = isKiosk(b) ? '<span class="tag acc">Giant strip kiosk</span>' + (st.closed ? '<span class="tag">Out of service</span>' : '') : '';
+  const buildBadge = kioskBadge + freeBadge + (cfg.stage === 'build' ? '<span class="tag acc" title="Left out of the Company figures">Build</span>' : '');
   const badge = buildBadge + (manualClosed ? '<span class="tag">Closed</span>'
     : schedClosed ? '<span class="tag">Closed by hours</span>'
     : (hrs && !hrs.open ? '<span class="tag">Outside hours</span>' : ''));
@@ -1341,12 +1351,13 @@ function boothFrame(b, idx, total){
       <div class="kpis">${kpi(b, 'today', 'Today')}${kpi(b, 'week', 'This week')}</div>
       ${P.chips ? `<div class="chips">${P.chips}</div>` : ''}
       ${P.badLine}
-      <div class="bcard-foot"><span class="${P.rollState}">${P.remaining} prints left</span></div>
+      <div class="bcard-foot"><span class="${P.rollState}">${P.remaining} prints left</span>${isKiosk(b) ? ` · ${esc(kioskSyncText(kioskStatus(b)))}` : ''}</div>
     ${reorderMode ? '</div>' : '</a>'}`;
 }
 
 // The buttons and detail list, shown on the booth page's Controls tab.
 function boothControls(b){
+  if(isKiosk(b)) return kioskControls(b);
   const P = boothParts(b), { online, busy, waiting } = P;
   return `
     <section class="panel">
@@ -1373,6 +1384,56 @@ function boothControls(b){
       ${P.paperLine}
       ${P.hoursLine}
       <div class="agent-info">${b.agent_version ? 'Agent ' + esc(b.agent_version) : 'Agent version unknown'} · ${esc(b.channel || 'live')} channel</div>
+    </section>`;
+}
+
+// The Controls tab for the giant strip kiosk: what it reports, and Roll changed.
+function kioskControls(b){
+  const P = boothParts(b), k = kioskStatus(b), c = k.cloud || {}, t = k.today || {};
+  const fact = (n, v) => `<div class="fact"><span>${n}</span><b>${v}</b></div>`;
+  const lp = k.last_problem;
+  return `
+    <section class="panel">
+      <h2>Kiosk</h2>
+      <div class="facts">
+        ${fact('Screen', esc(k.closed ? 'Out of service' : (k.screen ? k.screen.replace(/_/g, ' ').replace(/^./, x => x.toUpperCase()) : 'unknown')))}
+        ${fact('Prints today', `${t.prints || 0}${t.refunded ? ` · ${t.refunded} refunded` : ''}`)}
+        ${fact('From receipts', t.receipt || 0)}
+        ${fact('Matched to booth photos', t.matched || 0)}
+        ${fact('Enlarged as they are', t.as_is || 0)}
+        ${fact('Scans waiting', k.inbox_waiting || 0)}
+        ${fact('Version', esc(b.agent_version || 'unknown') + (k.update_available ? ` · ${esc(k.update_available)} ready to install` : ''))}
+        ${fact('Running for', k.uptime_hours != null ? esc(fmtDuration(k.uptime_hours * 60)) : 'unknown')}
+        ${fact('Disk free', k.disk_free_gb != null ? k.disk_free_gb + ' GB' : 'unknown')}
+      </div>
+      <p class="help" style="margin:10px 0 0">The kiosk checks in every minute. Out of service, prices and everything else are set on the kiosk itself (Esc, then Settings).</p>
+    </section>
+    <section class="panel">
+      <h2>Devices</h2>
+      ${P.programRows ? `<div class="programs">${P.programRows}</div>` : '<div class="help" style="margin:0">Nothing reported yet.</div>'}
+    </section>
+    <section class="panel">
+      <h2>Booth sessions</h2>
+      <div class="facts">
+        ${fact('Syncing', !c.enabled ? 'switched off' : c.ok === false ? 'not working' : c.catching_up ? 'catching up' : 'up to date')}
+        ${fact('On the kiosk', fmtInt(k.sessions_on_kiosk || 0) + (k.indexed != null ? ` · ${fmtInt(k.indexed)} ready to match` : ''))}
+        ${fact('New today', `${c.added_today || 0}${c.last_added ? ' · last ' + esc(c.last_added) : ''}`)}
+        ${fact('Last checked', esc(c.last_check || 'never'))}
+        ${fact('Kept for', c.retention_days ? c.retention_days + ' days' : 'unknown')}
+      </div>
+      ${c.last_error ? `<div class="warn-line">Last problem: ${esc(c.last_error)}</div>` : ''}
+    </section>
+    <section class="panel">
+      <h2>Warnings in the kiosk log</h2>
+      <div class="facts">
+        ${fact('Last hour', `${k.errors_1h || 0} error${k.errors_1h === 1 ? '' : 's'} · ${k.warnings_1h || 0} warning${k.warnings_1h === 1 ? '' : 's'}`)}
+      </div>
+      ${lp ? `<div class="${lp.level === 'error' ? 'bad-line' : 'agent-info'}" style="margin-top:10px">${esc(fmtDT(new Date(lp.at)))}: ${esc(lp.text)}</div>` : ''}
+    </section>
+    <section class="panel">
+      <h2>Paper</h2>
+      <p class="help">Prints left ticks down by one for every giant print. Press <b>Roll changed</b> when you fit a new roll. Set how many prints a roll gives in the Settings tab.</p>
+      <div class="controls"><button data-reset="${esc(b.id)}" title="Use after fitting a new roll">Roll changed</button></div>
     </section>`;
 }
 
@@ -1996,6 +2057,9 @@ function bpNumbers(b, rows){
 function bpOverviewHtml(){
   const { b, rows, history } = bpData, P = boothParts(b);
   const m = (b.config && b.config.money) || {}, free = m.free === true, priced = !free && Number(m.price || 0) > 0;
+  const K = isKiosk(b), W = K ? 'Prints sold' : 'Sessions', w = K ? 'prints sold' : 'sessions', w1 = K ? 'print sold' : 'session';
+  const kt = kioskStatus(b).today || {};
+  const kioskNow = K ? `<div class="agent-info" style="margin-top:10px">Today: ${kt.prints || 0} giant print${kt.prints === 1 ? '' : 's'} (${kt.receipt || 0} from receipts, ${kt.matched || 0} matched to booth photos, ${kt.as_is || 0} enlarged as they are)${kt.refunded ? `, ${kt.refunded} refunded` : ''} · ${esc(kioskSyncText(kioskStatus(b)))}</div>` : '';
   const N = bpNumbers(b, rows);
   const openAlerts = ((history && history.alerts) || []).filter(a => !a.resolved_at);
   const th = (label, cls) => `<th class="num ${cls || ''}">${label}</th>`;
@@ -2009,19 +2073,19 @@ function bpOverviewHtml(){
     <section class="panel">
       <h2>Right now</h2>
       <div class="bp-now">
-        <div class="bp-now-main">${P.chips ? `<div class="chips">${P.chips}</div>` : '<div class="help" style="margin:0">No programs are being watched.</div>'}${P.badLine}</div>
+        <div class="bp-now-main">${P.chips ? `<div class="chips">${P.chips}</div>` : '<div class="help" style="margin:0">No programs are being watched.</div>'}${P.badLine}${kioskNow}</div>
         ${rollHtml}
       </div>
       ${alertsHtml}
     </section>
 
     <section class="panel">
-      <div class="chart-head"><h2>Sessions${priced ? ' and takings' : ''}</h2>
+      <div class="chart-head"><h2>${W}${priced ? ' and takings' : ''}</h2>
         <button type="button" class="btn-sm" id="bp-prints-toggle">${showPrintsCol ? 'Hide prints' : 'Show prints'}</button></div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th></th>${th('Sessions')}${priced ? th('Takings') : ''}${showPrintsCol ? th('Prints') : ''}</tr></thead>
+        <thead><tr><th></th>${th(W)}${priced ? th('Takings') : ''}${showPrintsCol ? th('Prints') : ''}</tr></thead>
         <tbody>${trows}</tbody></table></div>
-      <p class="help" style="margin:10px 0 0">${priced ? `Takings are sessions × ${money(Number(m.price))} per session, before costs and refunds.` : free ? 'This booth is free to use, so only sessions are counted.' : 'No price is set for this booth, so takings are not shown. Set one in the Settings tab.'}</p>
+      <p class="help" style="margin:10px 0 0">${priced ? `Takings are ${w} × ${money(Number(m.price))} per ${K ? 'print' : 'session'}, before costs and refunds.${K ? ' Free and staff prints are counted in Prints, not sold.' : ''}` : free ? 'This booth is free to use, so only sessions are counted.' : 'No price is set for this booth, so takings are not shown. Set one in the Settings tab.'}</p>
     </section>
 
     <section class="panel">
@@ -2029,26 +2093,26 @@ function bpOverviewHtml(){
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th></th>${N.wins.map(([n]) => th(esc(n))).join('')}</tr></thead>
         <tbody>
-          ${arow('Sessions per day', w => fmt1(perDay(w)))}
-          ${arow('Sessions per busy day', w => fmt1(perTrading(w)))}
-          ${arow('Sessions per week', w => fmt1(perDay(w) * 7))}
-          ${arow('Sessions per month', w => fmtInt(perDay(w) * 30.44))}
-          ${priced ? arow('Takings per day', w => money(w.sales / w.days)) + arow('Takings per week', w => money0(w.sales / w.days * 7)) + arow('Takings per month', w => money0(w.sales / w.days * 30.44)) : ''}
-          ${showPrintsCol ? arow('Prints per session', w => w.sessions ? fmt1(w.prints / w.sessions) : '–') : ''}
+          ${arow(W + ' per day', x => fmt1(perDay(x)))}
+          ${arow(W + ' per busy day', x => fmt1(perTrading(x)))}
+          ${arow(W + ' per week', x => fmt1(perDay(x) * 7))}
+          ${arow(W + ' per month', x => fmtInt(perDay(x) * 30.44))}
+          ${priced ? arow('Takings per day', x => money(x.sales / x.days)) + arow('Takings per week', x => money0(x.sales / x.days * 7)) + arow('Takings per month', x => money0(x.sales / x.days * 30.44)) : ''}
+          ${showPrintsCol && !K ? arow('Prints per session', x => x.sessions ? fmt1(x.prints / x.sessions) : '–') : ''}
         </tbody></table></div>
-      <p class="help" style="margin:10px 0 0">A busy day is one with at least one session.${N.best ? ` Best day so far: <b>${esc(fmtDay(N.best.day))}</b> with ${N.best.sessions} session${N.best.sessions === 1 ? '' : 's'}.` : ''}</p>
+      <p class="help" style="margin:10px 0 0">A busy day is one with at least one ${w1}.${N.best ? ` Best day so far: <b>${esc(fmtDay(N.best.day))}</b> with ${N.best.sessions} ${N.best.sessions === 1 ? w1 : w}.` : ''}</p>
     </section>
 
     <section class="chart-card">
-      <div class="chart-head"><h2>Average sessions by day of the week <span class="muted-h">last 90 days</span></h2></div>
+      <div class="chart-head"><h2>Average ${w} by day of the week <span class="muted-h">last 90 days</span></h2></div>
       <div id="bp-chart-wd"></div>
     </section>
     <section class="chart-card">
-      <div class="chart-head"><h2>Busiest hours <span class="muted-h">sessions by time of day, last 90 days</span></h2></div>
+      <div class="chart-head"><h2>Busiest hours <span class="muted-h">${w} by time of day, last 90 days</span></h2></div>
       <div id="bp-chart-h"></div>
     </section>
     <section class="chart-card">
-      <div class="chart-head"><h2>Sessions by month <span class="muted-h">last 12 months</span></h2></div>
+      <div class="chart-head"><h2>${W} by month <span class="muted-h">last 12 months</span></h2></div>
       <div id="bp-chart-m"></div>
     </section>`;
 }
@@ -2060,7 +2124,7 @@ function wireBpOverview(host){
   const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], full = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const wdv = N.wd.map(x => x.n ? x.s / x.n : 0);
   drawBarChart(host.querySelector('#bp-chart-wd'), {
-    metric: 'avg', table: false, cur: wdv, curLabels: full, xLabels: names, curName: 'Average sessions per day',
+    metric: 'avg', table: false, cur: wdv, curLabels: full, xLabels: names, curName: isKiosk(b) ? 'Average prints sold per day' : 'Average sessions per day',
     extra: N.wd.map(x => x.n ? `${x.n} ${x.n === 1 ? 'day' : 'days'} counted` : ''),
   });
   const today = ymd(new Date()), thisM = monthStart(today), y0 = monthStart(thisM, -11), p0 = monthStart(thisM, -23);
@@ -2075,9 +2139,10 @@ function wireBpOverview(host){
   for(const t of sess) hrs[new Date(t).getHours()]++;
   const hh = n => String(n).padStart(2, '0') + ':00';
   if(sess.length) drawBarChart(host.querySelector('#bp-chart-h'), {
-    metric: 'sessions', table: false, cur: hrs, curLabels: hrs.map((_, i) => hh(i) + ' to ' + hh((i + 1) % 24)), xLabels: hrs.map((_, i) => String(i)), curName: 'Sessions',
+    metric: 'sessions', table: false, cur: hrs, curLabels: hrs.map((_, i) => hh(i) + ' to ' + hh((i + 1) % 24)), xLabels: hrs.map((_, i) => String(i)), curName: isKiosk(b) ? 'Prints sold' : 'Sessions',
     extra: hrs.map(v => sess.length ? Math.round(100 * v / sess.length) + '% of sessions' : ''),
   });
+  else if(isKiosk(b)) host.querySelector('#bp-chart-h').innerHTML = '<div class="no-data">No prints sold yet. Each one is timed as the kiosk makes it.</div>';
   else host.querySelector('#bp-chart-h').innerHTML = '<div class="no-data">No timeline yet. This fills in once the booth runs agent 0.10.0 or newer (and migration 019 is run). Each new session is then timed exactly.</div>';
   window.__redrawCharts = () => { if(view === 'booth'){ bpHtml = {}; drawBoothBody(); } };
 }
@@ -2105,7 +2170,10 @@ function bpLogEntries(){
   }
   for(const e of (h.events || [])){
     const d = e.detail || {}, t = new Date(e.at);
-    if(e.kind === 'session') out.push({ t, type: 'session', title: 'Session', detail: '', tone: '' });
+    if(isKiosk(b) && e.kind === 'session') continue;   // the kiosk's matching 'print' entry says it all
+    if(isKiosk(b) && e.kind === 'print') out.push({ t, type: 'session', title: 'Giant print' + (d.path ? ': ' + d.path : ''), detail: [d.size, { paid: 'paid', free: 'free', staff: 'staff print' }[d.status]].filter(Boolean).join(' · '), tone: '' });
+    else if(e.kind === 'kiosk_failed') out.push({ t, type: 'session', title: 'Print could not start', detail: d.note || '', tone: 'bad' });
+    else if(e.kind === 'session') out.push({ t, type: 'session', title: 'Session', detail: '', tone: '' });
     else if(e.kind === 'print') out.push({ t, type: 'session', title: e.n + ' print' + (e.n === 1 ? '' : 's'), detail: '', tone: '' });
     else if(e.kind === 'software' || e.kind === 'device') out.push({ t, type: 'pc', title: (d.name || e.kind) + (d.ok ? ' back to normal' : ' problem'), detail: d.note || '', tone: d.ok ? 'ok' : 'bad' });
     else if(e.kind === 'pc_boot') out.push({ t, type: 'pc', title: 'PC started', detail: '', tone: '' });
@@ -2116,7 +2184,7 @@ function bpLogEntries(){
     else if(e.kind === 'closed') out.push({ t, type: 'pc', title: 'Booth closed', detail: 'Closed screen on', tone: '' });
     else if(e.kind === 'opened') out.push({ t, type: 'pc', title: 'Booth opened', detail: '', tone: '' });
   }
-  if(b.created_at) out.push({ t: new Date(b.created_at), type: 'system', title: 'Booth added to BoothWatch', detail: '', tone: '' });
+  if(b.created_at) out.push({ t: new Date(b.created_at), type: 'system', title: (isKiosk(b) ? 'Kiosk' : 'Booth') + ' added to BoothWatch', detail: '', tone: '' });
   return out.sort((x, y) => y.t - x.t);
 }
 const LOG_TYPES = [['all', 'Everything'], ['session', 'Sessions and prints'], ['pc', 'Software and PC'], ['alert', 'Alerts'], ['outage', 'Offline periods'], ['button', 'Button presses'], ['support', 'Customer reports']];
@@ -2142,17 +2210,17 @@ function bpLogsHtml(){
       <h2>Health</h2>
       <div class="facts">
         ${fact('Last check-in', b.last_heartbeat_at ? esc(fmtAgo(b.last_heartbeat_at)) : 'never')}
-        ${fact('Last session', lastSess ? esc(fmtDT(new Date(lastSess))) + ' · ' + esc(fmtAgo(lastSess)) : 'not recorded yet')}
+        ${isKiosk(b) ? '' : fact('Last session', lastSess ? esc(fmtDT(new Date(lastSess))) + ' · ' + esc(fmtAgo(lastSess)) : 'not recorded yet')}
         ${fact('Last print', lastPrint ? esc(fmtDT(new Date(lastPrint))) + ' · ' + esc(fmtAgo(lastPrint)) : 'not recorded yet')}
-        ${fact('PC last started', boot ? esc(fmtDT(new Date(boot))) + ' · ' + esc(fmtAgo(boot)) : 'not recorded yet')}
+        ${isKiosk(b) ? fact('Kiosk running for', kioskStatus(b).uptime_hours != null ? esc(fmtDuration(kioskStatus(b).uptime_hours * 60)) : 'unknown') : fact('PC last started', boot ? esc(fmtDT(new Date(boot))) + ' · ' + esc(fmtAgo(boot)) : 'not recorded yet')}
         ${fact('Uptime, 30 days', uptimePct != null ? (Math.round(uptimePct * 10) / 10) + '%' : 'not enough data yet')}
         ${fact('Checks in every', checkInterval(b) + ' s')}
         ${fact('Offline alerts, 30 days', offAlerts.length ? `${offAlerts.length} · ${esc(fmtDuration(offMins))}` : 'none')}
         ${fact('Unplanned outages, 30 days', outs.length ? `${outs.length} · ${esc(fmtDuration(outMins))}` : 'none logged')}
         ${fact('Open alerts now', openCount)}
-        ${fact('Agent', (b.agent_version ? esc(b.agent_version) : 'unknown') + ' · ' + esc(b.channel || 'live'))}
+        ${fact(isKiosk(b) ? 'Kiosk version' : 'Agent', (b.agent_version ? esc(b.agent_version) : 'unknown') + (isKiosk(b) ? '' : ' · ' + esc(b.channel || 'live')))}
         ${fact('Added', b.created_at ? esc(new Date(b.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })) : '–')}
-        ${fact('Paper reading', b.paper_left != null ? `${b.paper_left} pages · ${esc(fmtAgo(b.paper_left_at))}` : 'not read yet')}
+        ${isKiosk(b) ? '' : fact('Paper reading', b.paper_left != null ? `${b.paper_left} pages · ${esc(fmtAgo(b.paper_left_at))}` : 'not read yet')}
       </div>
       <p class="help" style="margin:10px 0 0">Uptime is the share of the last 30 days without an unplanned outage (planned closures and time outside opening hours do not count against it). Offline alerts follow your alert delay and opening hours. Unplanned outages are logged by the booth when it comes back and say why (power, Windows restart, network and so on); planned closures are left out.</p>
     </section>
@@ -2171,6 +2239,7 @@ function wireBpLogs(host){
 // ── Settings tab on a booth page (this booth only; the main Settings page still has the all-booths tables) ──
 function drawBoothSettings(host, b){
   const cfg = b.config || {}, hrs = cfg.hours || {}, w = cfg.watch || {}, m = cfg.money || {};
+  const K = isKiosk(b), hide = K ? ' hidden' : '';
   const mode = ['pause_alerts', 'auto_close'].includes(hrs.mode) ? hrs.mode : 'none';
   const A = k => cfgAlert(cfg, k);
   const num = (v, d = 2) => (v == null || v === '') ? '' : String(Number(v).toFixed(d)).replace(/\.?0+$/, '');
@@ -2188,27 +2257,27 @@ function drawBoothSettings(host, b){
 
   host.innerHTML = `
     <section class="panel">
-      <h2>Booth details</h2>
+      <h2>${K ? 'Kiosk details' : 'Booth details'}</h2>
       <div class="bs-grid">
         <label class="fld"><span>Name</span><input type="text" id="bs-name" value="${esc(b.name)}"/></label>
         <label class="fld"><span>Location</span><input type="text" id="bs-loc" value="${esc(b.location || '')}" placeholder="Location"/></label>
         <label class="fld"><span>Stage</span><select id="bs-stage"><option value="live" ${cfg.stage === 'build' ? '' : 'selected'}>live</option><option value="build" ${cfg.stage === 'build' ? 'selected' : ''}>build (left out of Company figures)</option></select></label>
-        <label class="fld"><span>Updates</span><select id="bs-channel"><option value="live" ${b.channel === 'live' ? 'selected' : ''}>live</option><option value="test" ${b.channel === 'test' ? 'selected' : ''}>test (gets new versions first)</option></select></label>
+        <label class="fld"${hide}><span>Updates</span><select id="bs-channel"><option value="live" ${b.channel === 'live' ? 'selected' : ''}>live</option><option value="test" ${b.channel === 'test' ? 'selected' : ''}>test (gets new versions first)</option></select></label>
         <label class="fld"><span>Prints on a full roll</span><input type="number" min="1" max="2000" step="1" id="bs-roll" value="${b.roll_capacity}"/></label>
       </div>
-      <div class="set-row"><div><div class="name">Auto-restart</div><div class="desc">Bring crashed booth software back by itself.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-auto" ${cfg.auto_restart ? 'checked' : ''}/> On</label></div></div>
-      <p class="help" style="margin:8px 0 0">Prints left ticks down by one for every print the booth makes. Set the roll size to how many prints one roll gives, and press <b>Roll changed</b> on the Controls tab when you fit a new one.</p>
+      <div class="set-row"${hide}><div><div class="name">Auto-restart</div><div class="desc">Bring crashed booth software back by itself.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-auto" ${cfg.auto_restart ? 'checked' : ''}/> On</label></div></div>
+      <p class="help" style="margin:8px 0 0">${K ? 'The kiosk updates itself from the kiosk Settings page, not from here. ' : ''}Prints left ticks down by one for every print the ${K ? 'kiosk' : 'booth'} makes. Set the roll size to how many prints one roll gives, and press <b>Roll changed</b> on the Controls tab when you fit a new one.</p>
       <div class="save-row"><button class="btn-primary" id="bs-save-details">Save</button><span class="save-msg" id="bs-msg-details"></span></div>
     </section>
 
-    <section class="panel">
+    <section class="panel"${hide}>
       <h2>What this booth watches</h2>
       <p class="help">Untick anything this booth does not have. It is then ignored: no alerts and nothing shown on the card.</p>
       <div class="set-ctl" style="gap:22px;flex-wrap:wrap">${watchBox('printer', 'Printer')}${watchBox('camera', 'Camera')}${watchBox('payment', 'Payment software (MDB)')}</div>
       <div class="save-row"><button class="btn-primary" id="bs-save-watch">Save</button><span class="save-msg" id="bs-msg-watch"></span></div>
     </section>
 
-    <section class="panel">
+    <section class="panel"${hide}>
       <h2>Giant strip kiosk</h2>
       <div class="set-row"><div><div class="name">Upload sessions to the cloud</div><div class="desc">Each session's print and original photos are uploaded so the giant strip kiosk can recognise this booth's strips and rebuild them. Kept for 6 months, then deleted.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-kiosk" ${cfg.kiosk_upload ? 'checked' : ''}/> On</label></div></div>
       ${(() => { const k = (b.status || {}).kiosk; if(!cfg.kiosk_upload || !k) return ''; const bits = [`${k.sent_today || 0} uploaded today`]; if(k.backfill_left) bits.push(`${k.backfill_left} older sessions still to upload`); if(k.error) bits.push(`last problem: ${esc(k.error)}`); return `<p class="help" style="margin:8px 0 0">${bits.join(' · ')}</p>`; })()}
@@ -2219,24 +2288,28 @@ function drawBoothSettings(host, b){
       <h2>Prices and costs</h2>
       <label class="sw" style="display:flex;align-items:center;gap:6px;margin-bottom:12px"><input type="checkbox" id="bs-free" ${m.free ? 'checked' : ''}/> Free to use (sessions are counted, no sales)</label>
       <div class="bs-grid">
-        <label class="fld"><span>Price per session</span><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-bm="price" value="${num(m.price)}" placeholder="0.00" ${m.free ? 'disabled' : ''}/></span></label>
+        <label class="fld"><span>Price per ${K ? 'print' : 'session'}</span><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-bm="price" value="${num(m.price)}" placeholder="0.00" ${m.free ? 'disabled' : ''}/></span></label>
         <label class="fld"><span>Cost per print</span><span class="money-in"><i>£</i><input type="number" min="0" step="0.01" data-bm="cost_per_print" value="${num(m.cost_per_print)}" placeholder="0.00"/></span></label>
         <label class="fld"><span>Running cost per month</span><span class="money-in"><i>£</i><input type="number" min="0" step="1" data-bm="monthly_cost" value="${num(m.monthly_cost)}" placeholder="0"/></span></label>
         <label class="fld"><span>Card fee</span><span class="money-in"><input type="number" min="0" max="100" step="0.01" data-bm="card_fee_pct" value="${num(m.card_fee_pct)}" placeholder="0"/><i>%</i></span></label>
       </div>
+      ${K ? '<p class="help" style="margin:8px 0 0">The price comes from the kiosk\'s own Payment settings and is kept in step with it. Cost per print is your paper and ribbon cost for one giant print.</p>' : ''}
       <div class="save-row"><button class="btn-primary" id="bs-save-money">Save</button><span class="save-msg" id="bs-msg-money"></span></div>
     </section>
 
     <section class="panel">
       <h2>Alerts</h2>
-      ${alertRow('offline', 'Booth offline', 'The booth PC stops checking in.', delayCtl('offline'))}
-      ${alertRow('software', 'Booth software problem', 'DSLR Remote Pro or MDB Payment is not running or shows an error.', delayCtl('software'))}
-      ${alertRow('device', 'Camera or printer problem', 'Camera disconnected, printer off, door open, out of ribbon or paper.', delayCtl('device'))}
-      ${alertRow('print_missing', 'Session without a print', 'A session was saved but no print was counted.', delayCtl('print_missing'))}
+      ${K ? alertRow('offline', 'Kiosk offline', 'The kiosk stops checking in (PC off, kiosk program closed or no internet).', delayCtl('offline'))
+        + alertRow('software', 'Booth sessions not syncing', 'The kiosk cannot get new sessions from the booths, so their strips will not be recognised.', delayCtl('software'))
+        + alertRow('device', 'Printer, card reader or buttons', 'A print waiting 5 minutes to print, the card reader or buttons disconnected, or the disk nearly full.', delayCtl('device'))
+      : alertRow('offline', 'Booth offline', 'The booth PC stops checking in.', delayCtl('offline'))
+        + alertRow('software', 'Booth software problem', 'DSLR Remote Pro or MDB Payment is not running or shows an error.', delayCtl('software'))
+        + alertRow('device', 'Camera or printer problem', 'Camera disconnected, printer off, door open, out of ribbon or paper.', delayCtl('device'))
+        + alertRow('print_missing', 'Session without a print', 'A session was saved but no print was counted.', delayCtl('print_missing'))}
       ${alertRow('low_prints', 'Low on prints', 'Warn when the roll is nearly used up.', `<span class="after">at <input type="number" min="1" max="90" step="1" data-a-threshold value="${A('low_prints').threshold}"/> <span class="unit">% left</span></span>`)}
       ${alertRow('out_of_prints', 'Out of prints', 'The roll has run out.', '')}
-      ${alertRow('command_failed', 'A button press fails', 'Restart, screenshot or paper read did not work.', '')}
-      <div class="set-row"><div><div class="name">Mute everything</div><div class="desc">No alerts or notifications for this booth.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-muted" ${cfg.alerts_muted ? 'checked' : ''}/> Muted</label></div></div>
+      ${K ? '' : alertRow('command_failed', 'A button press fails', 'Restart, screenshot or paper read did not work.', '')}
+      <div class="set-row"><div><div class="name">Mute everything</div><div class="desc">No alerts or notifications for this ${K ? 'kiosk' : 'booth'}.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-muted" ${cfg.alerts_muted ? 'checked' : ''}/> Muted</label></div></div>
       <div class="save-row"><button class="btn-primary" id="bs-save-alerts">Save alerts</button><span class="save-msg" id="bs-msg-alerts"></span></div>
     </section>
 
@@ -2244,7 +2317,7 @@ function drawBoothSettings(host, b){
       <h2>Opening hours</h2>
       <label class="mode"><input type="radio" name="bs-hmode" value="none" ${mode === 'none' ? 'checked' : ''}/><div><b>Always on</b><span>No schedule. Alerts any time of day.</span></div></label>
       <label class="mode"><input type="radio" name="bs-hmode" value="pause_alerts" ${mode === 'pause_alerts' ? 'checked' : ''}/><div><b>Only pause alerts outside opening hours</b><span>You are not alerted when it is meant to be off.</span></div></label>
-      <label class="mode"><input type="radio" name="bs-hmode" value="auto_close" ${mode === 'auto_close' ? 'checked' : ''}/><div><b>Close and open by itself</b><span>The closed screen shows outside opening hours.</span></div></label>
+      <label class="mode"${hide}><input type="radio" name="bs-hmode" value="auto_close" ${mode === 'auto_close' ? 'checked' : ''}/><div><b>Close and open by itself</b><span>The closed screen shows outside opening hours.</span></div></label>
       <div id="bs-week" ${mode === 'none' ? 'style="opacity:.4;pointer-events:none"' : ''}>
         <div class="week">${days}</div>
         <div class="save-row" style="margin-top:12px"><button class="btn-sm" id="bs-copy-mon">Copy Monday to every day</button></div>
@@ -2280,7 +2353,9 @@ function drawBoothSettings(host, b){
   guard('bs-save-alerts', 'bs-msg-alerts', async () => {
     const alerts = {};
     for(const kind of ['offline', 'software', 'device', 'print_missing', 'low_prints', 'out_of_prints', 'command_failed']){
-      const o = { on: host.querySelector(`[data-a-on="${kind}"]`).checked };
+      const box = host.querySelector(`[data-a-on="${kind}"]`);
+      if(!box){ if(cfg.alerts && cfg.alerts[kind]) alerts[kind] = cfg.alerts[kind]; continue; }   // not shown for the kiosk: keep as is
+      const o = { on: box.checked };
       const d = host.querySelector(`[data-a-delay="${kind}"]`); if(d && d.value !== '') o.delay = Number(d.value);
       if(kind === 'low_prints'){ const t = host.querySelector('[data-a-threshold]'); if(t && t.value !== '') o.threshold = Number(t.value); }
       alerts[kind] = o;

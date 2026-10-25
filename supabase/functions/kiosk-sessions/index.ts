@@ -11,6 +11,8 @@
 //                                each with short-lived download links, and `pending`: how many
 //                                sessions booths started uploading in the last 5 minutes
 //     {action:"get", ids:[...]} -> those sessions again (fresh links), to repair missing files
+//     {action:"heartbeat", programs, status, version, days:[{day, sold, printed}], price, events}
+//         -> shows the kiosk on the BoothWatch dashboard (alerts work as for a booth)
 //
 //   Daily cleanup (header x-cleanup-key, from a scheduled database job)
 //     {action:"cleanup"}  -> removes sessions older than app_settings.kiosk_retention_days
@@ -151,6 +153,23 @@ async function get(_k: any, body: any) {
   return json({ sessions: await withLinks(rows ?? []), retention_days: await retentionDays() });
 }
 
+// The kiosk checking in, so it shows on the dashboard like a booth.
+async function heartbeat(k: any, body: any) {
+  const arr = (x: any, n: number) => (Array.isArray(x) ? x.slice(0, n) : []);
+  const price = Number(body.price);
+  const { data, error } = await db.rpc("kiosk_heartbeat", {
+    p_kiosk: k.id,
+    p_programs: arr(body.programs, 20),
+    p_status: body.status && typeof body.status === "object" ? body.status : {},
+    p_version: body.version ? String(body.version).slice(0, 40) : null,
+    p_days: arr(body.days, 3),
+    p_price: Number.isFinite(price) && price >= 0 && price < 1000 ? price : null,
+    p_events: arr(body.events, 300),
+  });
+  if (error) return json({ error: error.message }, 500);
+  return json(data ?? { ok: true });
+}
+
 async function cleanup() {
   const days = await retentionDays();
   const cutoff = new Date(Date.now() - days * 86400000).toISOString();
@@ -184,9 +203,10 @@ Deno.serve(async (req) => {
       if (!booth) return json({ error: "not allowed" }, 401);
       return action === "begin" ? await begin(booth, body) : await finish(booth, body);
     }
-    if (action === "list" || action === "get") {
+    if (action === "list" || action === "get" || action === "heartbeat") {
       const k = await kiosk(req);
       if (!k) return json({ error: "not allowed" }, 401);
+      if (action === "heartbeat") return await heartbeat(k, body);
       return action === "list" ? await list(k, body) : await get(k, body);
     }
     if (action === "cleanup") {
