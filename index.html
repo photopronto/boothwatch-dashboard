@@ -953,10 +953,10 @@ function renderBell(){
 function renderNotifPanel(){
   const panel = document.getElementById('notif-panel');
   if(!panel) return;
-  const unread = notifs.some(n => !n.read_at);
+  const unread = false;
   const pb = pushBlockHtml();
   const items = notifs.map(n => `
-    <div class="np-item ${n.read_at ? '' : 'unread'} ${n.severity === 'info' ? 'info' : ''}" data-notif="${n.id}" data-booth="${esc(n.booth_id || '')}" data-kind="${esc(n.kind || '')}" tabindex="0">
+    <div class="np-item ${panelNew.has(n.id) || !n.read_at ? 'unread' : ''} ${n.severity === 'info' ? 'info' : ''}" data-notif="${n.id}" data-booth="${esc(n.booth_id || '')}" data-kind="${esc(n.kind || '')}" tabindex="0">
       <span class="np-dot"></span>
       <div style="min-width:0">
         <div class="np-title">${esc(n.title)}</div>
@@ -1006,7 +1006,16 @@ function showBooth(id){
   setTimeout(() => card.classList.remove('flash'), 1800);
 }
 
+let panelNew = new Set();      // alerts that were unread when the panel opened: still highlighted until it closes
+function markSeen(){
+  const fresh = notifs.filter(n => !n.read_at);
+  if(!fresh.length) return;
+  fresh.forEach(n => { panelNew.add(n.id); n.read_at = new Date().toISOString(); });
+  renderBell();
+  sb.rpc('mark_notifications_read', {}).then(() => {}, () => {});
+}
 function openNotifPanel(){
+  panelNew = new Set(); markSeen();
   const panel = document.getElementById('notif-panel'), bell = document.getElementById('bell');
   const r = bell.getBoundingClientRect();
   panel.style.setProperty('--np-top', Math.round(r.bottom + 10) + 'px');
@@ -1020,6 +1029,7 @@ function closeNotifPanel(){
 }
 async function refreshNotifs(){
   notifs = await loadNotifications();
+  if(notifPanelOpen) markSeen();
   renderBell();
   if(notifPanelOpen) renderNotifPanel();
 }
