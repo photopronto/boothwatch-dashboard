@@ -10,6 +10,7 @@
 //     {action:"list", after}  -> sessions that became ready after `after` (oldest first, max 100),
 //                                each with short-lived download links, and `pending`: how many
 //                                sessions booths started uploading in the last 5 minutes
+//     {action:"get", ids:[...]} -> those sessions again (fresh links), to repair missing files
 //
 //   Daily cleanup (header x-cleanup-key, from a scheduled database job)
 //     {action:"cleanup"}  -> removes sessions older than app_settings.kiosk_retention_days
@@ -105,35 +106,49 @@ async function finish(booth: any, body: any) {
   return json({ ok: true });
 }
 
-async function list(k: any, body: any) {
-  await db.from("kiosks").update({ last_seen_at: new Date().toISOString() }).eq("id", k.id);
-  const after = body.after ? new Date(body.after) : new Date(0);
-  if (isNaN(after.getTime())) return json({ error: "bad after" }, 400);
-  const days = await retentionDays();
-  const { data: rows, error } = await db.from("kiosk_sessions")
-    .select("id, session_key, taken_at, event_name, folder, print_file, photo_files, info, ready_at, booth_id, booths(name)")
-    .eq("status", "ready").gt("ready_at", after.toISOString())
-    .gt("taken_at", new Date(Date.now() - days * 86400000).toISOString())
-    .order("ready_at", { ascending: true }).limit(100);
-  if (error) return json({ error: error.message }, 500);
+const SESSION_COLS = "id, session_key, taken_at, event_name, folder, print_file, photo_files, info, ready_at, booth_id, booths(name)";
+
+async function withLinks(rows: any[]) {
   const paths = (rows ?? []).flatMap((r: any) =>
     [r.print_file, ...r.photo_files].filter(Boolean).map((n: string) => `${r.folder}/${n}`));
   const links: Record<string, string> = {};
   for (let i = 0; i < paths.length; i += 300) {
     const { data, error: se } = await db.storage.from(BUCKET).createSignedUrls(paths.slice(i, i + 300), 3600);
-    if (se) return json({ error: se.message }, 500);
+    if (se) throw new Error(se.message);
     for (const d of data ?? []) if (d.path && d.signedUrl) links[d.path] = d.signedUrl;
   }
-  const sessions = (rows ?? []).map((r: any) => ({
+  return (rows ?? []).map((r: any) => ({
     id: r.id, session_key: r.session_key, taken_at: r.taken_at, ready_at: r.ready_at,
     booth_id: r.booth_id, booth: r.booths?.name ?? "", event_name: r.event_name, info: r.info,
     print: r.print_file ? { name: r.print_file, url: links[`${r.folder}/${r.print_file}`] } : null,
     photos: r.photo_files.map((n: string) => ({ name: n, url: links[`${r.folder}/${n}`] })),
   }));
+}
+
+async function list(k: any, body: any) {
+  await db.from("kiosks").update({ last_seen_at: new Date().toISOString() }).eq("id", k.id);
+  const after = body.after ? new Date(body.after) : new Date(0);
+  if (isNaN(after.getTime())) return json({ error: "bad after" }, 400);
+  const days = await retentionDays();
+  const { data: rows, error } = await db.from("kiosk_sessions").select(SESSION_COLS)
+    .eq("status", "ready").gt("ready_at", after.toISOString())
+    .gt("taken_at", new Date(Date.now() - days * 86400000).toISOString())
+    .order("ready_at", { ascending: true }).limit(100);
+  if (error) return json({ error: error.message }, 500);
+  const sessions = await withLinks(rows ?? []);
   // sessions a booth is part-way through uploading (a guest may be on their way to the kiosk with one)
   const { count: pending } = await db.from("kiosk_sessions").select("id", { count: "exact", head: true })
     .eq("status", "uploading").gt("created_at", new Date(Date.now() - 5 * 60000).toISOString());
   return json({ sessions, retention_days: days, more: (rows ?? []).length === 100, pending: pending ?? 0 });
+}
+
+// Sessions by id, e.g. to download again files that went missing on the kiosk.
+async function get(_k: any, body: any) {
+  const ids = (Array.isArray(body.ids) ? body.ids : []).filter((x: any) => UUID.test(String(x))).slice(0, 50);
+  if (!ids.length) return json({ sessions: [] });
+  const { data: rows, error } = await db.from("kiosk_sessions").select(SESSION_COLS).eq("status", "ready").in("id", ids);
+  if (error) return json({ error: error.message }, 500);
+  return json({ sessions: await withLinks(rows ?? []), retention_days: await retentionDays() });
 }
 
 async function cleanup() {
@@ -169,10 +184,10 @@ Deno.serve(async (req) => {
       if (!booth) return json({ error: "not allowed" }, 401);
       return action === "begin" ? await begin(booth, body) : await finish(booth, body);
     }
-    if (action === "list") {
+    if (action === "list" || action === "get") {
       const k = await kiosk(req);
       if (!k) return json({ error: "not allowed" }, 401);
-      return await list(k, body);
+      return action === "list" ? await list(k, body) : await get(k, body);
     }
     if (action === "cleanup") {
       const { data: ok } = await db.rpc("kiosk_cleanup_key_ok", { p_key: req.headers.get("x-cleanup-key") ?? "" });
