@@ -13,6 +13,8 @@
 //     {action:"get", ids:[...]} -> those sessions again (fresh links), to repair missing files
 //     {action:"heartbeat", programs, status, version, days:[{day, sold, printed}], price, events}
 //         -> shows the kiosk on the BoothWatch dashboard (alerts work as for a booth)
+//     {action:"poll"}  -> {closed, closed_message, screenshot_requested_at, commands} (dashboard buttons)
+//     {action:"command_done", id, ok, result}   {action:"screenshot", image}  (JPEG, base64)
 //
 //   Daily cleanup (header x-cleanup-key, from a scheduled database job)
 //     {action:"cleanup"}  -> removes sessions older than app_settings.kiosk_retention_days
@@ -170,6 +172,31 @@ async function heartbeat(k: any, body: any) {
   return json(data ?? { ok: true });
 }
 
+// Dashboard buttons for the kiosk: out of service, screenshot, restart.
+async function poll(k: any) {
+  const { data, error } = await db.rpc("kiosk_poll", { p_kiosk: k.id });
+  if (error) return json({ error: error.message }, 500);
+  return json(data);
+}
+
+async function commandDone(k: any, body: any) {
+  const id = Number(body.id);
+  if (!Number.isInteger(id)) return json({ error: "bad id" }, 400);
+  const { error } = await db.rpc("kiosk_command_done", {
+    p_kiosk: k.id, p_id: id, p_ok: body.ok === true, p_result: body.result ? String(body.result).slice(0, 300) : null,
+  });
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
+async function screenshot(k: any, body: any) {
+  const img = String(body.image ?? "");
+  if (!img || img.length > 3000000 || !/^[A-Za-z0-9+/=]+$/.test(img)) return json({ error: "bad image" }, 400);
+  const { error } = await db.rpc("kiosk_screenshot", { p_kiosk: k.id, p_image: img });
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
 async function cleanup() {
   const days = await retentionDays();
   const cutoff = new Date(Date.now() - days * 86400000).toISOString();
@@ -203,10 +230,13 @@ Deno.serve(async (req) => {
       if (!booth) return json({ error: "not allowed" }, 401);
       return action === "begin" ? await begin(booth, body) : await finish(booth, body);
     }
-    if (action === "list" || action === "get" || action === "heartbeat") {
+    if (["list", "get", "heartbeat", "poll", "command_done", "screenshot"].includes(action)) {
       const k = await kiosk(req);
       if (!k) return json({ error: "not allowed" }, 401);
       if (action === "heartbeat") return await heartbeat(k, body);
+      if (action === "poll") return await poll(k);
+      if (action === "command_done") return await commandDone(k, body);
+      if (action === "screenshot") return await screenshot(k, body);
       return action === "list" ? await list(k, body) : await get(k, body);
     }
     if (action === "cleanup") {

@@ -1286,7 +1286,7 @@ function boothParts(b){
             ${p.title ? `<div class="title" title="${esc(p.title)}">${esc(p.title)}</div>` : ''}
             ${detailRows(p)}
             ${p.ok ? (p.note ? `<div class="detail"><b>Status</b>${esc(p.note)}</div>` : '') : `<span class="note">${esc(p.note || 'Problem')}</span>`}
-            ${p.device || isKiosk(b) ? '' : `<button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>`}
+            ${p.device || (isKiosk(b) && !['Kiosk', 'Scanner software'].includes(p.name)) ? '' : `<button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>`}
           </span>
         </div>`).join('');
 
@@ -1306,7 +1306,7 @@ function boothParts(b){
   const freeBadge = (cfg.money && cfg.money.free === true) ? '<span class="tag acc" title="Free to use: sessions are counted, no sales">Free</span>' : '';
   const kioskBadge = isKiosk(b) ? '<span class="tag acc">Giant strip kiosk</span>' + (st.closed ? '<span class="tag">Out of service</span>' : '') : '';
   const buildBadge = kioskBadge + freeBadge + (cfg.stage === 'build' ? '<span class="tag acc" title="Left out of the Company figures">Build</span>' : '');
-  const badge = buildBadge + (manualClosed ? '<span class="tag">Closed</span>'
+  const badge = buildBadge + (manualClosed && !isKiosk(b) ? '<span class="tag">Closed</span>'
     : schedClosed ? '<span class="tag">Closed by hours</span>'
     : (hrs && !hrs.open ? '<span class="tag">Outside hours</span>' : ''));
   const modeText = { none: '', pause_alerts: 'alerts pause outside hours', auto_close: 'closes itself outside hours' }[(cfg.hours && cfg.hours.mode) || 'none'];
@@ -1315,7 +1315,8 @@ function boothParts(b){
 
   // One button that does the right thing for the booth's state
   let closeBtn;
-  if(manualClosed) closeBtn = `<button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>Reopen booth</button>`;
+  if(isKiosk(b)) closeBtn = `<button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>${manualClosed ? 'Back in service' : 'Put out of service…'}</button>`;
+  else if(manualClosed) closeBtn = `<button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>Reopen booth</button>`;
   else if(schedClosed) closeBtn = `<button data-open-now="${esc(b.id)}" ${online ? '' : 'disabled'}>Open now…</button>`;
   else closeBtn = `<button data-closed="${esc(b.id)}" ${online ? '' : 'disabled'}>Close booth…</button>`;
 
@@ -1389,10 +1390,19 @@ function boothControls(b){
 
 // The Controls tab for the giant strip kiosk: what it reports, and Roll changed.
 function kioskControls(b){
-  const P = boothParts(b), k = kioskStatus(b), c = k.cloud || {}, t = k.today || {};
+  const P = boothParts(b), k = kioskStatus(b), c = k.cloud || {}, t = k.today || {}, { online, busy, waiting } = P;
   const fact = (n, v) => `<div class="fact"><span>${n}</span><b>${v}</b></div>`;
   const lp = k.last_problem;
   return `
+    <section class="panel">
+      <h2>Controls</h2>
+      <div class="actions">
+        <button data-shot="${esc(b.id)}" ${waiting || !online ? 'disabled' : ''}>${waiting ? 'Waiting for kiosk…' : 'Screenshot'}</button>
+        ${P.closeBtn}
+      </div>
+      ${P.cmdLine}
+      ${k.closed ? `<div class="warn-line">Out of service: guests see "${esc(k.closed_message || '')}"</div>` : ''}
+    </section>
     <section class="panel">
       <h2>Kiosk</h2>
       <div class="facts">
@@ -1406,11 +1416,12 @@ function kioskControls(b){
         ${fact('Running for', k.uptime_hours != null ? esc(fmtDuration(k.uptime_hours * 60)) : 'unknown')}
         ${fact('Disk free', k.disk_free_gb != null ? k.disk_free_gb + ' GB' : 'unknown')}
       </div>
-      <p class="help" style="margin:10px 0 0">The kiosk checks in every minute. Out of service, prices and everything else are set on the kiosk itself (Esc, then Settings).</p>
+      <p class="help" style="margin:10px 0 0">The kiosk checks in every minute and picks up these buttons within 15 seconds. Prices and everything else are set on the kiosk itself (Esc, then Settings).</p>
     </section>
     <section class="panel">
-      <h2>Devices</h2>
+      <h2>Devices and software</h2>
       ${P.programRows ? `<div class="programs">${P.programRows}</div>` : '<div class="help" style="margin:0">Nothing reported yet.</div>'}
+      <p class="help" style="margin:10px 0 0">Restart on <b>Kiosk</b> restarts the kiosk program (about 10 seconds). On <b>Scanner software</b> it closes and reopens Plustek ePhoto.</p>
     </section>
     <section class="panel">
       <h2>Booth sessions</h2>
@@ -1431,9 +1442,12 @@ function kioskControls(b){
       ${lp ? `<div class="${lp.level === 'error' ? 'bad-line' : 'agent-info'}" style="margin-top:10px">${esc(fmtDT(new Date(lp.at)))}: ${esc(lp.text)}</div>` : ''}
     </section>
     <section class="panel">
-      <h2>Paper</h2>
-      <p class="help">Prints left ticks down by one for every giant print. Press <b>Roll changed</b> when you fit a new roll. Set how many prints a roll gives in the Settings tab.</p>
-      <div class="controls"><button data-reset="${esc(b.id)}" title="Use after fitting a new roll">Roll changed</button></div>
+      <h2>Restart and paper</h2>
+      <p class="help">Restarting the PC takes the kiosk offline for a couple of minutes. Prints left ticks down by one for every giant print: press <b>Roll changed</b> when you fit a new roll, and set how many prints a roll gives in the Settings tab.</p>
+      <div class="controls">
+        <button data-reset="${esc(b.id)}" title="Use after fitting a new roll">Roll changed</button>
+        <button class="danger" data-restart-pc="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart PC</button>
+      </div>
     </section>`;
 }
 
@@ -1858,7 +1872,9 @@ function wireBoothCards(framesEl, booths){
       if(isClosed){
         patch = { closed: false };
       } else {
-        const msg = prompt('Message to show on the booth screen:', (booth.config && booth.config.closed_message) || 'Sorry, this photo booth is closed right now.');
+        const msg = isKiosk(booth)
+          ? prompt('Message to show on the kiosk screen:', kioskStatus(booth).closed_message || (booth.config && booth.config.closed_message) || 'Sorry, the giant strip printer is taking a break. Back soon!')
+          : prompt('Message to show on the booth screen:', (booth.config && booth.config.closed_message) || 'Sorry, this photo booth is closed right now.');
         if(msg === null) return;
         patch = { closed: true, closed_message: msg.trim() };
       }
@@ -2300,15 +2316,15 @@ function drawBoothSettings(host, b){
     <section class="panel">
       <h2>Alerts</h2>
       ${K ? alertRow('offline', 'Kiosk offline', 'The kiosk stops checking in (PC off, kiosk program closed or no internet).', delayCtl('offline'))
-        + alertRow('software', 'Booth sessions not syncing', 'The kiosk cannot get new sessions from the booths, so their strips will not be recognised.', delayCtl('software'))
-        + alertRow('device', 'Printer, card reader or buttons', 'A print waiting 5 minutes to print, the card reader or buttons disconnected, or the disk nearly full.', delayCtl('device'))
+        + alertRow('software', 'Kiosk software problem', 'Plustek ePhoto (the scanner software) is not running, or booth sessions are not syncing so their strips will not be recognised.', delayCtl('software'))
+        + alertRow('device', 'Printer, scanner, card reader or buttons', 'A print waiting 5 minutes to print, the scanner, card reader or buttons disconnected, or the disk nearly full.', delayCtl('device'))
       : alertRow('offline', 'Booth offline', 'The booth PC stops checking in.', delayCtl('offline'))
         + alertRow('software', 'Booth software problem', 'DSLR Remote Pro or MDB Payment is not running or shows an error.', delayCtl('software'))
         + alertRow('device', 'Camera or printer problem', 'Camera disconnected, printer off, door open, out of ribbon or paper.', delayCtl('device'))
         + alertRow('print_missing', 'Session without a print', 'A session was saved but no print was counted.', delayCtl('print_missing'))}
       ${alertRow('low_prints', 'Low on prints', 'Warn when the roll is nearly used up.', `<span class="after">at <input type="number" min="1" max="90" step="1" data-a-threshold value="${A('low_prints').threshold}"/> <span class="unit">% left</span></span>`)}
       ${alertRow('out_of_prints', 'Out of prints', 'The roll has run out.', '')}
-      ${K ? '' : alertRow('command_failed', 'A button press fails', 'Restart, screenshot or paper read did not work.', '')}
+      ${alertRow('command_failed', 'A button press fails', K ? 'A restart from here did not work.' : 'Restart, screenshot or paper read did not work.', '')}
       <div class="set-row"><div><div class="name">Mute everything</div><div class="desc">No alerts or notifications for this ${K ? 'kiosk' : 'booth'}.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-muted" ${cfg.alerts_muted ? 'checked' : ''}/> Muted</label></div></div>
       <div class="save-row"><button class="btn-primary" id="bs-save-alerts">Save alerts</button><span class="save-msg" id="bs-msg-alerts"></span></div>
     </section>
