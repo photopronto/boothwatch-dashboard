@@ -1284,14 +1284,14 @@ function boothParts(b){
             <span class="program-head"><span>${esc(p.name)}</span><span class="state">${esc(screenState(p))}</span></span>
             ${p.screen ? `<div class="detail screen"><b>Screen</b>${esc(p.screen)}</div>` : ''}
             ${p.title ? `<div class="title" title="${esc(p.title)}">${esc(p.title)}</div>` : ''}
-            ${detailRows(p)}
+            ${isKiosk(b) && p.name === 'Card reader' ? '' : detailRows(p)}
             ${p.ok ? (p.note ? `<div class="detail"><b>Status</b>${esc(p.note)}</div>` : '') : `<span class="note">${esc(p.note || 'Problem')}</span>`}
             ${p.device || (isKiosk(b) && !['Kiosk', 'Scanner software'].includes(p.name)) ? '' : `<button class="prog-btn" data-restart-prog="${esc(p.name)}" data-booth="${esc(b.id)}" ${busy || !online ? 'disabled' : ''}>Restart</button>`}
           </span>
         </div>`).join('');
 
   const waiting = waitingShots.has(b.id);
-  const cmdNames = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program'), read_paper: 'Read paper left' };
+  const cmdNames = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program'), read_paper: 'Read paper left', reconnect_reader: 'Reconnect card reader' };
   let cmdLine = '';
   if(cmd){
     const label = typeof cmdNames[cmd.kind] === 'function' ? cmdNames[cmd.kind](cmd) : (cmdNames[cmd.kind] || cmd.kind);
@@ -1388,6 +1388,34 @@ function boothControls(b){
     </section>`;
 }
 
+// Card reader (Nayax via the Qibixx MDB interface): how the connection is, today's payments, recent messages.
+function kioskReaderPanel(b, P){
+  const r = kioskStatus(b).reader;
+  if(!r) return '';
+  const fact = (n, v) => `<div class="fact"><span>${n}</span><b>${v}</b></div>`;
+  const c = r.payments_today || {}, total = ['approved', 'declined', 'cancelled', 'timeout', 'error'].reduce((s2, k) => s2 + (c[k] || 0), 0);
+  const word = { approved: 'approved', declined: 'declined', cancelled: 'cancelled by the guest', timeout: 'timed out (no card)', error: 'failed (reader problem)' };
+  const t = iso => iso ? fmtDT(new Date(iso)).replace(/:\d\d$/, '') : '';
+  const recent = (r.recent || []).slice().reverse();
+  return `
+    <section class="panel">
+      <div class="chart-head"><h2>Card reader</h2><button type="button" class="btn-sm" data-reconnect-reader="${esc(b.id)}" ${P.busy || !P.online ? 'disabled' : ''}>Reconnect</button></div>
+      <div class="facts">
+        ${fact('Status', esc(r.ready ? 'Ready' : 'Not ready: ' + (r.status || 'unknown')))}
+        ${fact(r.ready ? 'Ready since' : 'Not ready since', r.since ? esc(t(r.since)) + ' · ' + esc(fmtAgo(r.since)) : 'unknown')}
+        ${fact('Dropped out today', `${r.drops_today || 0} time${r.drops_today === 1 ? '' : 's'}`)}
+        ${fact('Port', r.port ? esc(r.port) + (r.connected ? ' · open' : ' · not open') : 'not set')}
+        ${fact('MDB interface', esc(r.firmware || 'not found yet'))}
+        ${fact('Payment mode', esc(r.mode || 'unknown'))}
+        ${fact('Payments today', total ? `${c.approved || 0} of ${total} approved` : 'none yet')}
+        ${fact('Last payment', r.last_payment ? esc(t(r.last_payment.at)) + ' · ' + esc(word[r.last_payment.result] || r.last_payment.result) : 'none yet')}
+      </div>
+      ${total ? `<div class="agent-info" style="margin-top:10px">Today: ${['approved', 'declined', 'cancelled', 'timeout', 'error'].filter(k => c[k]).map(k => `${c[k]} ${word[k]}`).join(' · ')}</div>` : ''}
+      ${recent.length ? `<details style="margin-top:10px"><summary class="help" style="cursor:pointer;margin:0">Latest messages with the reader (newest first)</summary><div class="agent-info" style="margin-top:6px;white-space:pre-wrap">${recent.map(esc).join('\n')}</div></details>` : ''}
+      <p class="help" style="margin:10px 0 0">Reconnect closes the connection to the MDB interface and opens it again, the same as Settings → Payment → Check card reader → Reconnect on the kiosk. If a guest is paying at that moment, it's skipped so their payment isn't interrupted.</p>
+    </section>`;
+}
+
 // The Controls tab for the giant strip kiosk: what it reports, and Roll changed.
 function kioskControls(b){
   const P = boothParts(b), k = kioskStatus(b), c = k.cloud || {}, t = k.today || {}, { online, busy, waiting } = P;
@@ -1423,6 +1451,7 @@ function kioskControls(b){
       ${P.programRows ? `<div class="programs">${P.programRows}</div>` : '<div class="help" style="margin:0">Nothing reported yet.</div>'}
       <p class="help" style="margin:10px 0 0">Restart on <b>Kiosk</b> restarts the kiosk program (about 10 seconds). On <b>Scanner software</b> it closes and reopens Plustek ePhoto.</p>
     </section>
+    ${kioskReaderPanel(b, P)}
     <section class="panel">
       <h2>Booth sessions</h2>
       <div class="facts">
@@ -1854,6 +1883,9 @@ function wireBoothCards(framesEl, booths){
       sendCommand(btn.dataset.booth, 'restart_program', { program: name });
     };
   });
+  framesEl.querySelectorAll('[data-reconnect-reader]').forEach(btn => {
+    btn.onclick = () => { toast('Asking the kiosk to reconnect the card reader…'); sendCommand(btn.dataset.reconnectReader, 'reconnect_reader', {}); };
+  });
   framesEl.querySelectorAll('[data-readpaper]').forEach(btn => {
     btn.onclick = () => { toast('Asking the booth to read the paper left…'); sendCommand(btn.dataset.readpaper, 'read_paper', {}); };
   });
@@ -2165,7 +2197,7 @@ function wireBpOverview(host){
 
 // ── Logs tab ──
 const fmtDT = d => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-const CMD_NAMES = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program'), read_paper: 'Read paper now' };
+const CMD_NAMES = { restart_pc: 'Restart PC', restart_program: c => 'Restart ' + ((c.args && c.args.program) || 'program'), read_paper: 'Read paper now', reconnect_reader: 'Reconnect card reader' };
 function bpLogEntries(){
   const { b, history } = bpData, h = history || { alerts: [], outages: [], commands: [], reports: [], events: [] }, out = [];
   for(const a of h.alerts){
