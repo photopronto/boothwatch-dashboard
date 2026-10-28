@@ -55,7 +55,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.11.4"
+VERSION = "0.11.5"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -724,7 +724,24 @@ def resolve_restart(prog):
     return None, None, None
 
 
+def _shortcut_in(cmd):
+    """The .lnk path inside a  cmd /c start "" "<path>.lnk"  command, or None."""
+    m = re.search(r'"([^"]+\.lnk)"\s*$', cmd or "", re.I)
+    return m.group(1) if m else None
+
+
 def launch(cmd, cwd=None):
+    # A shortcut is opened through Explorer, as Windows does at sign-in, so the program starts with Explorer's
+    # clean environment and Explorer as its parent instead of inheriting the agent's. Started as the agent's own
+    # child, DSLR Remote Pro took card payments but never started a session.
+    lnk = _shortcut_in(cmd) if os.name == "nt" else None
+    if lnk and os.path.exists(lnk):
+        try:
+            subprocess.Popen(["explorer.exe", lnk], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+            return
+        except Exception as e:
+            log.info("Could not open %s through Explorer (%s); starting it directly", lnk, e)
     flags = DETACHED_NEW_GROUP if os.name == "nt" else 0
     subprocess.Popen(cmd, shell=True, cwd=cwd or None, creationflags=flags,
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
