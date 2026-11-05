@@ -55,7 +55,7 @@ try:
 except ImportError:  # lets the logic be tested off Windows
     HAVE_WIN32 = False
 
-VERSION = "0.11.5"
+VERSION = "0.12.0"
 
 # Programs whose window carries the booth's running print counter
 # ("PhotoboothStatus: ... printCounter=829 ..."). Counting needs this.
@@ -1842,7 +1842,58 @@ def summarise_probes(probes):
     return "network", {"kind": "intermittent", "checks": len(probes)}
 
 
-def open_minutes_between(start, end, hours, closed_manual):
+SHUTDOWN_WINDOW_MIN = 15       # a scheduled shutdown can still happen up to this long after its time (waiting for a quiet moment)
+PLANNED_OFF_GRACE_MIN = 10     # after the back-on time, give the PC this long to start and check in
+
+
+def _power_entry(power, day):
+    """['23:00', '07:00'] for that date's schedule, or None."""
+    if not isinstance(power, dict) or power.get("on") is not True:
+        return None
+    days = power.get("days") if isinstance(power.get("days"), dict) else {}
+    e = days.get(_DAY_KEYS[day.weekday()])
+    if isinstance(e, list) and len(e) == 2:
+        try:
+            return _parse_time(e[0]), _parse_time(e[1])
+        except Exception:
+            return None
+    return None
+
+
+def in_planned_off(power, now=None):
+    """Mirror of the database's booth_planned_off(): between a scheduled shutdown and the back-on time (+10 min)."""
+    now = (now or datetime.datetime.now()).replace(tzinfo=None)
+    for back in (0, 1):
+        day = now.date() - datetime.timedelta(days=back)
+        e = _power_entry(power, day)
+        if not e:
+            continue
+        start = datetime.datetime.combine(day, e[0])
+        end = datetime.datetime.combine(day, e[1])
+        if end <= start:
+            end += datetime.timedelta(days=1)
+        end += datetime.timedelta(minutes=PLANNED_OFF_GRACE_MIN)
+        if start <= now < end:
+            return True
+    return False
+
+
+def due_shutdown(power, now=None, boot_epoch=None):
+    """The scheduled shutdown time that is due now, or None. Due from its time until SHUTDOWN_WINDOW_MIN later, and
+    never when the PC started after that time (a BIOS start-up near the shutdown time must not switch it off again)."""
+    now = now or datetime.datetime.now()
+    e = _power_entry(power, now.date())
+    if not e:
+        return None
+    at = datetime.datetime.combine(now.date(), e[0])
+    if not (at <= now < at + datetime.timedelta(minutes=SHUTDOWN_WINDOW_MIN)):
+        return None
+    if boot_epoch and boot_epoch > at.timestamp():
+        return None
+    return at
+
+
+def open_minutes_between(start, end, hours, closed_manual, power=None):
     """Minutes of start..end (aware datetimes) when the booth was meant to be open."""
     if closed_manual:
         return 0
@@ -1852,7 +1903,7 @@ def open_minutes_between(start, end, hours, closed_manual):
     t = start
     while t < end:
         try:
-            if in_opening_hours(hours, t.astimezone()):
+            if in_opening_hours(hours, t.astimezone()) and not in_planned_off(power, t.astimezone()):
                 n += step
         except Exception:
             n += step
@@ -1886,7 +1937,7 @@ class OutageTracker:
             cause, detail = classify_gap(events, datetime.datetime.fromtimestamp(prev_alive, datetime.timezone.utc),
                                          datetime.datetime.now(datetime.timezone.utc))
             self.restart_gap = {"start": self.last_ok, "cause": cause, "detail": detail,
-                                "hours": self.rt.get("hours"), "closed_manual": bool(self.rt.get("closed_manual"))}
+                                "hours": self.rt.get("hours"), "closed_manual": bool(self.rt.get("closed_manual")), "power": self.rt.get("power")}
             log.info("Agent started after a gap of %d min; most likely cause: %s", (now - self.last_ok) / 60, cause)
         elif prev_alive and now - prev_alive > 60:
             log.info("Agent restarted after %d seconds (too short to count as an outage)", now - prev_alive)
@@ -1898,6 +1949,7 @@ class OutageTracker:
         self.last_save = now
         if isinstance(remote_cfg, dict):
             self.rt["hours"] = remote_cfg.get("hours")
+            self.rt["power"] = remote_cfg.get("power")
             self.rt["closed_manual"] = remote_cfg.get("closed") is True
         self.rt["last_alive"] = now
         self.rt["last_ok_beat"] = self.last_ok
@@ -1949,7 +2001,7 @@ class OutageTracker:
                     hours, closed_manual = self.rt.get("hours"), bool(self.rt.get("closed_manual"))
                 start = datetime.datetime.fromtimestamp(gap_start, datetime.timezone.utc)
                 end = datetime.datetime.fromtimestamp(now, datetime.timezone.utc)
-                open_min = open_minutes_between(start, end, hours, closed_manual)
+                open_min = open_minutes_between(start, end, hours, closed_manual, (self.restart_gap or {}).get("power") or self.rt.get("power"))
                 if open_min >= 3:
                     self.pending.append({"started_at": start.isoformat(timespec="seconds"), "ended_at": end.isoformat(timespec="seconds"),
                                          "cause": cause, "detail": detail, "open_minutes": open_min})
@@ -2441,6 +2493,41 @@ def foreground_info():
     return {"proc": proc, "title": title}
 
 
+class ShutdownSchedule:
+    """Switches the PC off at the time set under Settings > Scheduled shutdown. It waits for the booth to be idle
+    (up to 10 minutes), and it is skipped if the PC only started after that time, so it can never loop."""
+    FORCE_AFTER_MIN = 10
+
+    def __init__(self, timeline):
+        self.timeline = timeline
+        self.handled = None
+        self.waiting = None
+
+    def poll(self, remote_cfg, idle_ok, local_cfg, token):
+        if os.name != "nt" or not isinstance(remote_cfg, dict):
+            return False
+        at = due_shutdown(remote_cfg.get("power"), None, pc_boot_epoch())
+        if not at or self.handled == at:
+            return False
+        waited = (datetime.datetime.now() - at).total_seconds() / 60
+        if not idle_ok and waited < self.FORCE_AFTER_MIN:
+            if self.waiting != at:
+                self.waiting = at
+                log.info("Scheduled shutdown for %s is waiting for the booth to be idle", at.strftime("%H:%M"))
+            return False
+        self.handled = at
+        log.info("Scheduled shutdown for %s: switching the PC off in 20 seconds", at.strftime("%H:%M"))
+        self.timeline.add("shutdown", detail={"scheduled": at.strftime("%H:%M")})
+        self.timeline.save()
+        try:
+            self.timeline.flush(local_cfg, token)
+        except Exception as e:
+            log.info("Could not send the shutdown note: %s", e)
+        subprocess.Popen(["shutdown", "/s", "/f", "/t", "20", "/c", "BoothWatch scheduled shutdown"],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+
+
 class FocusWatcher:
     def __init__(self, timeline):
         self.tl = timeline
@@ -2578,6 +2665,7 @@ def main():
     outages = OutageTracker()
     timeline = EventRecorder()
     focus_watch = FocusWatcher(timeline)
+    shutdown_schedule = ShutdownSchedule(timeline)
     booth_state = {"idle": False}
     remote_box = {"cfg": remote_cfg}
     kiosk = KioskUploader(local_cfg, state, lambda: remote_box["cfg"])
@@ -2655,6 +2743,12 @@ def main():
             focus_watch.poll(cfg, local_cfg, booth_state["idle"] and not cfg.get("closed") and reopen_until is None)
         except Exception as e:
             log.info("Focus check problem: %s", e)
+
+        # 3c. Scheduled shutdown (Settings > Scheduled shutdown)
+        try:
+            shutdown_schedule.poll(remote_cfg, booth_state["idle"] or bool(cfg.get("closed")), local_cfg, state["agent_token"])
+        except Exception as e:
+            log.info("Scheduled shutdown problem: %s", e)
 
         # 4. Full check + report (every interval_seconds)
         if time.time() - last_beat >= max(15, int(cfg["interval_seconds"])):

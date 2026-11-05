@@ -2230,6 +2230,7 @@ function bpLogEntries(){
     else if(e.kind === 'focus_lost') out.push({ t, type: 'pc', title: 'Something was in front of the booth software: ' + (d.name || 'unknown'), detail: d.title || 'A payment taken now would not start a session', tone: 'bad' });
     else if(e.kind === 'refocus') out.push({ t, type: 'pc', title: 'Booth software brought back to the front', detail: 'It had been covered by ' + (d.name || 'another window'), tone: 'ok' });
     else if(e.kind === 'closed') out.push({ t, type: 'pc', title: 'Booth closed', detail: 'Closed screen on', tone: '' });
+    else if(e.kind === 'shutdown') out.push({ t, type: 'pc', title: 'Scheduled shutdown', detail: 'PC switched off at ' + ((e.detail || {}).scheduled || 'the set time'), tone: '' });
     else if(e.kind === 'opened') out.push({ t, type: 'pc', title: 'Booth opened', detail: '', tone: '' });
   }
   if(b.created_at) out.push({ t: new Date(b.created_at), type: 'system', title: (isKiosk(b) ? 'Kiosk' : 'Booth') + ' added to BoothWatch', detail: '', tone: '' });
@@ -2301,6 +2302,13 @@ function drawBoothSettings(host, b){
       <label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-h-open="${k}" ${d ? 'checked' : ''}/> Open</label>
       <div class="times ${d ? '' : 'off'}" data-h-times="${k}"><input type="time" data-h-from="${k}" value="${d ? d[0] : '09:00'}"/> <span class="unit">to</span> <input type="time" data-h-to="${k}" value="${d ? d[1] : '18:00'}"/></div>`;
   }).join('');
+  const pw = cfg.power && typeof cfg.power === 'object' ? cfg.power : {};
+  const pdays = DAY_KEYS.map((k, i) => {
+    const d = pw.days && Array.isArray(pw.days[k]) ? pw.days[k] : null;
+    return `<div class="dayname">${DAY_NAMES[i]}</div>
+      <label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-p-open="${k}" ${d ? 'checked' : ''}/> Shut down</label>
+      <div class="times ${d ? '' : 'off'}" data-p-times="${k}"><input type="time" data-p-from="${k}" value="${d ? d[0] : '23:00'}" aria-label="Shut down at"/> <span class="unit">back on</span> <input type="time" data-p-to="${k}" value="${d ? d[1] : '07:00'}" aria-label="Back on at"/></div>`;
+  }).join('');
   const watchBox = (k, label) => `<label class="sw" style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-w="${k}" ${w[k] === false ? '' : 'checked'}/> ${label}</label>`;
 
   host.innerHTML = `
@@ -2371,6 +2379,17 @@ function drawBoothSettings(host, b){
         <div class="save-row" style="margin-top:12px"><button class="btn-sm" id="bs-copy-mon">Copy Monday to every day</button></div>
       </div>
       <div class="save-row"><button class="btn-primary" id="bs-save-hours">Save opening hours</button><span class="save-msg" id="bs-msg-hours"></span></div>
+    </section>
+
+    <section class="panel"${hide}>
+      <h2>Scheduled shutdown</h2>
+      <div class="set-row"><div><div class="name">Switch the PC off by itself</div><div class="desc">The agent shuts Windows down at the time you set for each day, when the booth is not mid-session (it waits up to 10 minutes). Turning the PC back on is done in its BIOS (a power-on alarm), so enter that time too: alerts then stay quiet until 10 minutes after it, and the gap is not logged as an outage.</div></div><div class="set-ctl"><label class="sw"><input type="checkbox" id="bs-pw-on" ${pw.on ? 'checked' : ''}/> On</label></div></div>
+      <div id="bs-pw-week" ${pw.on ? '' : 'style="opacity:.4;pointer-events:none"'}>
+        <div class="week">${pdays}</div>
+        <div class="save-row" style="margin-top:12px"><button class="btn-sm" id="bs-pw-copy">Copy Monday to every day</button></div>
+      </div>
+      <p class="help" style="margin:8px 0 0">Times are the PC's own clock. A shutdown only happens if the PC was already on at that time, so a BIOS start-up near it cannot switch it straight off again. The shutdown is forced after a 20 second warning, so unsaved work in any open program is lost.</p>
+      <div class="save-row"><button class="btn-primary" id="bs-save-power">Save shutdown schedule</button><span class="save-msg" id="bs-msg-power"></span></div>
     </section>`;
 
   const $ = id => host.querySelector('#' + id);
@@ -2427,6 +2446,25 @@ function drawBoothSettings(host, b){
     if(hm !== 'none' && !Object.values(dd).some(Boolean)) throw new Error('Tick at least one open day, or choose "Always on".');
     await patchCfg({ hours: { mode: hm, days: dd } });
   });
+  const pwBox = $('bs-pw-on');
+  if(pwBox){
+    pwBox.onchange = () => { $('bs-pw-week').style.opacity = pwBox.checked ? '' : '.4'; $('bs-pw-week').style.pointerEvents = pwBox.checked ? '' : 'none'; };
+    host.querySelectorAll('[data-p-open]').forEach(box => { box.onchange = () => host.querySelector(`[data-p-times="${box.dataset.pOpen}"]`).classList.toggle('off', !box.checked); });
+    $('bs-pw-copy').onclick = () => {
+      const open = host.querySelector('[data-p-open="mon"]').checked, from = host.querySelector('[data-p-from="mon"]').value, to = host.querySelector('[data-p-to="mon"]').value;
+      DAY_KEYS.forEach(k => { host.querySelector(`[data-p-open="${k}"]`).checked = open; host.querySelector(`[data-p-from="${k}"]`).value = from; host.querySelector(`[data-p-to="${k}"]`).value = to; host.querySelector(`[data-p-times="${k}"]`).classList.toggle('off', !open); });
+    };
+    guard('bs-save-power', 'bs-msg-power', async () => {
+      const dd = {};
+      for(const k of DAY_KEYS){
+        const open = host.querySelector(`[data-p-open="${k}"]`).checked, from = host.querySelector(`[data-p-from="${k}"]`).value, to = host.querySelector(`[data-p-to="${k}"]`).value;
+        if(open && (!from || !to)) throw new Error('Fill in the shutdown and back-on time for ' + DAY_NAMES[DAY_KEYS.indexOf(k)]);
+        dd[k] = open ? [from, to] : null;
+      }
+      if(pwBox.checked && !Object.values(dd).some(Boolean)) throw new Error('Tick at least one day, or turn the schedule off.');
+      await patchCfg({ power: { on: pwBox.checked, days: dd } });
+    });
+  }
 }
 
 // ═══════════════ Settings page ═══════════════
