@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="theme-color" content="#EBE8E1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Planner">
+<title>Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EBE8E1; --paper:#F7F5F0; --white:#FFFFFF; --ink:#171614; --ink2:#5f5b53; --ink3:#9b968c;
+  --line:rgba(23,22,20,.12); --soft:rgba(23,22,20,.06);
+  --warn:#B8431F; --ok:#2f7a4f; --r:26px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter Tight",system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.35;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:820px;margin:0 auto;padding:0 14px 80px}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--bg);z-index:6}
+.topline{display:flex;justify-content:space-between;align-items:center;padding:calc(16px + env(safe-area-inset-top)) 4px 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);font-weight:600}
+.topline .status{letter-spacing:0;text-transform:none;font-weight:500;color:var(--ink3)}
+nav{position:sticky;top:env(safe-area-inset-top);z-index:5;background:var(--bg);display:flex;align-items:center;gap:8px;padding:10px 0 12px}
+nav .pills{display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none;padding:2px}
+nav .pills::-webkit-scrollbar{display:none}
+.pill{border:1.5px solid var(--ink);background:transparent;padding:8px 15px;border-radius:999px;white-space:nowrap;font-weight:500;font-size:14px;color:var(--ink)}
+.pill.on{background:var(--ink);color:var(--bg)}
+.pill .badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:#E4814F;color:#171614;font-size:11px;margin-left:6px;text-align:center;font-weight:700}
+.pill.on .badge{background:#E4814F}
+.round{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:#D6D2C9;font-size:24px;line-height:1;display:grid;place-items:center;color:var(--ink)}
+.round.ghost{background:transparent;border:1.5px solid var(--ink);font-size:17px}
+
+/* hero */
+.hero{padding:6px 4px 18px}
+.hero-day{font-size:18px;font-weight:500;color:var(--ink2);margin-bottom:6px}
+.hero-row{display:flex;align-items:stretch;gap:18px}
+.bigdate{font-size:clamp(68px,21vw,128px);line-height:.86;font-weight:500;letter-spacing:-.055em;flex:none}
+.hero-side{border-left:1.5px solid var(--ink);padding-left:16px;display:flex;flex-direction:column;justify-content:center;gap:12px;min-width:0}
+.stat b{display:block;font-size:26px;font-weight:500;letter-spacing:-.03em;line-height:1}
+.stat span{font-size:13px;color:var(--ink2)}
+.kind{font-size:13px;font-weight:600}
+
+.sec-head{display:flex;justify-content:space-between;align-items:center;margin:22px 4px 10px;font-weight:600;font-size:16px}
+.sec-head .faint{font-weight:500}
+h2{font-size:26px;letter-spacing:-.03em;font-weight:600;margin:16px 4px 12px}
+h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink2);margin:18px 0 8px;font-weight:600}
+.muted{color:var(--ink2)} .faint{color:var(--ink3)} .small{font-size:13px}
+.row{display:flex;align-items:center;gap:10px}
+.spread{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card{background:var(--paper);border-radius:var(--r);padding:14px 18px;margin-bottom:10px}
+.empty{color:rgba(23,22,20,.5);padding:8px 0;font-size:14px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none;border:1px solid rgba(0,0,0,.15)}
+
+/* buttons */
+.btn{border:1.5px solid var(--ink);background:transparent;padding:9px 16px;border-radius:999px;font-weight:500;font-size:14px}
+.btn.primary{background:var(--ink);color:var(--bg)}
+.btn.danger{color:var(--warn);border-color:var(--warn)}
+.btn.sm{padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:default}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.55);color:var(--ink);white-space:nowrap;font-weight:500}
+.chip.warn{background:var(--ink);color:#F2B08E}
+.chip.ok{background:rgba(47,122,79,.15);color:var(--ok)}
+
+/* tasks */
+.task{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line);cursor:pointer}
+.task .chk{flex:none;width:24px;height:24px;border-radius:50%;border:1.5px solid rgba(23,22,20,.6);background:transparent;margin-top:-1px;padding:0;display:grid;place-items:center}
+.task.done .chk{background:var(--ink);border-color:var(--ink)}
+.task.done .chk::after{content:"";width:6px;height:11px;border:solid var(--bg);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.task.done .ttl{text-decoration:line-through;opacity:.5}
+.task .tb{flex:1;min-width:0}
+.task .ttl{font-weight:500;font-size:16px;letter-spacing:-.01em}
+.task .meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;font-size:12px;align-items:center}
+.task .mins{flex:none;font-size:13px;font-weight:600;padding:3px 10px;border-radius:999px;background:rgba(23,22,20,.85);color:var(--bg)}
+.task.compact{padding:8px 0}
+.task.compact .ttl{font-size:14px}
+
+/* stacked cards */
+.stack{margin-bottom:12px}
+.scard{border-radius:var(--r);padding:18px 18px 16px;position:relative;box-shadow:0 -4px 14px rgba(23,22,20,.07)}
+.stack .scard:not(:last-child){padding-bottom:46px}
+.stack .scard+.scard{margin-top:-30px}
+.shead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+.slabel{font-size:12px;font-weight:600;opacity:.65;margin-bottom:2px}
+.sname{font-size:22px;font-weight:600;letter-spacing:-.025em;line-height:1.1}
+.sbig{text-align:right;flex:none}
+.sbig b{display:block;font-size:36px;font-weight:500;letter-spacing:-.04em;line-height:1}
+.sbig span{font-size:12px;opacity:.7}
+.sbar{height:4px;background:rgba(23,22,20,.12);border-radius:3px;margin:0 0 6px;overflow:hidden}
+.sbar>i{display:block;height:100%;background:var(--ink);border-radius:3px}
+
+/* banner */
+.banner{background:var(--ink);color:var(--bg);border-radius:var(--r);padding:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.banner .big{font-size:30px;font-weight:500;letter-spacing:-.03em;line-height:1}
+.banner .btn{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+
+/* week */
+.dcard{border-radius:var(--r);padding:16px 18px;margin-bottom:8px;display:grid;grid-template-columns:96px 1fr;gap:14px}
+.dname{font-size:14px;font-weight:600;opacity:.75}
+.dnum{font-size:58px;font-weight:500;letter-spacing:-.05em;line-height:.9;margin-top:4px}
+.dmon{font-size:24px;font-weight:500;letter-spacing:-.03em;line-height:1}
+.dkind{font-size:13px;font-weight:600;margin-bottom:6px}
+.dslots{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
+.dright .task:first-of-type{border-top:0}
+
+/* project/list cards */
+.bcard{border-radius:var(--r);padding:18px;margin-bottom:10px}
+.btop{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.ttlbig{font-size:26px;font-weight:600;letter-spacing:-.03em;line-height:1.05}
+.datebig{text-align:right;flex:none}
+.datebig b{display:block;font-size:44px;font-weight:500;letter-spacing:-.05em;line-height:.9}
+.datebig span{font-size:11px;font-weight:600;letter-spacing:.04em}
+.bmeta{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}
+.pbar{height:4px;background:rgba(23,22,20,.12);border-radius:3px;margin:6px 0 4px;overflow:hidden}
+.pbar>i{display:block;height:100%;background:var(--ink)}
+.inline-add{display:flex;gap:6px;margin-top:10px}
+.inline-add input,.inline-add select{background:rgba(255,255,255,.6);border:0}
+.inline-add input{flex:1}
+
+/* invoices */
+.kstrip,.istrip{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.istrip{cursor:pointer}
+.kbig{font-size:40px;font-weight:500;letter-spacing:-.045em;line-height:.95;text-align:right;white-space:nowrap}
+.kbig.sm{font-size:30px}
+.kbig .p{opacity:.45}
+.klabel{font-size:15px;font-weight:600;line-height:1.15}
+
+.subtabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px}
+.subtabs .pill{padding:7px 14px;font-size:13px;display:flex;gap:6px;align-items:center}
+
+/* forms & modal */
+.modal-bg{position:fixed;inset:0;background:rgba(23,22,20,.45);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.modal-bg.open{display:flex}
+.modal{background:var(--paper);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:28px 28px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom))}
+@media(min-width:640px){.modal-bg{align-items:center}.modal{border-radius:28px}}
+.modal h2{margin:0 0 12px;font-size:28px}
+label.f{display:block;margin:14px 0 5px;font-size:13px;color:var(--ink2);font-weight:600}
+input[type=text],input[type=number],input[type=date],input[type=month],input[type=email],input[type=password],select,textarea{width:100%;padding:11px 14px;border:0;border-radius:14px;background:var(--white)}
+input[name=title],input[name=name]{font-size:18px;font-weight:500}
+textarea{min-height:80px;resize:vertical}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg input{display:none}
+.seg label{padding:7px 14px;border:1.5px solid var(--ink);border-radius:999px;font-size:13px;cursor:pointer;font-weight:500}
+.seg input:checked+label{background:var(--ink);color:var(--bg)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.ci{padding:14px 0;border-top:1px solid var(--line)}
+.ci .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+table.inv{width:100%;border-collapse:collapse;font-size:14px}
+table.inv td,table.inv th{padding:8px 4px;border-bottom:1px solid var(--line);text-align:left}
+table.inv th{font-size:12px;color:var(--ink2);font-weight:600}
+table.inv .num{text-align:right;white-space:nowrap}
+.slotrow{display:grid;grid-template-columns:1.2fr 1.2fr 70px 30px;gap:6px;margin-bottom:6px}
+.slotrow input,.slotrow select{padding:8px 10px;border-radius:12px}
+.x{border:0;background:transparent;color:var(--ink3);font-size:20px}
+.toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:999px;font-size:14px;z-index:30;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+.toast.show{opacity:1}
+.login-wrap{min-height:70vh;display:grid;place-items:center}
+.login-card{background:var(--paper);border-radius:28px;padding:26px 22px;width:100%;max-width:380px}
+.login-card .bigdate{font-size:64px;margin-bottom:14px}
+.login-card input{margin-bottom:10px}
+.login-card .btn{width:100%;padding:12px}
+.err{color:var(--warn);font-size:14px;min-height:18px;margin-top:8px}
+.copybox{display:flex;gap:6px;align-items:center;background:var(--white);border-radius:14px;padding:8px 8px 8px 12px;font-size:12px;word-break:break-all}
+.copybox code{flex:1}
+@media(max-width:420px){.dcard{grid-template-columns:72px 1fr;gap:10px}.dnum{font-size:46px}.dmon{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topline"><span>Planner</span><span class="status" id="status">Loading…</span></div>
+  <nav id="nav"></nav>
+  <main id="view"><div class="empty">Loading your planner…</div></main>
+</div>
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+  const CONFIG = {
+    SUPABASE_URL: "https://mfsxkomjbhlvufgosrtp.supabase.co",
+    SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mc3hrb21qYmhsdnVmZ29zcnRwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0ODI4NjYsImV4cCI6MjEwNzA1ODg2Nn0.GpoF2YbXOmHrMaPnES8aVp87l-yJ8Ri6qFTYdSQxVd4",
+    VAPID_PUBLIC_KEY: "BCALpqfJBmALnfvKiBdUbbtv669xuHfhLhxfvPzYmoKHkog8PreNXwhhdMT0HfelHRWIioKjif1eMDkK01Qrxjw",
+  };
+</script>
+<script>
+/* ---------- constants & helpers ---------- */
+const AREAS = {
+  freelance:{name:'Freelance', color:'#C4BEDB'},
+  pronto:{name:'Photo Pronto', color:'#E4814F'},
+  home:{name:'Home', color:'#B5CBA4'}
+};
+const LIST_TINT='#EBCB72', GREY_TINT='#D9D6CE', PAPER='#F7F5F0';
+const CLIENT_TINTS=['#C4BEDB','#EAC0CC','#A4C8C8','#D6BF9C','#E7B48C'];
+const DAYNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DEFAULT_SETTINGS = {
+  checkinHour:17, morningHour:8,
+  days:{
+    '1':[{area:'freelance',client:'dbt',mins:420},{area:'home',client:'',mins:60}],
+    '2':[{area:'freelance',client:'philema',mins:420},{area:'home',client:'',mins:60}],
+    '3':[{area:'pronto',client:'',mins:420},{area:'home',client:'',mins:60}],
+    '4':[{area:'freelance',client:'dbt',mins:420},{area:'home',client:'',mins:60}],
+    '5':[{area:'freelance',client:'dbt',mins:420},{area:'home',client:'',mins:60}],
+    '6':[{area:'pronto',client:'',mins:300},{area:'home',client:'',mins:120}],
+    '0':[]
+  },
+  business:{name:'',address:'',email:'',phone:'',bankName:'',accountName:'',sortCode:'',accountNumber:''},
+  invoicePrefix:'INV-', nextInvoice:1, paymentDays:14, worklogFrom:''
+};
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseD=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const addDays=(s,n)=>{const d=parseD(s);d.setDate(d.getDate()+n);return ymd(d)};
+const addMonths=(s,n)=>{const d=parseD(s);const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+n);const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(day,last));return ymd(d)};
+const today=()=>ymd(new Date());
+const dow=s=>parseD(s).getDay();
+const fmtDay=s=>parseD(s).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+const fmtLong=s=>parseD(s).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+const relDay=s=>{const t=today();if(s===t)return'Today';if(s===addDays(t,1))return'Tomorrow';if(s===addDays(t,-1))return'Yesterday';return fmtDay(s)};
+const fmtMins=m=>{m=Math.round(m||0);if(m<60)return m+'m';const h=Math.floor(m/60),r=m%60;return r?`${h}h ${r}m`:`${h}h`};
+const money=n=>'£'+(Number(n)||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const $=s=>document.querySelector(s);
+
+/* ---------- state & storage ---------- */
+const COLS=['tasks','projects','lists','clients','worklog','invoices'];
+const S={tasks:{},projects:{},lists:{},clients:{},worklog:{},invoices:{},settings:clone(DEFAULT_SETTINGS),
+  view:'today', areaFilter:'all', ready:false, local:false, showDone:false, invDraft:null};
+let SB=null, USER=null, SAMPLE=null, DL=true, settingsExists=false;
+const PENDING={};
+function clone(o){return JSON.parse(JSON.stringify(o))}
+function mergeSettings(d){
+  const s=Object.assign(clone(DEFAULT_SETTINGS),d||{});
+  s.business=Object.assign(clone(DEFAULT_SETTINGS.business),(d&&d.business)||{});
+  s.days=(d&&d.days)||clone(DEFAULT_SETTINGS.days);
+  return s;
+}
+let wq=Promise.resolve();
+function enqueue(fn){
+  setStatus('Saving…');
+  wq=wq.then(fn).then(()=>setStatus('Saved')).catch(e=>{console.error(e);setStatus('Not saved');toast("Couldn't save: "+(e&&(e.message||e.code)||'error'))});
+  return wq;
+}
+function strip(o){const {id,...r}=o;return r}
+function remote(col,id,fn){
+  const k=col+'/'+id;PENDING[k]=(PENDING[k]||0)+1;
+  return enqueue(async()=>{try{const {error}=await fn();if(error)throw error}finally{setTimeout(()=>{PENDING[k]--},2000)}});
+}
+function upsertDoc(col,id,data){return remote(col,id,()=>SB.from('planner_docs').upsert({owner_id:USER.id,col,id,data,updated_at:new Date().toISOString()},{onConflict:'owner_id,col,id'}))}
+function put(col,id,data){S[col][id]={...strip(data),id};renderSoon();upsertDoc(col,id,strip(S[col][id]));}
+function patch(col,id,data){if(!S[col][id])return;S[col][id]={...S[col][id],...data};renderSoon();upsertDoc(col,id,strip(S[col][id]));}
+function del(col,id){delete S[col][id];renderSoon();remote(col,id,()=>SB.from('planner_docs').delete().match({owner_id:USER.id,col,id}));}
+function saveSettings(p){S.settings={...S.settings,...p};settingsExists=true;renderSoon();upsertDoc('config','settings',clone(S.settings));}
+function setStatus(t){const el=$('#status');if(el)el.textContent=t||''}
+
+/* ---------- model helpers ---------- */
+const est=t=>Number(t.estimate)||30;
+function taskArea(t){if(t.area)return t.area;const l=t.listId&&S.lists[t.listId];return (l&&l.area)||'home'}
+function effDeadline(t){return t.deadline||(t.projectId&&S.projects[t.projectId]&&S.projects[t.projectId].deadline)||(t.listId&&S.lists[t.listId]&&S.lists[t.listId].due)||''}
+const clientName=id=>(S.clients[id]&&S.clients[id].name)||id||'';
+function slotsFor(date){return (S.settings.days[String(dow(date))]||[]).map((s,i)=>({...s,i,left:Number(s.mins)||0,mins:Number(s.mins)||0}))}
+function slotLabel(s){return s.client?clientName(s.client):(AREAS[s.area]||{}).name||s.area}
+function clientHasSlot(c){return Object.values(S.settings.days).some(a=>(a||[]).some(s=>s.client===c))}
+function exactFit(slot,t){
+  if(slot.area!==taskArea(t))return false;
+  const c=t.client||'';
+  if(c){ if(clientHasSlot(c)) return slot.client===c; return !slot.client; }
+  return !slot.client;
+}
+const looseFit=(slot,t)=>slot.area===taskArea(t);
+function planStart(){const t=today();return new Date().getHours()>=S.settings.checkinHour?addDays(t,1):t}
+const openTasks=()=>Object.values(S.tasks).filter(t=>t.status!=='done');
+
+/* ---------- scheduler ---------- */
+let planning=false;
+function computePlan(mode){
+  const start=planStart(), H=120, cap={};
+  for(let i=0;i<H;i++){const d=addDays(start,i);cap[d]=slotsFor(d)}
+  const consume=(t,date)=>{const sl=cap[date];if(!sl)return;const s=sl.find(s=>exactFit(s,t))||sl.find(s=>looseFit(s,t));if(s)s.left-=est(t)};
+  const toPlace=[];
+  for(const t of Object.values(S.tasks)){
+    if(!t.scheduled){ if(t.status!=='done') toPlace.push(t); continue; }
+    if(t.scheduled<start) continue;
+    if(t.status==='done'){consume(t,t.scheduled);continue}
+    if(mode==='all'&&!t.pinned) toPlace.push(t); else consume(t,t.scheduled);
+  }
+  const prio={high:0,normal:1,low:2};
+  toPlace.sort((a,b)=>(effDeadline(a)||'9999').localeCompare(effDeadline(b)||'9999')||(prio[a.priority||'normal']-prio[b.priority||'normal'])||String(a.projectId||'').localeCompare(String(b.projectId||''))||((a.order||0)-(b.order||0))||String(a.created||'').localeCompare(String(b.created||'')));
+  const result={}; // id -> date|null
+  const sched=t=>(t.id in result)?result[t.id]:t.scheduled;
+  for(const t of toPlace){
+    let min=start;
+    if(t.notBefore&&t.notBefore>min)min=t.notBefore;
+    if(t.projectId){
+      for(const o of Object.values(S.tasks)){
+        if(o.projectId===t.projectId&&o.id!==t.id&&(o.order||0)<(t.order||0)&&o.status!=='done'){const d=sched(o);if(d&&d>min)min=d}
+      }
+    }
+    const m=est(t);let placed=null;
+    for(const fit of [exactFit,looseFit]){
+      for(let i=0;i<H&&!placed;i++){
+        const d=addDays(start,i); if(d<min||!cap[d])continue;
+        const s=cap[d].find(s=>fit(s,t)&&(s.left>=m||(s.left===s.mins&&s.mins>0&&m>s.mins)));
+        if(s){s.left-=m;placed=d}
+      }
+      if(placed)break;
+    }
+    result[t.id]=placed;
+  }
+  return result;
+}
+function plan(mode='new'){
+  if(planning)return; planning=true;
+  try{
+    const res=computePlan(mode);let n=0;
+    for(const [id,d] of Object.entries(res)){const t=S.tasks[id];if(!t)continue;if((t.scheduled||null)!==(d||null)){patch('tasks',id,{scheduled:d||null});n++}}
+    if(mode==='all')toast(n?`Re-planned ${n} task${n>1?'s':''}`:'Plan is already up to date');
+  }finally{planning=false}
+}
+
+/* ---------- check-in ---------- */
+function dueCheckins(){
+  const start=planStart();
+  return openTasks().filter(t=>t.scheduled&&t.scheduled<start).sort((a,b)=>a.scheduled.localeCompare(b.scheduled));
+}
+function dueWorklog(){
+  const out=[];const t=today();const lastDay=new Date().getHours()>=S.settings.checkinHour?t:addDays(t,-1);
+  let from=S.settings.worklogFrom||t; const floor=addDays(t,-21); if(from<floor)from=floor;
+  for(let d=from;d<=lastDay;d=addDays(d,1)){
+    for(const s of slotsFor(d)) if(s.client&&!S.worklog[`${d}_${s.client}`]&&!out.some(o=>o.date===d&&o.client===s.client)) out.push({date:d,client:s.client});
+  }
+  return out;
+}
+function checkinCount(){return dueCheckins().length+dueWorklog().length}
+
+/* ---------- rendering ---------- */
+let rq=false;
+function renderSoon(){if(rq)return;rq=true;requestAnimationFrame(()=>{rq=false;render()})}
+const TABS=[['today','Today'],['week','Week'],['areas','Areas'],['projects','Projects'],['lists','Lists'],['invoices','Invoices'],['settings','Settings']];
+const MON=s=>parseD(s).toLocaleDateString('en-GB',{month:'short'}).slice(0,3).toUpperCase();
+function clientTint(id){const ks=Object.keys(S.clients).sort();const i=ks.indexOf(id);return i<0?AREAS.freelance.color:CLIENT_TINTS[i%CLIENT_TINTS.length]}
+function slotTint(s){return s.client?clientTint(s.client):(AREAS[s.area]||{}).color||GREY_TINT}
+function dayTint(d){const sl=slotsFor(d);const main=sl.find(s=>s.area!=='home');return main?slotTint(main):sl.length?AREAS.home.color:GREY_TINT}
+function moneyBig(n){const s=money(n);const i=s.lastIndexOf('.');return `${s.slice(0,i)}<span class="p">${s.slice(i)}</span>`}
+function render(){
+  const cc=S.ready?checkinCount():0;
+  $('#nav').innerHTML=`<div class="pills">${TABS.map(([k,l])=>`<button data-a="tab" data-v="${k}" class="pill ${S.view===k?'on':''}">${l}${k==='today'&&cc?`<span class="badge">${cc}</span>`:''}</button>`).join('')}</div>${SAMPLE?`<button class="round ghost" data-a="emailImport" title="Add tasks from an email" aria-label="Add from email">✉︎</button>`:''}<button class="round" data-a="newTask" aria-label="Add task">+</button>`;
+  if(!S.ready){$('#view').innerHTML=`<div class="empty">${esc(S.note||'Loading your planner…')}</div>`;return}
+  const ae=document.activeElement, keep=ae&&ae.id&&$('#view').contains(ae)?{id:ae.id,v:ae.value,s:ae.selectionStart}:null;
+  const fn={today:vToday,week:vWeek,areas:vAreas,projects:vProjects,lists:vLists,invoices:vInvoices,settings:vSettings}[S.view];
+  $('#view').innerHTML=fn();
+  if(keep){const el=document.getElementById(keep.id);if(el){el.value=keep.v;el.focus();try{el.setSelectionRange(keep.s,keep.s)}catch(e){}}}
+}
+function areaDot(a){return `<span class="dot" style="background:${(AREAS[a]||{}).color||LIST_TINT}"></span>`}
+function taskRow(t,opts={}){
+  const a=taskArea(t),dl=effDeadline(t),late=dl&&t.scheduled&&t.scheduled>dl&&t.status!=='done';
+  const proj=t.projectId&&S.projects[t.projectId], list=t.listId&&S.lists[t.listId];
+  const meta=[];
+  if(opts.showArea)meta.push(`<span class="chip">${areaDot(a)} ${esc(t.client?clientName(t.client):AREAS[a].name)}</span>`);
+  if(opts.showDate&&t.scheduled)meta.push(`<span class="chip">${relDay(t.scheduled)}</span>`);
+  if(opts.showDate&&!t.scheduled&&t.status!=='done')meta.push(`<span class="chip warn">No slot yet</span>`);
+  if(dl&&(!opts.compact||late))meta.push(`<span class="chip ${late?'warn':''}">due ${relDay(dl)}</span>`);
+  if(!opts.compact){
+    if(t.pinned)meta.push(`<span class="chip">📌 fixed</span>`);
+    if(proj&&!opts.inProject)meta.push(`<span class="chip">◆ ${esc(proj.title)}</span>`);
+    if(list&&!opts.inList)meta.push(`<span class="chip">★ ${esc(list.name)}</span>`);
+    if(t.recur)meta.push(`<span class="chip">↻ ${t.recur}</span>`);
+  }
+  if((t.bumps||0)>=3&&t.status!=='done')meta.push(`<span class="chip warn">pushed back ${t.bumps}×</span>`);
+  else if(t.bumps&&!opts.compact)meta.push(`<span class="chip">moved ${t.bumps}×</span>`);
+  return `<div class="task ${t.status==='done'?'done':''} ${opts.compact?'compact':''}" data-a="editTask" data-id="${t.id}">
+    <button class="chk" data-a="toggle" data-id="${t.id}" aria-label="Done"></button>
+    <div class="tb"><div class="ttl">${esc(t.title)}</div>${meta.length?`<div class="meta">${meta.join('')}</div>`:''}</div><span class="mins">${fmtMins(est(t))}</span></div>`;
+}
+function assignDay(date){
+  const slots=slotsFor(date).map(s=>({...s,tasks:[],used:0}));const other=[];
+  const ts=Object.values(S.tasks).filter(t=>t.scheduled===date).sort((a,b)=>(a.status==='done')-(b.status==='done')||(a.order||0)-(b.order||0));
+  for(const t of ts){const s=slots.find(s=>exactFit(s,t))||slots.find(s=>looseFit(s,t));if(s){s.tasks.push(t);if(t.status!=='done')s.used+=est(t)}else other.push(t)}
+  return {slots,other};
+}
+function slotCard(s){
+  const tint=s.tint||slotTint(s),label=s.label||slotLabel(s),mins=s.mins||0,used=s.used||0;
+  const n=s.tasks.filter(t=>t.status!=='done').length;
+  return `<div class="scard" style="background:${tint}"><div class="shead"><div><div class="slabel">${s.client?'Freelance':s.label?'':'&nbsp;'}</div><div class="sname">${esc(label)}</div><div class="small" style="opacity:.7;margin-top:3px">${n} task${n===1?'':'s'}</div></div>${mins?`<div class="sbig"><b>${fmtMins(used)}</b><span>of ${fmtMins(mins)}${used>mins?' · over':''}</span></div>`:''}</div>
+  ${mins?`<div class="sbar"><i style="width:${Math.min(100,Math.round(used/mins*100))}%"></i></div>`:''}
+  ${s.tasks.length?s.tasks.map(t=>taskRow(t)).join(''):'<div class="empty">Nothing planned</div>'}</div>`;
+}
+function dayKind(date){const sl=slotsFor(date).filter(s=>s.area!=='home');if(!sl.length)return slotsFor(date).length?'Home day':'Day off';return sl.map(slotLabel).join(' + ')+' day'}
+
+function vToday(){
+  const t=today(), cc=checkinCount(), viewDate=planStart()>t?addDays(t,1):t, d=parseD(viewDate);
+  const {slots,other}=assignDay(viewDate);
+  const open=slots.flatMap(s=>s.tasks).concat(other).filter(x=>x.status!=='done');
+  const planned=open.reduce((s,x)=>s+est(x),0);
+  const wd=d.toLocaleDateString('en-GB',{weekday:'long'});
+  let h=`<section class="hero"><div class="hero-day">${viewDate===t?wd:'Tomorrow · '+wd}</div><div class="hero-row"><div class="bigdate">${pad(d.getDate())}.${pad(d.getMonth()+1)}<br>${MON(viewDate)}</div><div class="hero-side"><div class="stat"><b>${open.length}</b><span>to do</span></div><div class="stat"><b>${fmtMins(planned)}</b><span>planned</span></div><div class="kind">${esc(dayKind(viewDate))}</div></div></div></section>`;
+  if(cc)h+=`<div class="banner"><div><div class="big">${cc} to check in</div><div class="small" style="opacity:.7;margin-top:4px">Done, or move it?</div></div><button class="btn" data-a="checkin">Check in</button></div>`;
+  if(viewDate!==t){
+    const a=assignDay(t);const doneToday=a.slots.flatMap(s=>s.tasks).concat(a.other).filter(x=>x.status==='done');
+    if(doneToday.length)h+=`<div class="sec-head"><span>Done today</span><span class="faint">${doneToday.length}</span></div><div class="card">${doneToday.map(x=>taskRow(x,{compact:true})).join('')}</div>`;
+  }
+  h+=`<div class="sec-head"><span>${viewDate===t?"Today's tasks":"Tomorrow's tasks"}</span><button class="btn sm" data-a="tab" data-v="week">Week →</button></div>`;
+  if(!slots.length&&!other.length)h+=`<div class="scard" style="background:${GREY_TINT}"><div class="sname">Day off</div><div class="empty">Nothing planned — enjoy it.</div></div>`;
+  else h+=`<div class="stack">${slots.map(slotCard).join('')}${other.length?slotCard({label:'Other',tint:GREY_TINT,tasks:other,mins:0,used:0}):''}</div>`;
+  const slipping=openTasks().filter(x=>(x.bumps||0)>=3);
+  if(slipping.length)h+=`<div class="sec-head"><span>Keeps slipping</span><span class="faint">${slipping.length}</span></div><div class="card"><div class="small muted">Pushed back 3+ times. Tap one to split it, fix a date, or drop it.</div>${slipping.map(x=>taskRow(x,{showDate:true,showArea:true})).join('')}</div>`;
+  const nos=openTasks().filter(x=>!x.scheduled);
+  if(nos.length)h+=`<div class="sec-head"><span>Couldn't fit</span><span class="faint">${nos.length}</span></div><div class="card"><div class="small muted">No matching time in your week for these. Check the area or client, or add time in Settings.</div>${nos.map(x=>taskRow(x,{showArea:true})).join('')}</div>`;
+  const next=addDays(viewDate,1), nt=Object.values(S.tasks).filter(x=>x.scheduled===next&&x.status!=='done');
+  h+=`<div class="sec-head"><span>${relDay(next)}</span><span class="faint small">${esc(dayKind(next))}</span></div><div class="card" style="background:${dayTint(next)}">${nt.length?nt.slice(0,5).map(x=>taskRow(x,{compact:true})).join('')+(nt.length>5?`<div class="empty">+${nt.length-5} more in Week</div>`:''):'<div class="empty">Nothing yet</div>'}</div>`;
+  return h;
+}
+function vWeek(){
+  const start=planStart();
+  let h=`<div class="spread"><h2>Next 7 days</h2><button class="btn sm" data-a="replan">↻ Re-plan</button></div>`;
+  for(let i=0;i<7;i++){
+    const d=addDays(start,i),{slots,other}=assignDay(d),pd=parseD(d);
+    const ts=slots.flatMap(s=>s.tasks).concat(other);
+    h+=`<div class="dcard" style="background:${dayTint(d)}"><div><div class="dname">${d===today()?'Today':d===addDays(today(),1)?'Tomorrow':pd.toLocaleDateString('en-GB',{weekday:'long'})}</div><div class="dnum">${pd.getDate()}</div><div class="dmon">${MON(d)}</div></div>
+    <div class="dright"><div class="dkind">${esc(dayKind(d))}</div><div class="dslots">${slots.map(s=>`<span class="chip">${esc(slotLabel(s))} · ${fmtMins(s.used)}/${fmtMins(s.mins)}</span>`).join('')}</div>${ts.map(t=>taskRow(t,{compact:true})).join('')||'<div class="empty">Free</div>'}</div></div>`;
+  }
+  const later=openTasks().filter(t=>t.scheduled&&t.scheduled>=addDays(start,7)).sort((a,b)=>a.scheduled.localeCompare(b.scheduled));
+  if(later.length)h+=`<div class="sec-head"><span>Later</span><span class="faint">${later.length}</span></div><div class="card">${later.slice(0,40).map(t=>taskRow(t,{showDate:true,showArea:true})).join('')}</div>`;
+  return h;
+}
+function vAreas(){
+  const f=S.areaFilter;
+  let h=`<h2>Areas</h2><div class="subtabs">${[['all','All'],...Object.entries(AREAS).map(([k,v])=>[k,v.name])].map(([k,l])=>`<button data-a="areaF" data-v="${k}" class="pill ${f===k?'on':''}">${k!=='all'?areaDot(k):''}${l} <span style="opacity:.55">${openTasks().filter(t=>k==='all'||taskArea(t)===k).length}</span></button>`).join('')}</div>`;
+  const ts=Object.values(S.tasks).filter(t=>(f==='all'||taskArea(t)===f)&&(S.showDone||t.status!=='done')).sort((a,b)=>(a.status==='done')-(b.status==='done')||(a.scheduled||'9999').localeCompare(b.scheduled||'9999'));
+  const groups={};for(const t of ts){const k=t.status==='done'?'Done':t.scheduled?(t.scheduled<today()?'Waiting for check-in':relDay(t.scheduled)):'No slot yet';(groups[k]=groups[k]||[]).push(t)}
+  const bg=f==='all'?PAPER:AREAS[f].color;
+  h+=Object.entries(groups).map(([k,a])=>`<div class="sec-head"><span>${esc(k)}</span><span class="faint">${a.length}</span></div><div class="card" style="background:${bg}">${a.map(t=>taskRow(t,{showArea:f==='all'})).join('')}</div>`).join('')||`<div class="card" style="background:${bg}"><div class="empty">No tasks here yet. Tap + to add one.</div></div>`;
+  h+=`<p><button class="btn sm" data-a="toggleDone">${S.showDone?'Hide':'Show'} completed</button></p>`;
+  return h;
+}
+function projectSteps(pid){return Object.values(S.tasks).filter(t=>t.projectId===pid).sort((a,b)=>(a.order||0)-(b.order||0))}
+function dateBig(s){if(!s)return'';const p=parseD(s);return `<div class="datebig"><b>${p.getDate()}</b><span>${MON(s)} '${String(p.getFullYear()).slice(2)}</span></div>`}
+function vProjects(){
+  const ps=Object.values(S.projects).sort((a,b)=>(a.status==='done')-(b.status==='done')||(a.deadline||'9999').localeCompare(b.deadline||'9999'));
+  let h=`<div class="spread"><h2>Projects</h2><button class="btn primary sm" data-a="newProject">+ New project</button></div>`;
+  if(!ps.length)h+=`<div class="bcard" style="background:${PAPER}"><div class="ttlbig">No projects yet</div><p class="muted small">Break bigger jobs into steps. Steps are scheduled in order and fitted in before the deadline.</p></div>`;
+  for(const p of ps){
+    const st=projectSteps(p.id),done=st.filter(t=>t.status==='done').length,left=st.filter(t=>t.status!=='done');
+    const finish=left.reduce((m,t)=>t.scheduled&&t.scheduled>m?t.scheduled:m,'');
+    const risk=p.deadline&&left.some(t=>!t.scheduled||t.scheduled>p.deadline);
+    const tint=p.status==='done'?GREY_TINT:p.client?clientTint(p.client):AREAS[p.area].color;
+    h+=`<div class="bcard" style="background:${tint}"><div class="btop"><div><div class="slabel">${esc(p.client?clientName(p.client):AREAS[p.area].name)}${p.status==='done'?' · finished':''}</div><div class="ttlbig">${esc(p.title)}</div></div>${dateBig(p.deadline)}</div>
+      <div class="bmeta"><span class="chip">${done}/${st.length} steps</span><span class="chip">${fmtMins(left.reduce((s,t)=>s+est(t),0))} left</span>${finish?`<span class="chip ${risk?'warn':''}">${risk?'at risk · ':''}finishes ${fmtDay(finish)}</span>`:''}</div>
+      <div class="pbar"><i style="width:${st.length?Math.round(done/st.length*100):0}%"></i></div>
+      ${st.map(t=>taskRow(t,{showDate:true,inProject:true})).join('')}
+      <form class="inline-add" data-form="addStep" data-id="${p.id}"><input type="text" id="step-${p.id}" name="title" placeholder="Add a step…" autocomplete="off"><select name="estimate" style="width:auto">${[30,60,120,240,420].map(m=>`<option value="${m}" ${m===60?'selected':''}>${fmtMins(m)}</option>`).join('')}</select><button class="btn sm">Add</button></form>
+      <div class="row" style="margin-top:10px"><button class="btn sm" data-a="editProject" data-id="${p.id}">Edit project</button></div></div>`;
+  }
+  return h;
+}
+function vLists(){
+  const ls=Object.values(S.lists).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  const act=ls.filter(l=>!l.archived),arc=ls.filter(l=>l.archived);
+  let h=`<div class="spread"><h2>Special lists</h2><button class="btn primary sm" data-a="newList">+ New list</button></div>`;
+  if(!act.length)h+=`<div class="bcard" style="background:${LIST_TINT}"><div class="ttlbig">Christmas?</div><p class="small">Seasonal or one-off lists. Give a list a "needed by" date and its tasks get scheduled before it.</p><button class="btn sm" data-a="newList">Start a list</button></div>`;
+  const listCard=l=>{
+    const ts=Object.values(S.tasks).filter(t=>t.listId===l.id).sort((a,b)=>(a.status==='done')-(b.status==='done')||(a.scheduled||'9999').localeCompare(b.scheduled||'9999'));
+    const done=ts.filter(t=>t.status==='done').length;
+    return `<div class="bcard" style="background:${l.archived?GREY_TINT:LIST_TINT}"><div class="btop"><div><div class="slabel">${AREAS[l.area||'home'].name} time · ${done}/${ts.length} done</div><div class="ttlbig">${esc(l.name)}</div></div>${dateBig(l.due)}</div>
+    <div class="pbar" style="margin-top:12px"><i style="width:${ts.length?Math.round(done/ts.length*100):0}%"></i></div>
+    ${ts.map(t=>taskRow(t,{showDate:true,inList:true})).join('')||'<div class="empty">Empty</div>'}
+    ${l.archived?'':`<form class="inline-add" data-form="addListItem" data-id="${l.id}"><input type="text" id="li-${l.id}" name="title" placeholder="Add to ${esc(l.name)}…" autocomplete="off"><button class="btn sm">Add</button></form>`}
+    <div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap"><button class="btn sm" data-a="editList" data-id="${l.id}">Edit</button><button class="btn sm" data-a="copyList" data-id="${l.id}">Copy for next year</button><button class="btn sm" data-a="archiveList" data-id="${l.id}">${l.archived?'Restore':'Archive'}</button></div></div>`;
+  };
+  h+=act.map(listCard).join('');
+  if(arc.length)h+=`<div class="sec-head"><span>Archived</span></div>`+arc.map(listCard).join('');
+  return h;
+}
+
+/* ---------- invoices ---------- */
+function clientDays(c){return Object.entries(S.settings.days).filter(([k,a])=>(a||[]).some(s=>s.client===c)).map(([k])=>Number(k))}
+function invoicedDates(c,exceptId){const set=new Set();for(const inv of Object.values(S.invoices)){if(inv.clientId!==c||inv.id===exceptId)continue;for(const l of inv.lines||[])if(l.date)set.add(l.date)}return set}
+function invTotal(lines){return (lines||[]).reduce((s,l)=>s+(Number(l.qty)||0)*(Number(l.rate)||0),0)}
+function vInvoices(){
+  const invs=Object.values(S.invoices).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.number||'').localeCompare(a.number||''));
+  const t=today(),yr=String(new Date().getFullYear());
+  const outstanding=invs.filter(i=>i.status==='sent').reduce((s,i)=>s+invTotal(i.lines),0);
+  const overdue=invs.filter(i=>i.status==='sent'&&i.due&&i.due<t);
+  const paid=invs.filter(i=>i.status==='paid'&&(i.paidOn||i.date||'').startsWith(yr)).reduce((s,i)=>s+invTotal(i.lines),0);
+  let h=`<div class="spread"><h2>Invoices</h2><button class="btn primary sm" data-a="newInvoice">+ New invoice</button></div>
+  <div class="stack">
+    <div class="scard kstrip" style="background:${PAPER}"><div class="klabel">Waiting<br>to be paid</div><div class="kbig">${moneyBig(outstanding)}</div></div>
+    <div class="scard kstrip" style="background:${overdue.length?'#E4814F':'#EAC0CC'}"><div class="klabel">Overdue</div><div class="kbig">${overdue.length}</div></div>
+    <div class="scard kstrip" style="background:${AREAS.home.color}"><div class="klabel">Paid<br>in ${yr}</div><div class="kbig">${moneyBig(paid)}</div></div>
+  </div>`;
+  const b=S.settings.business;
+  if(!b.name||!b.accountNumber)h+=`<div class="card small">Add your business and bank details in <a href="#" data-a="tab" data-v="settings" style="color:inherit;font-weight:600">Settings</a> so they appear on your invoices.</div>`;
+  const noRate=Object.values(S.clients).filter(c=>clientDays(c.id).length&&!c.dayRate);
+  if(noRate.length)h+=`<div class="card small">Set a day rate for ${noRate.map(c=>esc(c.name)).join(' and ')} in <a href="#" data-a="tab" data-v="settings" style="color:inherit;font-weight:600">Settings</a> so monthly invoices fill in automatically.</div>`;
+  h+=`<div class="sec-head"><span>All invoices</span><span class="faint">${invs.length}</span></div>`;
+  if(!invs.length)h+=`<div class="card"><div class="empty">No invoices yet. "New invoice" fills in your Design by Temple and Philema days for the month automatically.</div></div>`;
+  else h+=`<div class="stack">${invs.map(i=>{
+    const od=i.status==='sent'&&i.due&&i.due<t;const st=od?'overdue':i.status;
+    const tint=od?'#E4814F':i.status==='paid'?AREAS.home.color:i.status==='sent'?PAPER:GREY_TINT;
+    return `<div class="scard istrip" data-a="openInvoice" data-id="${i.id}" style="background:${tint}"><div><div class="slabel">${esc(i.number)} · ${st}</div><div class="sname">${esc(i.client&&i.client.name||clientName(i.clientId))}</div><div class="small" style="opacity:.7;margin-top:3px">${i.date?fmtDay(i.date):''}${i.status!=='paid'&&i.due?' · due '+fmtDay(i.due):''}</div></div><div class="kbig sm">${moneyBig(invTotal(i.lines))}</div></div>`}).join('')}</div>`;
+  return h;
+}
+
+/* ---------- settings ---------- */
+function vSettings(){
+  const s=S.settings,b=s.business;
+  const clientOpts=sel=>`<option value="">— any —</option>`+Object.values(S.clients).map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
+  let h=`<h2>Settings</h2><div class="sec-head"><span>Your week</span></div><div class="card"><p class="small muted" style="margin-top:4px">Time available each day, by area. A slot with a client only gets that client's tasks. Hours are what the planner fills, so leave some slack.</p>`;
+  for(const d of [1,2,3,4,5,6,0]){
+    const arr=s.days[String(d)]||[];
+    h+=`<div style="margin:14px 0 6px" class="spread"><b>${DAYNAMES[d]}</b><button class="btn sm" data-a="addSlot" data-d="${d}">+ slot</button></div>`;
+    if(!arr.length)h+=`<div class="small faint">Day off</div>`;
+    arr.forEach((sl,i)=>{h+=`<div class="slotrow"><select data-ch="slot" data-d="${d}" data-i="${i}" data-k="area">${Object.entries(AREAS).map(([k,v])=>`<option value="${k}" ${sl.area===k?'selected':''}>${v.name}</option>`).join('')}</select><select data-ch="slot" data-d="${d}" data-i="${i}" data-k="client">${clientOpts(sl.client)}</select><input type="number" min="0" step="0.5" value="${(Number(sl.mins)||0)/60}" data-ch="slot" data-d="${d}" data-i="${i}" data-k="hours" title="Hours"><button class="x" data-a="rmSlot" data-d="${d}" data-i="${i}">×</button></div>`});
+  }
+  h+=`<div class="actions"><button class="btn sm" data-a="replan">↻ Re-plan with this week</button></div></div>`;
+  h+=notifCard();
+  h+=`<div class="sec-head"><span>Clients</span><button class="btn sm" data-a="editClient">+ Add client</button></div>`;
+  h+=Object.values(S.clients).map(c=>`<div class="scard" style="background:${clientTint(c.id)};margin-bottom:8px;cursor:pointer" data-a="editClient" data-id="${c.id}"><div class="shead" style="margin:0"><div><div class="sname">${esc(c.name)}</div><div class="bmeta" style="margin:8px 0 0">${clientDays(c.id).length?`<span class="chip">${clientDays(c.id).map(d=>DAYNAMES[d]).join(', ')}</span>`:''}${c.email?`<span class="chip">${esc(c.email)}</span>`:''}</div></div><div class="sbig"><b>${c.dayRate?money(c.dayRate).replace('.00',''):'—'}</b><span>${c.dayRate?'per day':'no day rate'}</span></div></div></div>`).join('')||'<div class="card"><div class="empty">No clients yet</div></div>';
+  h+=`<div class="sec-head"><span>Invoice details</span></div><form class="card" data-form="business">
+    <label class="f">Your name / business name</label><input type="text" name="name" value="${esc(b.name)}">
+    <label class="f">Address</label><textarea name="address" rows="3">${esc(b.address)}</textarea>
+    <div class="grid2"><div><label class="f">Email</label><input type="text" name="email" value="${esc(b.email)}"></div><div><label class="f">Phone</label><input type="text" name="phone" value="${esc(b.phone)}"></div></div>
+    <div class="grid2"><div><label class="f">Bank</label><input type="text" name="bankName" value="${esc(b.bankName)}"></div><div><label class="f">Account name</label><input type="text" name="accountName" value="${esc(b.accountName)}"></div></div>
+    <div class="grid2"><div><label class="f">Sort code</label><input type="text" name="sortCode" value="${esc(b.sortCode)}"></div><div><label class="f">Account number</label><input type="text" name="accountNumber" value="${esc(b.accountNumber)}"></div></div>
+    <div class="grid2"><div><label class="f">Invoice prefix</label><input type="text" name="invoicePrefix" value="${esc(s.invoicePrefix)}"></div><div><label class="f">Next invoice number</label><input type="number" name="nextInvoice" value="${esc(s.nextInvoice)}"></div></div>
+    <label class="f">Default payment terms (days)</label><input type="number" name="paymentDays" value="${esc(s.paymentDays)}">
+    <div class="actions"><button class="btn primary">Save details</button></div></form>
+    <div class="sec-head"><span>Email forwarding</span></div><div class="card small">${S.inbox?`<p style="margin-top:4px">Your private address for an inbound email service to post forwarded emails to. Tasks are added automatically and you get a notification.</p><div class="copybox"><code>${esc(CONFIG.SUPABASE_URL+'/functions/v1/planner-email?token='+S.inbox)}</code><button class="btn sm" data-a="copyInbox">Copy</button></div><p class="faint">Keep this private — anything sent to it becomes tasks.</p>`:'<span class="faint">Loading…</span>'}</div>
+    <div class="actions" style="justify-content:space-between"><span class="small faint">Signed in as ${esc(USER&&USER.email||'')}</span><button class="btn sm" data-a="signOut">Sign out</button></div>`;
+  return h;
+}
+
+/* ---------- modals ---------- */
+function openModal(html){$('#modal').innerHTML=html;$('#modalBg').classList.add('open');const f=$('#modal').querySelector('input[autofocus]');if(f&&window.innerWidth>640)setTimeout(()=>f.focus(),50)}
+function closeModal(){$('#modalBg').classList.remove('open');$('#modal').innerHTML=''}
+$('#modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+let toastT;function toast(m){const el=$('#toast');el.textContent=m;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2600)}
+const seg=(name,opts,val)=>`<div class="seg">${opts.map(([v,l])=>{const id=name+'_'+v+'_'+Math.random().toString(36).slice(2,6);return `<input type="radio" name="${name}" id="${id}" value="${v}" ${String(val)===String(v)?'checked':''}><label for="${id}">${l}</label>`}).join('')}</div>`;
+const clientSelect=(name,val)=>`<select name="${name}"><option value="">— none —</option>${Object.values(S.clients).map(c=>`<option value="${c.id}" ${val===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`;
+
+function taskForm(t){
+  t=t||{area:S.areaFilter!=='all'?S.areaFilter:'home',estimate:30,priority:'normal'};
+  const isNew=!t.id;
+  const estOpts=[[15,'15m'],[30,'30m'],[60,'1h'],[120,'2h'],[240,'4h'],[420,'Full day']];
+  const estVal=estOpts.some(o=>o[0]===Number(t.estimate))?Number(t.estimate):'custom';
+  return `<h2>${isNew?'New task':'Edit task'}</h2><form data-form="task" data-id="${t.id||''}">
+  <input type="text" name="title" value="${esc(t.title)}" placeholder="What needs doing?" required autofocus>
+  <label class="f">Area</label>${seg('area',Object.entries(AREAS).map(([k,v])=>[k,v.name]),t.area||taskArea(t))}
+  <div class="grid2"><div><label class="f">Client</label>${clientSelect('client',t.client||'')}</div>
+  <div><label class="f">Priority</label><select name="priority">${['high','normal','low'].map(p=>`<option ${t.priority===p?'selected':''}>${p}</option>`).join('')}</select></div></div>
+  <label class="f">How long will it take?</label>${seg('estimate',[...estOpts,['custom','Other']],estVal)}
+  <input type="number" name="estimateCustom" placeholder="Minutes" value="${estVal==='custom'?esc(t.estimate):''}" style="margin-top:6px">
+  <div class="grid2"><div><label class="f">Deadline</label><input type="date" name="deadline" value="${esc(t.deadline||'')}"></div>
+  <div><label class="f">Must happen on (fixed)</label><input type="date" name="fixed" value="${t.pinned?esc(t.scheduled||''):''}"></div></div>
+  <div class="grid2"><div><label class="f">Don't start before</label><input type="date" name="notBefore" value="${esc(t.notBefore||'')}"></div>
+  <div><label class="f">Repeats</label><select name="recur">${[['','No'],['daily','Daily'],['weekly','Weekly'],['fortnightly','Fortnightly'],['monthly','Monthly']].map(([v,l])=>`<option value="${v}" ${(t.recur||'')===v?'selected':''}>${l}</option>`).join('')}</select></div></div>
+  <div class="grid2"><div><label class="f">Project</label><select name="projectId"><option value="">— none —</option>${Object.values(S.projects).filter(p=>p.status!=='done').map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${esc(p.title)}</option>`).join('')}</select></div>
+  <div><label class="f">Special list</label><select name="listId"><option value="">— none —</option>${Object.values(S.lists).filter(l=>!l.archived).map(l=>`<option value="${l.id}" ${t.listId===l.id?'selected':''}>${esc(l.name)}</option>`).join('')}</select></div></div>
+  <label class="f">Notes</label><textarea name="notes" rows="2">${esc(t.notes||'')}</textarea>
+  ${!isNew&&t.scheduled?`<p class="small muted">Scheduled: ${fmtLong(t.scheduled)}${t.bumps?` · moved ${t.bumps}×`:''}</p>`:''}
+  <div class="actions">${!isNew?`<button type="button" class="btn danger" data-a="delTask" data-id="${t.id}">Drop</button>${est(t)>=60?`<button type="button" class="btn" data-a="splitTask" data-id="${t.id}">Split in two</button>`:''}`:''}<button type="button" class="btn" data-a="close">Cancel</button><button class="btn primary">${isNew?'Add':'Save'}</button></div></form>`;
+}
+function readTaskForm(f){
+  const fd=new FormData(f);let e=fd.get('estimate');e=e==='custom'?Number(fd.get('estimateCustom'))||30:Number(e)||30;
+  const fixed=fd.get('fixed');
+  return {title:fd.get('title').trim(),area:fd.get('area')||'home',client:fd.get('client')||'',priority:fd.get('priority')||'normal',estimate:e,
+    deadline:fd.get('deadline')||'',notBefore:fd.get('notBefore')||'',recur:fd.get('recur')||'',projectId:fd.get('projectId')||'',listId:fd.get('listId')||'',notes:fd.get('notes')||'',
+    pinned:!!fixed,scheduled:fixed||null};
+}
+
+function checkinHtml(){
+  const ts=dueCheckins(),wl=dueWorklog();
+  if(!ts.length&&!wl.length)return `<h2>All caught up ✓</h2><p class="muted">Nothing to check in. Nice work.</p><div class="actions"><button class="btn primary" data-a="close">Close</button></div>`;
+  let h=`<h2>Check-in</h2>`;
+  if(wl.length)h+=`<h3>Days worked</h3>`+wl.map(w=>`<div class="ci"><div><b>${esc(clientName(w.client))}</b> · ${relDay(w.date)}</div><div class="btns"><button class="btn sm primary" data-a="wl" data-d="${w.date}" data-c="${w.client}" data-u="1">Full day</button><button class="btn sm" data-a="wl" data-d="${w.date}" data-c="${w.client}" data-u="0.5">Half day</button><button class="btn sm" data-a="wl" data-d="${w.date}" data-c="${w.client}" data-u="0">Didn't work</button></div></div>`).join('');
+  if(ts.length)h+=`<h3>Did you do these?</h3>`+ts.map(t=>`<div class="ci"><div class="row">${areaDot(taskArea(t))}<b>${esc(t.title)}</b></div><div class="small muted">Planned ${relDay(t.scheduled)} · ${fmtMins(est(t))}${t.bumps?` · moved ${t.bumps}×`:''}</div><div class="btns"><button class="btn sm primary" data-a="ci" data-r="done" data-id="${t.id}">Done</button><button class="btn sm" data-a="ci" data-r="partly" data-id="${t.id}">Partly</button><button class="btn sm" data-a="ci" data-r="notyet" data-id="${t.id}">Not yet — reschedule</button><button class="btn sm danger" data-a="ci" data-r="drop" data-id="${t.id}">Drop it</button></div></div>`).join('');
+  return h+`<div class="actions"><button class="btn" data-a="close">Later</button></div>`;
+}
+
+/* ---------- task operations ---------- */
+function shift(d,r){return r==='daily'?addDays(d,1):r==='weekly'?addDays(d,7):r==='fortnightly'?addDays(d,14):r==='monthly'?addMonths(d,1):d}
+function markDone(t){
+  patch('tasks',t.id,{status:'done',doneAt:today(),scheduled:t.scheduled||today()});
+  if(t.recur){
+    const base=t.scheduled&&t.scheduled<today()?t.scheduled:today();
+    const n={...strip(t),status:'todo',scheduled:null,pinned:false,bumps:0,doneAt:'',created:new Date().toISOString(),notBefore:shift(base,t.recur),deadline:t.deadline?shift(t.deadline,t.recur):''};
+    put('tasks',uid(),n);
+  }
+}
+function newTask(data){const id=uid();put('tasks',id,{status:'todo',bumps:0,created:new Date().toISOString(),scheduled:null,pinned:false,...data});return id}
+
+/* ---------- actions ---------- */
+const A={
+  tab:d=>{S.view=d.v;closeModal();render();window.scrollTo(0,0)},
+  areaF:d=>{S.areaFilter=d.v;render()},
+  toggleDone:()=>{S.showDone=!S.showDone;render()},
+  close:closeModal,
+  newTask:()=>openModal(taskForm()),
+  editTask:d=>openModal(taskForm(S.tasks[d.id])),
+  toggle:d=>{const t=S.tasks[d.id];if(!t)return;if(t.status==='done'){patch('tasks',t.id,{status:'todo',doneAt:''})}else{markDone(t);toast('Done ✓')}setTimeout(()=>plan('new'),0)},
+  delTask:d=>{del('tasks',d.id);closeModal();toast('Task dropped')},
+  splitTask:d=>{const t=S.tasks[d.id];if(!t)return;const half=Math.max(15,Math.round(est(t)/2/15)*15);
+    newTask({...strip(t),title:t.title+' (part 1)',estimate:half,scheduled:null,pinned:false,bumps:0,status:'todo',order:(t.order||0)});
+    newTask({...strip(t),title:t.title+' (part 2)',estimate:half,scheduled:null,pinned:false,bumps:0,status:'todo',order:(t.order||0)+0.5});
+    del('tasks',t.id);closeModal();setTimeout(()=>plan('new'),0);toast('Split into two')},
+  replan:()=>plan('all'),
+  checkin:()=>openModal(checkinHtml()),
+  ci:d=>{const t=S.tasks[d.id];if(!t)return;
+    if(d.r==='done')markDone(t);
+    else if(d.r==='drop')del('tasks',t.id);
+    else if(d.r==='partly')patch('tasks',t.id,{estimate:Math.max(15,Math.round(est(t)/2/15)*15),scheduled:null,pinned:false,bumps:(t.bumps||0)+1});
+    else patch('tasks',t.id,{scheduled:null,pinned:false,bumps:(t.bumps||0)+1});
+    plan('new');setTimeout(()=>{if($('#modalBg').classList.contains('open'))$('#modal').innerHTML=checkinHtml()},30)},
+  wl:d=>{put('worklog',`${d.d}_${d.c}`,{date:d.d,client:d.c,units:Number(d.u)});setTimeout(()=>{$('#modal').innerHTML=checkinHtml()},30)},
+  emailImport:()=>openModal(`<h2>Add from an email</h2><p class="small muted">Paste the email (sender, subject and body). Claude will pull out the tasks for you to check before they're added.</p><textarea id="emailText" rows="10" placeholder="From: …&#10;Subject: …&#10;&#10;…"></textarea><div id="emailOut"></div><div class="actions"><button class="btn" data-a="close">Cancel</button><button class="btn primary" data-a="parseEmail" id="parseBtn">Find tasks</button></div>`),
+  parseEmail:async()=>{
+    const txt=$('#emailText').value.trim();if(!txt)return;const btn=$('#parseBtn');btn.disabled=true;btn.textContent='Reading…';
+    try{
+      const tasks=await parseEmail(txt);
+      S.emailTasks=tasks;
+      $('#emailOut').innerHTML=tasks.length?`<h3>Found ${tasks.length}</h3>`+tasks.map((t,i)=>`<div class="ci"><label class="row"><input type="checkbox" checked data-et="${i}" style="width:auto"> <input type="text" value="${esc(t.title)}" data-ett="${i}"></label><div class="small muted" style="margin-top:4px">${areaDot(t.area)} ${esc(t.client?clientName(t.client):AREAS[t.area].name)} · ${fmtMins(t.estimate)}${t.deadline?' · due '+fmtDay(t.deadline):''}${t.priority==='high'?' · high priority':''}</div>${t.notes?`<div class="small faint">${esc(t.notes)}</div>`:''}</div>`).join(''):'<p class="muted">No actionable tasks found in that email.</p>';
+      btn.textContent='Add selected';btn.dataset.a='addEmailTasks';btn.disabled=!tasks.length;
+    }catch(e){console.error(e);btn.disabled=false;btn.textContent='Find tasks';$('#emailOut').innerHTML=`<p class="small" style="color:var(--warn)">Couldn't read that email (${esc(e.code||e.message||'error')}). Try again in a moment.</p>`}
+  },
+  addEmailTasks:()=>{let n=0;(S.emailTasks||[]).forEach((t,i)=>{const cb=document.querySelector(`[data-et="${i}"]`);if(cb&&cb.checked){const title=document.querySelector(`[data-ett="${i}"]`).value.trim()||t.title;newTask({...t,title});n++}});closeModal();setTimeout(()=>plan('new'),0);toast(`Added ${n} task${n===1?'':'s'}`)},
+  newProject:()=>openModal(projectForm()),
+  editProject:d=>openModal(projectForm(S.projects[d.id])),
+  delProject:d=>{for(const t of projectSteps(d.id))del('tasks',t.id);del('projects',d.id);closeModal();toast('Project deleted')},
+  newList:()=>openModal(listForm()),
+  editList:d=>openModal(listForm(S.lists[d.id])),
+  delList:d=>{for(const t of Object.values(S.tasks).filter(t=>t.listId===d.id))del('tasks',t.id);del('lists',d.id);closeModal()},
+  archiveList:d=>{const l=S.lists[d.id];patch('lists',d.id,{archived:!l.archived})},
+  copyList:d=>{const l=S.lists[d.id];const nid=uid();const due=l.due?addMonths(l.due,12):'';put('lists',nid,{name:l.name+(l.due?' '+due.slice(0,4):' (copy)'),area:l.area||'home',due,archived:false});
+    for(const t of Object.values(S.tasks).filter(t=>t.listId===l.id))newTask({title:t.title,area:t.area||'',estimate:t.estimate,priority:t.priority||'normal',listId:nid,notes:t.notes||'',notBefore:due?addDays(due,-60):''});
+    toast('Copied — the new list will start being scheduled ~2 months before its date');setTimeout(()=>plan('new'),0)},
+  addSlot:d=>{const days=clone(S.settings.days);(days[d.d]=days[d.d]||[]).push({area:'home',client:'',mins:60});saveSettings({days})},
+  rmSlot:d=>{const days=clone(S.settings.days);days[d.d].splice(Number(d.i),1);saveSettings({days})},
+  editClient:d=>openModal(clientForm(d.id&&S.clients[d.id])),
+  delClient:d=>{del('clients',d.id);closeModal()},
+  newInvoice:()=>{S.invDraft=newInvoiceDraft();openModal(invoiceEditor())},
+  openInvoice:d=>openModal(invoiceView(S.invoices[d.id])),
+  editInvoice:d=>{S.invDraft=clone(S.invoices[d.id]);S.invDraft.days=null;openModal(invoiceEditor())},
+  invStatus:d=>{const p={status:d.s};if(d.s==='paid')p.paidOn=today();patch('invoices',d.id,p);openModal(invoiceView(S.invoices[d.id]))},
+  delInvoice:d=>{del('invoices',d.id);closeModal();toast('Invoice deleted')},
+  pdf:d=>downloadPdf(S.invoices[d.id]),
+  invAddLine:()=>{syncInvDraft();S.invDraft.extra.push({desc:'',qty:1,rate:0});$('#modal').innerHTML=invoiceEditor()},
+  invRmLine:d=>{syncInvDraft();S.invDraft.extra.splice(Number(d.i),1);$('#modal').innerHTML=invoiceEditor()},
+  saveInvoice:()=>saveInvoice(),
+};
+document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el)return;if(el.tagName==='A')e.preventDefault();const fn=A[el.dataset.a];if(fn){e.stopPropagation();fn(el.dataset,el,e)}});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.dataset.ch==='slot'){const days=clone(S.settings.days);const sl=days[el.dataset.d][Number(el.dataset.i)];if(el.dataset.k==='hours')sl.mins=Math.round((Number(el.value)||0)*60);else sl[el.dataset.k]=el.value;saveSettings({days});toast('Week updated — tap Re-plan to apply')}
+  if(el.dataset.ch==='checkin')saveSettings({checkinHour:Number(el.value)});
+  if(el.dataset.inv){syncInvDraft();if(el.dataset.inv==='client'||el.dataset.inv==='month'){S.invDraft.days=null}$('#modal').innerHTML=invoiceEditor()}
+});
+document.addEventListener('submit',e=>{
+  const f=e.target,k=f.dataset.form;if(!k)return;e.preventDefault();const fd=new FormData(f);
+  if(k==='task'){
+    const data=readTaskForm(f);if(!data.title)return;const id=f.dataset.id;
+    if(id){const old=S.tasks[id];const changed=['area','client','estimate','deadline','notBefore','projectId','listId','priority'].some(x=>String(old[x]||'')!==String(data[x]||''))||old.pinned!==data.pinned||(data.pinned&&old.scheduled!==data.scheduled);
+      if(!changed&&!data.pinned){delete data.scheduled;delete data.pinned}
+      if(data.projectId&&old.projectId!==data.projectId)data.order=projectSteps(data.projectId).length;
+      patch('tasks',id,data)}
+    else{if(data.projectId)data.order=projectSteps(data.projectId).length;newTask(data)}
+    closeModal();setTimeout(()=>plan('new'),0);toast(id?'Saved':'Added — scheduling…');
+  }
+  if(k==='addStep'){const title=(fd.get('title')||'').trim();if(!title)return;const p=S.projects[f.dataset.id];
+    newTask({title,area:p.area,client:p.client||'',estimate:Number(fd.get('estimate'))||60,projectId:p.id,order:projectSteps(p.id).length,priority:'normal'});
+    const inp=f.querySelector('input[name=title]');inp.value='';setTimeout(()=>plan('new'),0)}
+  if(k==='addListItem'){const title=(fd.get('title')||'').trim();if(!title)return;const l=S.lists[f.dataset.id];
+    newTask({title,estimate:30,listId:l.id,priority:'normal'});f.querySelector('input').value='';setTimeout(()=>plan('new'),0)}
+  if(k==='project'){const id=f.dataset.id||uid();const data={title:fd.get('title').trim(),area:fd.get('area'),client:fd.get('client')||'',deadline:fd.get('deadline')||'',notes:fd.get('notes')||'',status:fd.get('status')||'active'};
+    if(!data.title)return;
+    if(f.dataset.id){const old=S.projects[id];patch('projects',id,data);if(old.deadline!==data.deadline||old.area!==data.area||old.client!==data.client){for(const t of projectSteps(id))if(t.status!=='done')patch('tasks',t.id,{area:data.area,client:data.client,scheduled:t.pinned?t.scheduled:null});setTimeout(()=>plan('new'),0)}}
+    else put('projects',id,{...data,created:new Date().toISOString()});
+    closeModal();S.view='projects';render()}
+  if(k==='list'){const id=f.dataset.id||uid();const data={name:fd.get('name').trim(),area:fd.get('area'),due:fd.get('due')||'',archived:false};if(!data.name)return;
+    if(f.dataset.id){const old=S.lists[id];patch('lists',id,{name:data.name,area:data.area,due:data.due});if(old.due!==data.due||old.area!==data.area){for(const t of Object.values(S.tasks))if(t.listId===id&&t.status!=='done'&&!t.pinned)patch('tasks',t.id,{scheduled:null});setTimeout(()=>plan('new'),0)}}
+    else put('lists',id,data);closeModal();S.view='lists';render()}
+  if(k==='client'){const id=f.dataset.id||(fd.get('name').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||uid());
+    const data={name:fd.get('name').trim(),contact:fd.get('contact')||'',address:fd.get('address')||'',email:fd.get('email')||'',dayRate:Number(fd.get('dayRate'))||0,halfDayRate:Number(fd.get('halfDayRate'))||0,workDesc:fd.get('workDesc')||'',terms:Number(fd.get('terms'))||0};
+    if(!data.name)return;put('clients',id,data);closeModal();toast('Client saved')}
+  if(k==='business'){const b={};for(const x of ['name','address','email','phone','bankName','accountName','sortCode','accountNumber'])b[x]=fd.get(x)||'';
+    saveSettings({business:b,invoicePrefix:fd.get('invoicePrefix')||'',nextInvoice:Number(fd.get('nextInvoice'))||1,paymentDays:Number(fd.get('paymentDays'))||14});toast('Details saved')}
+});
+
+function projectForm(p){p=p||{area:'freelance',status:'active'};return `<h2>${p.id?'Edit project':'New project'}</h2><form data-form="project" data-id="${p.id||''}">
+  <input type="text" name="title" value="${esc(p.title)}" placeholder="Project name" required autofocus>
+  <label class="f">Area</label>${seg('area',Object.entries(AREAS).map(([k,v])=>[k,v.name]),p.area)}
+  <div class="grid2"><div><label class="f">Client</label>${clientSelect('client',p.client||'')}</div><div><label class="f">Deadline</label><input type="date" name="deadline" value="${esc(p.deadline||'')}"></div></div>
+  <label class="f">Notes</label><textarea name="notes" rows="2">${esc(p.notes||'')}</textarea>
+  ${p.id?`<label class="f">Status</label>${seg('status',[['active','Active'],['done','Finished']],p.status||'active')}`:''}
+  <p class="small muted">After saving, add steps to the project card. Each step gets scheduled in order.</p>
+  <div class="actions">${p.id?`<button type="button" class="btn danger" data-a="delProject" data-id="${p.id}">Delete</button>`:''}<button type="button" class="btn" data-a="close">Cancel</button><button class="btn primary">Save</button></div></form>`}
+function listForm(l){l=l||{area:'home'};return `<h2>${l.id?'Edit list':'New special list'}</h2><form data-form="list" data-id="${l.id||''}">
+  <input type="text" name="name" value="${esc(l.name)}" placeholder="e.g. Christmas" required autofocus>
+  <label class="f">Whose time does it use?</label>${seg('area',Object.entries(AREAS).map(([k,v])=>[k,v.name]),l.area||'home')}
+  <label class="f">Needed by</label><input type="date" name="due" value="${esc(l.due||'')}">
+  <div class="actions">${l.id?`<button type="button" class="btn danger" data-a="delList" data-id="${l.id}">Delete</button>`:''}<button type="button" class="btn" data-a="close">Cancel</button><button class="btn primary">Save</button></div></form>`}
+function clientForm(c){c=c||{};return `<h2>${c.id?'Edit client':'New client'}</h2><form data-form="client" data-id="${c.id||''}">
+  <label class="f">Name</label><input type="text" name="name" value="${esc(c.name)}" required>
+  <label class="f">Contact person</label><input type="text" name="contact" value="${esc(c.contact)}">
+  <label class="f">Address</label><textarea name="address" rows="3">${esc(c.address)}</textarea>
+  <label class="f">Invoice email</label><input type="text" name="email" value="${esc(c.email)}">
+  <div class="grid2"><div><label class="f">Day rate (£)</label><input type="number" step="0.01" name="dayRate" value="${esc(c.dayRate||'')}"></div><div><label class="f">Half-day rate (£)</label><input type="number" step="0.01" name="halfDayRate" value="${esc(c.halfDayRate||'')}" placeholder="half of day rate"></div></div>
+  <div class="grid2"><div><label class="f">Line description</label><input type="text" name="workDesc" value="${esc(c.workDesc||'')}" placeholder="e.g. Freelance design"></div><div><label class="f">Payment terms (days)</label><input type="number" name="terms" value="${esc(c.terms||'')}" placeholder="${S.settings.paymentDays}"></div></div>
+  <p class="small muted">Which days you work for them is set in "Your week".</p>
+  <div class="actions">${c.id?`<button type="button" class="btn danger" data-a="delClient" data-id="${c.id}">Delete</button>`:''}<button type="button" class="btn" data-a="close">Cancel</button><button class="btn primary">Save</button></div></form>`}
+
+/* ---------- invoice builder ---------- */
+function newInvoiceDraft(){
+  const d=new Date();const m=ymd(d).slice(0,7);
+  const withDays=Object.values(S.clients).find(c=>clientDays(c.id).length);
+  return {id:'',clientId:withDays?withDays.id:(Object.keys(S.clients)[0]||''),month:m,date:today(),extra:[],notes:'',days:null};
+}
+function draftDays(dr){
+  const c=S.clients[dr.clientId];if(!c||!dr.month)return [];
+  const wd=clientDays(c.id);if(!wd.length)return [];
+  const [y,mo]=dr.month.split('-').map(Number);const last=new Date(y,mo,0).getDate();const t=today();
+  const inv=invoicedDates(c.id,dr.id);const out=[];
+  for(let i=1;i<=last;i++){const d=`${dr.month}-${pad(i)}`;if(!wd.includes(dow(d)))continue;
+    const w=S.worklog[`${d}_${c.id}`];let units=w?w.units:(d<=t?1:0);const already=inv.has(d);
+    out.push({date:d,units:already?0:units,already,logged:!!w});}
+  return out;
+}
+function syncInvDraft(){
+  const dr=S.invDraft,m=$('#modal');if(!dr||!m)return;
+  const g=n=>m.querySelector(`[name="${n}"]`);
+  if(g('inv_client'))dr.clientId=g('inv_client').value;
+  if(g('inv_month'))dr.month=g('inv_month').value;
+  if(g('inv_date'))dr.date=g('inv_date').value;
+  if(g('inv_notes'))dr.notes=g('inv_notes').value;
+  if(dr.days)dr.days.forEach((d,i)=>{const s=m.querySelector(`[name="day_${i}"]`);if(s)d.units=Number(s.value)});
+  dr.extra.forEach((l,i)=>{const q=k=>m.querySelector(`[name="ex_${k}_${i}"]`);if(q('desc')){l.desc=q('desc').value;l.qty=Number(q('qty').value)||0;l.rate=Number(q('rate').value)||0}});
+}
+function draftLines(dr){
+  const c=S.clients[dr.clientId]||{};const lines=[];const desc=c.workDesc||'Freelance work';
+  for(const d of dr.days||[]){if(!d.units)continue;
+    if(d.units===0.5)lines.push({date:d.date,desc:`${desc} — ${fmtDay(d.date)} (half day)`,qty:1,rate:c.halfDayRate||(c.dayRate||0)/2});
+    else lines.push({date:d.date,desc:`${desc} — ${fmtDay(d.date)}`,qty:1,rate:c.dayRate||0});}
+  for(const l of dr.extra)if(l.desc||l.rate)lines.push({desc:l.desc,qty:l.qty,rate:l.rate});
+  return lines;
+}
+function invoiceEditor(){
+  const dr=S.invDraft;
+  if(dr.days===null){
+    if(dr.id&&S.invoices[dr.id]){const inv=S.invoices[dr.id];const base=draftDays(dr);
+      const dated=new Map((inv.lines||[]).filter(l=>l.date).map(l=>[l.date,/half day/.test(l.desc)?0.5:1]));
+      base.forEach(b=>{b.units=dated.get(b.date)||0});dr.days=base;
+      if(!dr.extra||!dr.extra.length)dr.extra=(inv.lines||[]).filter(l=>!l.date).map(l=>({...l}));}
+    else dr.days=draftDays(dr);
+  }
+  const c=S.clients[dr.clientId];
+  let h=`<h2>${dr.id?'Edit invoice':'New invoice'}</h2>`;
+  if(!Object.keys(S.clients).length)return h+`<p>Add a client in Settings first.</p><div class="actions"><button class="btn" data-a="tab" data-v="settings">Go to Settings</button></div>`;
+  h+=`<div class="grid2"><div><label class="f">Client</label><select name="inv_client" data-inv="client">${Object.values(S.clients).map(x=>`<option value="${x.id}" ${x.id===dr.clientId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+  <div><label class="f">Month worked</label><input type="month" name="inv_month" data-inv="month" value="${esc(dr.month)}"></div></div>
+  <label class="f">Invoice date</label><input type="date" name="inv_date" value="${esc(dr.date)}">`;
+  if(dr.days&&dr.days.length){
+    if(!c.dayRate)h+=`<p class="small" style="color:var(--warn)">No day rate set for ${esc(c.name)} — add it in Settings › Clients.</p>`;
+    h+=`<h3>Days (${esc(clientDays(c.id).map(d=>DAYNAMES[d]).join(', '))})</h3><table class="inv">${dr.days.map((d,i)=>`<tr><td>${fmtDay(d.date)}${d.already?' <span class="chip">already invoiced</span>':d.logged?'':' <span class="chip">not checked in</span>'}</td><td style="width:140px"><select name="day_${i}" data-inv="day">${[[1,'Full day'],[0.5,'Half day'],[0,'Not worked']].map(([v,l])=>`<option value="${v}" ${d.units===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</table>`;
+  }
+  h+=`<h3>Other lines</h3>${dr.extra.map((l,i)=>`<div class="slotrow" style="grid-template-columns:2fr 60px 90px 30px"><input type="text" name="ex_desc_${i}" value="${esc(l.desc)}" placeholder="Description"><input type="number" step="0.5" name="ex_qty_${i}" value="${esc(l.qty)}" data-inv="x"><input type="number" step="0.01" name="ex_rate_${i}" value="${esc(l.rate)}" placeholder="£" data-inv="x"><button class="x" data-a="invRmLine" data-i="${i}">×</button></div>`).join('')}
+  <button class="btn sm" data-a="invAddLine">+ Add line</button>
+  <label class="f">Notes on invoice</label><textarea name="inv_notes" rows="2">${esc(dr.notes||'')}</textarea>
+  <div class="spread" style="margin-top:14px"><b>Total ${money(invTotal(draftLines(dr)))}</b><div class="row"><button class="btn" data-a="close">Cancel</button><button class="btn primary" data-a="saveInvoice">${dr.id?'Save':'Create invoice'}</button></div></div>`;
+  return h;
+}
+function saveInvoice(){
+  syncInvDraft();const dr=S.invDraft,c=S.clients[dr.clientId];if(!c)return;
+  const lines=draftLines(dr);if(!lines.length){toast('Add at least one line');return}
+  const terms=c.terms||S.settings.paymentDays||14;
+  const data={clientId:c.id,client:{name:c.name,contact:c.contact||'',address:c.address||'',email:c.email||''},date:dr.date,due:addDays(dr.date,terms),month:dr.month,lines,notes:dr.notes||'',total:invTotal(lines)};
+  let id=dr.id;
+  if(id){patch('invoices',id,data)}
+  else{id=uid();const num=(S.settings.invoicePrefix||'')+String(S.settings.nextInvoice||1).padStart(3,'0');
+    put('invoices',id,{...data,number:num,status:'draft',created:new Date().toISOString()});saveSettings({nextInvoice:(Number(S.settings.nextInvoice)||1)+1});}
+  S.invDraft=null;openModal(invoiceView(S.invoices[id]));
+}
+function invoiceView(inv){
+  if(!inv)return'';const od=inv.status==='sent'&&inv.due&&inv.due<today();
+  return `<div class="spread"><h2 style="margin:0">${esc(inv.number)}</h2><span class="chip ${inv.status==='paid'?'ok':od?'warn':''}">${od?'overdue':inv.status}</span></div>
+  <p class="muted small">${esc(inv.client&&inv.client.name)} · ${fmtDay(inv.date)} · due ${fmtDay(inv.due)}</p>
+  <table class="inv"><tr><th>Description</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr>${(inv.lines||[]).map(l=>`<tr><td>${esc(l.desc)}</td><td class="num">${l.qty}</td><td class="num">${money(l.rate)}</td><td class="num">${money(l.qty*l.rate)}</td></tr>`).join('')}<tr><td colspan="3"><b>Total</b></td><td class="num"><b>${money(invTotal(inv.lines))}</b></td></tr></table>
+  ${inv.client&&inv.client.email?`<p class="small muted">Send to: ${esc(inv.client.email)}</p>`:''}
+  <div class="actions" style="justify-content:flex-start">${DL?`<button class="btn primary" data-a="pdf" data-id="${inv.id}">Download PDF</button>`:''}
+  ${inv.status==='draft'?`<button class="btn" data-a="invStatus" data-s="sent" data-id="${inv.id}">Mark as sent</button>`:''}
+  ${inv.status!=='paid'?`<button class="btn" data-a="invStatus" data-s="paid" data-id="${inv.id}">Mark as paid</button>`:`<button class="btn" data-a="invStatus" data-s="sent" data-id="${inv.id}">Mark unpaid</button>`}
+  <button class="btn" data-a="editInvoice" data-id="${inv.id}">Edit</button>
+  <button class="btn danger" data-a="delInvoice" data-id="${inv.id}">Delete</button>
+  <button class="btn" data-a="close">Close</button></div>`;
+}
+function buildPdf(inv){
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});const B=S.settings.business||{};
+  const L=20,R=190;let y=26;
+  doc.setFont('helvetica','bold');doc.setFontSize(24);doc.text('INVOICE',L,y);
+  doc.setFontSize(11);doc.text(B.name||'',R,20,{align:'right'});
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);let ry=25;
+  for(const line of [...String(B.address||'').split('\n'),B.email,B.phone].filter(Boolean)){doc.text(line,R,ry,{align:'right'});ry+=4.6}
+  y=Math.max(y,ry)+10;
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(120);doc.text('BILL TO',L,y);doc.text('INVOICE NO.',125,y);doc.text('DATE',160,y);
+  doc.setTextColor(20);doc.setFont('helvetica','normal');doc.setFontSize(10);
+  let by=y+5;const cl=inv.client||{};
+  for(const line of [cl.name,cl.contact,...String(cl.address||'').split('\n')].filter(Boolean)){doc.text(line,L,by);by+=4.8}
+  doc.text(inv.number,125,y+5);doc.text(parseD(inv.date).toLocaleDateString('en-GB'),160,y+5);
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(120);doc.text('DUE',160,y+13);doc.setTextColor(20);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(parseD(inv.due).toLocaleDateString('en-GB'),160,y+18);
+  y=Math.max(by,y+22)+10;
+  const head=()=>{doc.setFillColor(242,240,236);doc.rect(L,y-5,R-L,8,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('DESCRIPTION',L+2,y);doc.text('QTY',140,y,{align:'right'});doc.text('RATE',165,y,{align:'right'});doc.text('AMOUNT',R-2,y,{align:'right'});doc.setFont('helvetica','normal');doc.setFontSize(10);y+=9};
+  head();
+  for(const l of inv.lines||[]){
+    const wrapped=doc.splitTextToSize(String(l.desc||''),105);
+    if(y+wrapped.length*5>265){doc.addPage();y=25;head()}
+    doc.text(wrapped,L+2,y);doc.text(String(l.qty),140,y,{align:'right'});doc.text(money(l.rate),165,y,{align:'right'});doc.text(money(l.qty*l.rate),R-2,y,{align:'right'});
+    y+=wrapped.length*5+2.5;doc.setDrawColor(230);doc.line(L,y-3.5,R,y-3.5);
+  }
+  y+=4;doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text('Total',140,y,{align:'right'});doc.text(money(invTotal(inv.lines)),R-2,y,{align:'right'});
+  y+=14;if(y>250){doc.addPage();y=25}
+  doc.setFontSize(9);doc.setTextColor(120);doc.text('PAYMENT DETAILS',L,y);doc.setTextColor(20);doc.setFont('helvetica','normal');doc.setFontSize(10);y+=5;
+  for(const line of [B.bankName&&`Bank: ${B.bankName}`,B.accountName&&`Account name: ${B.accountName}`,B.sortCode&&`Sort code: ${B.sortCode}`,B.accountNumber&&`Account number: ${B.accountNumber}`,`Reference: ${inv.number}`,`Payment due within ${Math.round((parseD(inv.due)-parseD(inv.date))/864e5)} days`].filter(Boolean)){doc.text(line,L,y);y+=5}
+  if(inv.notes){y+=4;doc.text(doc.splitTextToSize(inv.notes,R-L),L,y)}
+  return doc.output('blob');
+}
+async function downloadPdf(inv){
+  if(!inv)return;if(!window.jspdf){toast('PDF library did not load — check your connection');return}
+  try{
+    const blob=buildPdf(inv);const name=`${inv.number} ${(inv.client&&inv.client.name)||''}.pdf`.trim();
+    const file=new File([blob],name,{type:'application/pdf'});
+    if(/iPhone|iPad|Android/i.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:inv.number});return}catch(e){if(e&&e.name==='AbortError')return}
+    }
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+  }catch(e){console.error(e);toast("Couldn't make the PDF: "+(e&&e.message))}
+}
+
+/* ---------- email parsing (server, via Claude) ---------- */
+async function parseEmail(text){
+  const {data:{session}}=await SB.auth.getSession();
+  const r=await fetch(CONFIG.SUPABASE_URL+'/functions/v1/planner-email',{method:'POST',headers:{'Content-Type':'application/json',apikey:CONFIG.SUPABASE_ANON_KEY,Authorization:'Bearer '+(session&&session.access_token)},body:JSON.stringify({text})});
+  let j={};try{j=await r.json()}catch(e){}
+  if(!r.ok)throw new Error(j.error||('error '+r.status));
+  return (j.tasks||[]).map(t=>({...t,order:S.projects[t.projectId]?projectSteps(t.projectId).length:0}));
+}
+async function loadInbox(){try{const {data}=await SB.rpc('planner_get_inbox');S.inbox=data;renderSoon()}catch(e){console.error(e)}}
+A.copyInbox=async()=>{try{await navigator.clipboard.writeText(CONFIG.SUPABASE_URL+'/functions/v1/planner-email?token='+S.inbox);toast('Copied')}catch(e){toast('Copy failed — select and copy it instead')}};
+A.signOut=async()=>{await SB.auth.signOut();location.reload()};
+
+/* ---------- phone notifications ---------- */
+let PUSH={kind:'checking'};
+const isIos=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const isStandalone=()=>window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
+function b64ToBytes(b64){const pad='='.repeat((4-b64.length%4)%4);const raw=atob((b64+pad).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
+async function saveSub(sub){const j=sub.toJSON();const {error}=await SB.from('planner_push_subs').upsert({owner_id:USER.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,label:navigator.userAgent.slice(0,120)},{onConflict:'endpoint'});if(error)throw error}
+async function refreshPushState(){
+  const can='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+  if(!can){PUSH={kind:isIos&&!isStandalone()?'ios-install':'unsupported'};renderSoon();return}
+  if(Notification.permission==='denied'){PUSH={kind:'blocked'};renderSoon();return}
+  try{
+    const reg=await navigator.serviceWorker.register('sw.js',{scope:'./'});
+    let sub=await reg.pushManager.getSubscription();
+    if(Notification.permission==='granted'){
+      if(!sub){try{sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToBytes(CONFIG.VAPID_PUBLIC_KEY)})}catch(e){console.error(e)}}
+      if(sub){saveSub(sub).catch(console.error);PUSH={kind:'on'};renderSoon();return}
+    }
+  }catch(e){console.error(e);PUSH={kind:'unsupported'};renderSoon();return}
+  PUSH={kind:'ask'};renderSoon();
+}
+A.enablePush=async()=>{
+  try{
+    const reg=await navigator.serviceWorker.register('sw.js',{scope:'./'});
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){PUSH={kind:perm==='denied'?'blocked':'ask'};render();return}
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToBytes(CONFIG.VAPID_PUBLIC_KEY)});
+    await saveSub(sub);PUSH={kind:'on',note:'Turned on for this device.'};
+  }catch(e){console.error(e);PUSH={kind:'error',note:e.message||'Could not turn on notifications.'}}
+  render();
+};
+A.disablePush=async()=>{
+  try{const reg=await navigator.serviceWorker.getRegistration('./');const sub=reg&&await reg.pushManager.getSubscription();
+    if(sub){await SB.from('planner_push_subs').delete().eq('endpoint',sub.endpoint);await sub.unsubscribe()}
+    PUSH={kind:'ask',note:'Turned off for this device.'};
+  }catch(e){PUSH={kind:'error',note:e.message}}
+  render();
+};
+A.testPush=async d=>{
+  const {data:{session}}=await SB.auth.getSession();
+  try{const r=await fetch(CONFIG.SUPABASE_URL+'/functions/v1/planner-notify?test='+(d.k||'checkin'),{method:'POST',headers:{'Content-Type':'application/json',apikey:CONFIG.SUPABASE_ANON_KEY,Authorization:'Bearer '+session.access_token},body:'{}'});
+    toast(r.ok?'Sent — it should arrive in a few seconds':'Test failed ('+r.status+')')}catch(e){toast('Test failed: '+e.message)}
+};
+function notifCard(){
+  const s=S.settings;let body='';
+  const k=PUSH.kind;
+  if(k==='ios-install')body=`<p style="margin-top:4px">On iPhone, notifications only work from the home-screen app. In Safari tap <b>Share</b> → <b>Add to Home Screen</b>, open <b>Planner</b> from your home screen, then come back here.</p>`;
+  else if(k==='ask')body=`<p style="margin-top:4px">Get your morning plan and the evening check-in on this device.</p><button class="btn primary sm" data-a="enablePush">Turn on notifications</button>`;
+  else if(k==='on')body=`<p style="margin-top:4px">On for this device ✓</p><div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn sm" data-a="testPush" data-k="checkin">Send a test</button><button class="btn sm" data-a="disablePush">Turn off</button></div>`;
+  else if(k==='blocked')body=`<p style="margin-top:4px">Notifications are blocked for this site in your browser or phone settings. Allow them there, then reload.</p>`;
+  else if(k==='unsupported')body=`<p style="margin-top:4px">This browser can't receive notifications.</p>`;
+  else if(k==='error')body=`<p style="margin-top:4px;color:var(--warn)">${esc(PUSH.note||'Something went wrong')}</p><button class="btn sm" data-a="enablePush">Try again</button>`;
+  else body=`<p class="faint">Checking…</p>`;
+  if(PUSH.note&&k!=='error')body+=`<p class="small muted">${esc(PUSH.note)}</p>`;
+  return `<div class="sec-head"><span>Notifications</span></div><div class="card">${body}
+    <div class="grid2" style="margin-top:6px"><div><label class="f">Morning plan</label><select data-ch="morning">${[[0,'Off'],[6,'6:00'],[7,'7:00'],[8,'8:00'],[9,'9:00'],[10,'10:00']].map(([v,l])=>`<option value="${v}" ${Number(s.morningHour)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+    <div><label class="f">Evening check-in</label><select data-ch="checkin">${[15,16,17,18,19,20,21].map(x=>`<option value="${x}" ${s.checkinHour===x?'selected':''}>${x}:00</option>`).join('')}</select></div></div></div>`;
+}
+document.addEventListener('change',e=>{if(e.target.dataset.ch==='morning')saveSettings({morningHour:Number(e.target.value)})});
+
+/* ---------- sync with the database ---------- */
+async function loadAll(){
+  const rows=[];let from=0;
+  for(;;){const {data,error}=await SB.from('planner_docs').select('col,id,data').range(from,from+999);if(error)throw error;rows.push(...data);if(data.length<1000)break;from+=1000}
+  for(const c of COLS)S[c]={};settingsExists=false;let st=null;
+  for(const r of rows){if(r.col==='config'&&r.id==='settings'){st=r.data;settingsExists=true}else if(S[r.col])S[r.col][r.id]={...r.data,id:r.id}}
+  S.settings=mergeSettings(st);
+}
+let planT;
+function applyRemote(p){
+  const r=(p.new&&p.new.col)?p.new:p.old;if(!r||!r.col)return;
+  if(PENDING[r.col+'/'+r.id]>0)return;
+  if(p.eventType==='DELETE'){if(S[r.col])delete S[r.col][r.id]}
+  else if(r.col==='config'&&r.id==='settings'){S.settings=mergeSettings(r.data);settingsExists=true}
+  else if(S[r.col]){S[r.col][r.id]={...r.data,id:r.id};if(r.col==='tasks'&&!r.data.scheduled&&r.data.status!=='done'){clearTimeout(planT);planT=setTimeout(()=>plan('new'),800)}}
+  renderSoon();
+}
+function subscribeRealtime(){
+  SB.channel('planner-'+USER.id).on('postgres_changes',{event:'*',schema:'public',table:'planner_docs',filter:'owner_id=eq.'+USER.id},applyRemote).subscribe();
+}
+async function resync(){
+  if(Object.values(PENDING).some(n=>n>0))return;
+  try{await loadAll();plan('new');renderSoon()}catch(e){console.error(e)}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.ready)resync()});
+function openCheckinFromLink(){
+  if(location.hash==='#checkin'){history.replaceState(null,'',location.pathname+location.search);S.view='today';render();openModal(checkinHtml())}
+}
+window.addEventListener('hashchange',()=>{if(S.ready)openCheckinFromLink()});
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{
+  const d=e.data||{};if(d.type!=='open')return;
+  resync().then(()=>{if(String(d.url||'').includes('#checkin')){S.view='today';render();openModal(checkinHtml())}});
+});
+
+/* ---------- sign in ---------- */
+function renderLogin(msg,mfa){
+  $('#nav').innerHTML='';setStatus('');
+  $('#view').innerHTML=`<div class="login-wrap"><form class="login-card" id="loginForm">
+    <div class="bigdate">${pad(new Date().getDate())}.${pad(new Date().getMonth()+1)}</div>
+    ${mfa?`<p class="small muted">Enter the 6-digit code from your authenticator app.</p><input type="text" id="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code" style="text-align:center;letter-spacing:6px">`
+      :`<p class="small muted">Sign in with your Photo Pronto dashboard login.</p><input type="email" id="email" placeholder="Email" autocomplete="username"><input type="password" id="password" placeholder="Password" autocomplete="current-password">`}
+    <button class="btn primary">${mfa?'Continue':'Sign in'}</button><div class="err">${esc(msg||'')}</div></form></div>`;
+  $('#loginForm').onsubmit=async e=>{
+    e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;
+    try{
+      if(mfa){
+        const {data:f}=await SB.auth.mfa.listFactors();const factor=(f&&f.totp||[])[0];
+        const {error}=await SB.auth.mfa.challengeAndVerify({factorId:factor.id,code:$('#code').value.replace(/\D/g,'')});
+        if(error){renderLogin(error.message,true);return}
+        await start();
+      }else{
+        const {data,error}=await SB.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});
+        if(error){renderLogin(error.message);return}
+        USER=data.user;await afterSignIn();
+      }
+    }catch(err){renderLogin(err.message||'Could not sign in.',mfa)}
+  };
+}
+async function afterSignIn(){
+  try{const {data}=await SB.auth.mfa.getAuthenticatorAssuranceLevel();if(data&&data.nextLevel==='aal2'&&data.currentLevel!=='aal2'){renderLogin('',true);return}}catch(e){}
+  await start();
+}
+async function start(){
+  S.note='Loading your planner…';S.ready=false;render();
+  try{await loadAll()}catch(e){S.note="Couldn't load your data: "+(e.message||e);render();return}
+  SAMPLE=true;S.ready=true;setStatus('Saved');
+  if(!settingsExists||!S.settings.worklogFrom)saveSettings({worklogFrom:S.settings.worklogFrom||today()});
+  subscribeRealtime();plan('new');render();openCheckinFromLink();
+  refreshPushState();loadInbox();
+  setInterval(()=>{if(S.ready)renderSoon()},60000);
+}
+async function boot(){
+  render();
+  if(!window.supabase){S.note="Couldn't load — check your connection and reload.";render();return}
+  SB=window.supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+  const {data:{session}}=await SB.auth.getSession();
+  if(!session){renderLogin();return}
+  USER=session.user;await afterSignIn();
+}
+boot();
+</script>
+</body>
+</html>

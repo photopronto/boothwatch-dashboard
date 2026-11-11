@@ -1,0 +1,16 @@
+{
+  "name": "Planner",
+  "short_name": "Planner",
+  "description": "Matthew's planner: tasks, projects, check-ins and invoices",
+  "id": "/planner/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EBE8E1",
+  "theme_color": "#EBE8E1",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
