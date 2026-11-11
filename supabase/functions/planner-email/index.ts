@@ -2,7 +2,7 @@
 // Two ways in:
 //  1. From the app ("From email" button): signed-in request with the pasted email -> returns tasks to review.
 //  2. Forwarded email: an inbound email service posts to ?token=<your secret token> -> tasks are added straight away
-//     and a phone notification says what was added. Accepts Postmark, Mailgun, CloudMailin or plain {from,subject,text}.
+//     and a phone notification says what was added. Accepts Resend, Postmark, Mailgun, CloudMailin or plain {from,subject,text}.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -25,6 +25,15 @@ async function readInbound(req: Request): Promise<string> {
   let b: Record<string, any> = {};
   if (ct.includes("application/json")) b = await req.json();
   else { const fd = await req.formData(); fd.forEach((v, k) => { if (typeof v === "string") b[k] = v; }); }
+  // Resend only sends a notice; fetch the email itself with the Resend API key
+  if (b.type === "email.received" && b.data?.email_id) {
+    const rk = Deno.env.get("RESEND_API_KEY");
+    if (!rk) throw new Error("RESEND_API_KEY is not set");
+    const r = await fetch(`https://api.resend.com/emails/receiving/${b.data.email_id}`, { headers: { Authorization: `Bearer ${rk}` } });
+    if (!r.ok) throw new Error(`Resend ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const e = await r.json();
+    b = { from: e.from || b.data.from, subject: e.subject || b.data.subject, text: e.text || "", html: e.html || "" };
+  }
   const h = b.headers || {};
   const from = b.From || b.from || b.sender || h.from || h.From || b.envelope?.from || "";
   const subject = b.Subject || b.subject || h.subject || h.Subject || "";
