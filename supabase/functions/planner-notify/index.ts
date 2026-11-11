@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
     const weekPlanHour = Number(settings.weekPlanHour ?? 18);
     const checkinHour = Number(settings.checkinHour ?? 17);
     const morningHour = Number(settings.morningHour ?? 8);
+    const al = { morning: true, checkin: true, weekplan: true, weekPlanDay: 0, deadlines: "both", reminders: true, carryOver: true, invoiceTasks: true, chase: true, chaseAfterDays: 0, ...(settings.alerts || {}) };
     const patch = (id: string, p: Record<string, unknown>) => admin.rpc("planner_patch_doc", { p_owner: owner, p_col: "tasks", p_id: id, p_patch: p });
 
     const { data: logRows } = await admin.from("planner_notify_log").select("kind").eq("owner_id", owner).eq("day", now.date);
@@ -71,7 +72,7 @@ Deno.serve(async (req) => {
     // ---- Daily housekeeping (once a day, from 6am)
     if (!force && now.hour >= 6 && !sentToday.has("daily")) {
       // 1. Anything not ticked before today moves to the next suitable slot (the app re-slots it)
-      const stale = tasks.filter((t) => t.status !== "done" && t.scheduled && t.scheduled < now.date);
+      const stale = al.carryOver === false ? [] : tasks.filter((t) => t.status !== "done" && t.scheduled && t.scheduled < now.date);
       for (const t of stale) {
         await patch(t.id, { scheduled: null, pinned: false, bumps: (Number(t.bumps) || 0) + 1, carried: now.date });
         t.scheduled = null;
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
       const [yy, mm] = ym.split("-").map(Number);
       let lastWork = new Date(Date.UTC(yy, mm, 0)).toISOString().slice(0, 10); // last day of this month
       while (dowOf(lastWork) === 0 || dowOf(lastWork) === 6) lastWork = addDays(lastWork, -1);
-      if (now.date === lastWork) {
+      if (al.invoiceTasks !== false && now.date === lastWork) {
         for (const [cid, c] of Object.entries(clientDocs) as [string, any][]) {
           if (!c?.workplace) continue;
           let days = 0;
@@ -102,8 +103,8 @@ Deno.serve(async (req) => {
       }
 
       // 3. Overdue invoices: add a chase task (once per invoice)
-      for (const inv of invoices) {
-        if (inv.status !== "sent" || !inv.due || inv.due >= now.date) continue;
+      for (const inv of al.chase === false ? [] : invoices) {
+        if (inv.status !== "sent" || !inv.due || addDays(inv.due, Number(al.chaseAfterDays) || 0) >= now.date) continue;
         const total = (inv.lines || []).reduce((s: number, l: any) => s + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
         await newTask(`chase-${inv.id}`, { title: `Chase ${inv.client?.name || clients[inv.clientId] || "client"} for ${inv.number} (${money(total)})`, notes: `Was due ${inv.due}.`, action: { type: "chase", invoice: inv.id } });
       }
@@ -114,10 +115,10 @@ Deno.serve(async (req) => {
     const effDeadline = (t: any) => t.deadline || "";
 
     // ---- Morning plan
-    if (force === "morning" || (!force && morningHour > 0 && now.hour >= morningHour && now.hour < 12 && !sentToday.has("morning"))) {
+    if (force === "morning" || (!force && al.morning !== false && morningHour > 0 && now.hour >= morningHour && now.hour < 12 && !sentToday.has("morning"))) {
       const todays = open.filter((t) => t.scheduled === now.date);
-      const dueToday = open.filter((t) => effDeadline(t) === now.date);
-      const dueTomorrow = open.filter((t) => effDeadline(t) === addDays(now.date, 1));
+      const dueToday = al.deadlines === "off" ? [] : open.filter((t) => effDeadline(t) === now.date);
+      const dueTomorrow = al.deadlines === "both" ? open.filter((t) => effDeadline(t) === addDays(now.date, 1)) : [];
       const fresh = open.filter((t) => !t.scheduled && t.fromEmail && !t.carried).length;
       const mins = todays.reduce((s, t) => s + (Number(t.estimate) || 30), 0);
       const bits = [todays.length ? `${todays.length} task${todays.length > 1 ? "s" : ""} · ${fmtMins(mins)}` : "Nothing planned yet"];
@@ -132,7 +133,7 @@ Deno.serve(async (req) => {
     }
 
     // ---- Evening check-in
-    if (force === "checkin" || (!force && now.hour >= checkinHour && !sentToday.has("checkin"))) {
+    if (force === "checkin" || (!force && al.checkin !== false && now.hour >= checkinHour && !sentToday.has("checkin"))) {
       const due = open.filter((t) => t.scheduled && t.scheduled <= now.date).length;
       const t = dayType(now.date);
       const days = (t !== "free" && t !== "off" && clients[t] && !worklog[`${now.date}_${t}`]) ? [t] : [];
@@ -146,12 +147,12 @@ Deno.serve(async (req) => {
 
     // ---- Sunday evening: where are you working next week?
     const nextMon = addDays(monday(now.date), 7);
-    if (force === "week" || (!force && now.dow === 0 && weekPlanHour > 0 && now.hour >= weekPlanHour && !sentToday.has("weekplan") && !weeks[nextMon])) {
+    if (force === "week" || (!force && al.weekplan !== false && now.dow === Number(al.weekPlanDay ?? 0) && weekPlanHour > 0 && now.hour >= weekPlanHour && !sentToday.has("weekplan") && !weeks[nextMon])) {
       messages.push({ kind: "weekplan", title: "Plan next week", body: "Where are you working next week? Tap to set your days.", hash: "#plan-week", log: true });
     }
 
     // ---- "Remind me at…" on individual tasks
-    if (!force) {
+    if (!force && al.reminders !== false) {
       for (const t of open) {
         if (!t.remindAt || t.remindSent || String(t.remindAt) > now.stamp) continue;
         messages.push({ kind: "remind", title: "Reminder", body: t.title + (t.deadline ? ` (due ${t.deadline})` : ""), hash: "", tag: "planner-remind-" + t.id });

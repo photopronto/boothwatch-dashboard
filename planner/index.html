@@ -192,6 +192,39 @@ table.inv .num{text-align:right;white-space:nowrap}
 .quickadd{display:flex;gap:8px;margin:0 0 14px}
 .quickadd input{flex:1;border-radius:999px;padding:12px 18px;font-size:16px;background:var(--white)}
 .chip.act{border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer;font:inherit;font-size:12px;font-weight:600}
+:root[data-theme=dark]{--paper:#232220;--white:#2E2D2A;--ink:#F1EFE9;--ink2:#B5B0A6;--ink3:#7F7B73;--line:rgba(241,239,233,.14);--soft:rgba(241,239,233,.08)}
+:root[data-theme=dark] .round{background:#3A3936}
+:root[data-theme=dark] .task .mins{background:var(--ink);color:var(--paper)}
+:root[data-theme=dark] .task .chk{border-color:var(--ink3)}
+:root[data-theme=dark] .chip{background:rgba(255,255,255,.1)}
+:root[data-theme=dark] .chip.warn{background:#B8431F;color:#fff}
+:root[data-theme=dark] .chip.act{background:var(--ink);color:var(--paper)}
+:root[data-theme=dark] [style*="background:#"] .task .mins{background:rgba(23,22,20,.85);color:#F7F5F0}
+:root[data-theme=dark] [style*="background:#"] .task .chk{border-color:rgba(23,22,20,.6)}
+:root[data-theme=dark] [style*="background:#"] .chip{background:rgba(255,255,255,.55)}
+:root[data-theme=dark] [style*="background:#"] .chip.warn{background:#171614;color:#F2B08E}
+:root[data-theme=dark] [style*="background:#"] .chip.act{background:#171614;color:#F7F5F0}
+[style*="background:#"]{color:#171614;--ink:#171614;--ink2:#4b4842;--ink3:#77736b;--line:rgba(23,22,20,.12);--bg:#F7F5F0;--white:#FFFFFF}
+.setnav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 6px;padding:2px}
+.setnav::-webkit-scrollbar{display:none}
+.setnav .pill{padding:6px 12px;font-size:13px}
+.tgl{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line);cursor:pointer}
+.tgl:first-child{border-top:0}
+.tgl .tx{flex:1;min-width:0}.tgl .tx b{display:block;font-weight:600}.tgl .tx small{display:block;color:var(--ink2);font-size:12.5px;margin-top:2px}
+.tgl input{display:none}
+.tgl i{flex:none;width:46px;height:28px;border-radius:999px;background:rgba(127,127,127,.35);position:relative;transition:background .15s}
+.tgl i::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.tgl input:checked+i{background:var(--ink)}
+.tgl input:checked+i::after{left:21px}
+.tgl-sub{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 10px}
+.tgl-sub select{width:auto}
+.arearow{display:grid;grid-template-columns:44px 1fr 36px;gap:8px;align-items:center;margin-bottom:8px}
+input[type=color]{width:44px;height:40px;border:0;border-radius:12px;padding:3px;background:var(--white);cursor:pointer}
+.colrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.swatch{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.swatch.on{border-color:var(--ink)}
+.segb{display:flex;gap:6px;flex-wrap:wrap}
 @media(max-width:420px){.dcard{grid-template-columns:72px 1fr;gap:10px}.dnum{font-size:46px}.dmon{font-size:20px}}
 </style>
 </head>
@@ -215,12 +248,11 @@ table.inv .num{text-align:right;white-space:nowrap}
 </script>
 <script>
 /* ---------- constants & helpers ---------- */
-const AREAS = {
-  freelance:{name:'Freelance', color:'#C4BEDB'},
-  pronto:{name:'Photo Pronto', color:'#E4814F'},
-  home:{name:'Home', color:'#B5CBA4'}
-};
-const LIST_TINT='#EBCB72', GREY_TINT='#D9D6CE', PAPER='#F7F5F0', ANY_TINT='#D6BF9C', FREE_TINT='#A4C8C8';
+// Areas come from Settings (you can add, rename and recolour them). Unknown/removed areas show as grey.
+const AREA_STORE={};
+const AREAS=new Proxy(AREA_STORE,{get:(o,k)=>typeof k==='string'?(o[k]||{name:k,color:'#D9D6CE'}):undefined});
+let LIST_TINT='#EBCB72', GREY_TINT='#D9D6CE', PAPER='#F7F5F0', ANY_TINT='#D6BF9C', FREE_TINT='#A4C8C8';
+const PALETTE=['#C4BEDB','#EAC0CC','#A4C8C8','#D6BF9C','#E7B48C','#B5CBA4','#E4814F','#EBCB72','#9FB7D9','#D9A6A0','#C9D7A0','#BFA7D6'];
 const CLIENT_TINTS=['#C4BEDB','#EAC0CC','#A4C8C8','#D6BF9C','#E7B48C'];
 const DAYNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DEFAULT_SETTINGS = {
@@ -228,7 +260,12 @@ const DEFAULT_SETTINGS = {
   usual:{'1':'dbt','2':'philema','3':'free','4':'dbt','5':'dbt','6':'free','0':'off'},
   workMins:420, eveningMins:120, freeMins:420, weekPlanHour:18,
   business:{name:'',address:'',email:'',phone:'',bankName:'',accountName:'',sortCode:'',accountNumber:''},
-  invoicePrefix:'INV-', nextInvoice:1, paymentDays:14, worklogFrom:''
+  invoicePrefix:'INV-', nextInvoice:1, paymentDays:14, worklogFrom:'',
+  areas:{freelance:{name:'Freelance',color:'#C4BEDB'},pronto:{name:'Photo Pronto',color:'#E4814F'},home:{name:'Home',color:'#B5CBA4'}},
+  colors:{free:'#A4C8C8',evening:'#D6BF9C',off:'#D9D6CE',list:'#EBCB72'},
+  ui:{theme:'light',bg:'#EBE8E1',scale:1,startTab:'today',hero:true,showDone:false},
+  alerts:{morning:true,checkin:true,weekplan:true,weekPlanDay:0,deadlines:'both',reminders:true,emailAdded:true,carryOver:true,invoiceTasks:true,chase:true,chaseAfterDays:0},
+  sizeThreshold:120, slipAfter:3, defaultEstimate:30
 };
 const pad=n=>String(n).padStart(2,'0');
 const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -257,7 +294,25 @@ function mergeSettings(d){
   const s=Object.assign(clone(DEFAULT_SETTINGS),d||{});
   s.business=Object.assign(clone(DEFAULT_SETTINGS.business),(d&&d.business)||{});
   s.usual=Object.assign(clone(DEFAULT_SETTINGS.usual),(d&&d.usual)||{});
+  s.areas=(d&&d.areas&&Object.keys(d.areas).length)?d.areas:clone(DEFAULT_SETTINGS.areas);
+  for(const k of ['colors','ui','alerts'])s[k]=Object.assign(clone(DEFAULT_SETTINGS[k]),(d&&d[k])||{});
   return s;
+}
+let darkMQ=null;
+function applySettings(){
+  const s=S.settings;
+  for(const k of Object.keys(AREA_STORE))delete AREA_STORE[k];
+  for(const [k,v] of Object.entries(s.areas||{}))AREA_STORE[k]={name:v.name||k,color:v.color||'#D9D6CE'};
+  const c=s.colors||{};FREE_TINT=c.free||'#A4C8C8';ANY_TINT=c.evening||'#D6BF9C';GREY_TINT=c.off||'#D9D6CE';LIST_TINT=c.list||'#EBCB72';
+  const ui=s.ui||{},root=document.documentElement;
+  if(!darkMQ&&window.matchMedia){darkMQ=matchMedia('(prefers-color-scheme: dark)');try{darkMQ.addEventListener('change',()=>renderSoon())}catch(e){}}
+  const theme=ui.theme==='auto'?(darkMQ&&darkMQ.matches?'dark':'light'):(ui.theme||'light');
+  root.dataset.theme=theme;
+  const bg=theme==='dark'?(ui.bgDark||'#141413'):(ui.bg||'#EBE8E1');
+  root.style.setProperty('--bg',bg);
+  PAPER=theme==='dark'?'var(--paper)':'#F7F5F0';
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=bg;
+  document.body.style.zoom=String(Number(ui.scale)||1);
 }
 let wq=Promise.resolve();
 function enqueue(fn){
@@ -299,7 +354,7 @@ function slotsFor(date){
   return out.map((x,i)=>({...x,i,left:x.mins}));
 }
 function slotLabel(s){return s.kind==='work'?clientName(s.client):s.kind==='free'?'Free day':'Evening'}
-function taskSize(t){return t.size||(est(t)>=120?'big':'quick')}
+function taskSize(t){return t.size||(est(t)>=(Number(S.settings.sizeThreshold)||120)?'big':'quick')}
 function exactFit(slot,t){
   const c=t.client||'';
   if(slot.kind==='work')return c===slot.client;
@@ -378,12 +433,13 @@ let rq=false;
 function renderSoon(){if(rq)return;rq=true;requestAnimationFrame(()=>{rq=false;render()})}
 const TABS=[['today','Today'],['week','Week'],['calendar','Calendar'],['areas','Areas'],['projects','Projects'],['lists','Lists'],['invoices','Invoices'],['settings','Settings']];
 const MON=s=>parseD(s).toLocaleDateString('en-GB',{month:'short'}).slice(0,3).toUpperCase();
-function clientTint(id){const ks=Object.keys(S.clients).sort();const i=ks.indexOf(id);return i<0?AREAS.freelance.color:CLIENT_TINTS[i%CLIENT_TINTS.length]}
+function clientTint(id){const cc=S.clients[id];if(cc&&cc.color)return cc.color;const ks=Object.keys(S.clients).sort();const i=ks.indexOf(id);return i<0?AREAS.freelance.color:CLIENT_TINTS[i%CLIENT_TINTS.length]}
 function slotTint(s){return s.kind==='work'?clientTint(s.client):s.kind==='free'?FREE_TINT:s.kind==='evening'?ANY_TINT:GREY_TINT}
 function typeTint(v){return v==='free'?FREE_TINT:v==='off'?GREY_TINT:clientTint(v)}
 function dayTint(d){return typeTint(dayType(d))}
 function moneyBig(n){const s=money(n);const i=s.lastIndexOf('.');return `${s.slice(0,i)}<span class="p">${s.slice(i)}</span>`}
 function render(){
+  applySettings();
   const cc=S.ready?checkinCount():0;
   $('#nav').innerHTML=`<div class="pills">${TABS.map(([k,l])=>`<button data-a="tab" data-v="${k}" class="pill ${S.view===k?'on':''}">${l}${k==='today'&&cc?`<span class="badge">${cc}</span>`:''}</button>`).join('')}</div>${SAMPLE?`<button class="round ghost" data-a="emailImport" title="Add tasks from an email" aria-label="Add from email">✉︎</button>`:''}<button class="round" data-a="newTask" aria-label="Add task">+</button>`;
   if(!S.ready){$('#view').innerHTML=`<div class="empty">${esc(S.note||'Loading your planner…')}</div>`;return}
@@ -410,7 +466,7 @@ function taskRow(t,opts={}){
   if(t.remindAt&&!t.remindSent&&t.status!=='done')meta.push(`<span class="chip">🔔 ${relDay(t.remindAt.slice(0,10))} ${t.remindAt.slice(11,16)}</span>`);
   if(t.carried===today()&&t.status!=='done')meta.push(`<span class="chip">↪ carried over</span>`);
   if(t.action&&t.status!=='done')meta.push(`<button class="chip act" data-a="taskAction" data-id="${t.id}">${t.action.type==='invoice'?'Create invoice':'Open invoice'} →</button>`);
-  if((t.bumps||0)>=3&&t.status!=='done')meta.push(`<span class="chip warn">pushed back ${t.bumps}×</span>`);
+  if((t.bumps||0)>=(Number(S.settings.slipAfter)||3)&&t.status!=='done')meta.push(`<span class="chip warn">pushed back ${t.bumps}×</span>`);
   else if(t.bumps&&!opts.compact)meta.push(`<span class="chip">moved ${t.bumps}×</span>`);
   return `<div class="task ${t.status==='done'?'done':''} ${opts.compact?'compact':''}" data-a="editTask" data-id="${t.id}">
     <button class="chk" data-a="toggle" data-id="${t.id}" aria-label="Done"></button>
@@ -437,7 +493,7 @@ function vToday(){
   const open=slots.flatMap(s=>s.tasks).concat(other).filter(x=>x.status!=='done');
   const planned=open.reduce((s,x)=>s+est(x),0);
   const wd=d.toLocaleDateString('en-GB',{weekday:'long'});
-  let h=`<section class="hero"><div class="hero-day">${viewDate===t?wd:'Tomorrow · '+wd}</div><div class="hero-row"><div class="bigdate">${pad(d.getDate())}.${pad(d.getMonth()+1)}<br>${MON(viewDate)}</div><div class="hero-side"><div class="stat"><b>${open.length}</b><span>to do</span></div><div class="stat"><b>${fmtMins(planned)}</b><span>planned</span></div><div class="kind">${esc(dayKind(viewDate))}</div></div></div></section>`;
+  let h=S.settings.ui.hero===false?`<section class="hero" style="padding-bottom:10px"><div class="spread"><div><div class="hero-day" style="margin:0">${viewDate===t?wd:'Tomorrow · '+wd} ${d.getDate()} ${MON(viewDate)}</div><div class="kind">${esc(dayKind(viewDate))}</div></div><div class="small muted">${open.length} to do · ${fmtMins(planned)}</div></div></section>`:`<section class="hero"><div class="hero-day">${viewDate===t?wd:'Tomorrow · '+wd}</div><div class="hero-row"><div class="bigdate">${pad(d.getDate())}.${pad(d.getMonth()+1)}<br>${MON(viewDate)}</div><div class="hero-side"><div class="stat"><b>${open.length}</b><span>to do</span></div><div class="stat"><b>${fmtMins(planned)}</b><span>planned</span></div><div class="kind">${esc(dayKind(viewDate))}</div></div></div></section>`;
   const pw=weekPlanPrompt();
   if(pw)h+=`<div class="banner" style="background:${FREE_TINT};color:var(--ink)"><div><div class="big">${pw.title}</div><div class="small" style="opacity:.75;margin-top:4px">Tap where you're working each day.</div></div><button class="btn primary" data-a="planWeek" data-w="${pw.ws}">Plan</button></div>`;
   if(cc)h+=`<div class="banner"><div><div class="big">${cc} to check in</div><div class="small" style="opacity:.7;margin-top:4px">Done, or move it?</div></div><button class="btn" data-a="checkin">Check in</button></div>`;
@@ -449,8 +505,8 @@ function vToday(){
   h+=`<div class="sec-head"><span>${viewDate===t?"Today's tasks":"Tomorrow's tasks"}</span><button class="btn sm" data-a="tab" data-v="week">Week →</button></div>`;
   if(!slots.length&&!other.length)h+=`<div class="scard" style="background:${GREY_TINT}"><div class="sname">Day off</div><div class="empty">Nothing planned — enjoy it.</div></div>`;
   else h+=`<div class="stack">${slots.map(slotCard).join('')}${other.length?slotCard({label:'Other',tint:GREY_TINT,tasks:other,mins:0,used:0}):''}</div>`;
-  const slipping=openTasks().filter(x=>(x.bumps||0)>=3);
-  if(slipping.length)h+=`<div class="sec-head"><span>Keeps slipping</span><span class="faint">${slipping.length}</span></div><div class="card"><div class="small muted">Pushed back 3+ times. Tap one to split it, fix a date, or drop it.</div>${slipping.map(x=>taskRow(x,{showDate:true,showArea:true})).join('')}</div>`;
+  const slipping=openTasks().filter(x=>(x.bumps||0)>=(Number(S.settings.slipAfter)||3));
+  if(slipping.length)h+=`<div class="sec-head"><span>Keeps slipping</span><span class="faint">${slipping.length}</span></div><div class="card"><div class="small muted">Pushed back ${Number(S.settings.slipAfter)||3}+ times. Tap one to split it, fix a date, or drop it.</div>${slipping.map(x=>taskRow(x,{showDate:true,showArea:true})).join('')}</div>`;
   const nos=openTasks().filter(x=>!x.scheduled);
   if(nos.length)h+=`<div class="sec-head"><span>Couldn't fit</span><span class="faint">${nos.length}</span></div><div class="card"><div class="small muted">No evening or free-day time for these yet. Plan your week, mark a day as free, or change the task's size.</div>${nos.map(x=>taskRow(x,{showArea:true})).join('')}</div>`;
   const next=addDays(viewDate,1), nt=Object.values(S.tasks).filter(x=>x.scheduled===next&&x.status!=='done');
@@ -552,19 +608,66 @@ function vInvoices(){
 
 /* ---------- settings ---------- */
 function vSettings(){
-  const s=S.settings,b=s.business;
-  const clientOpts=sel=>`<option value="">— any —</option>`+Object.values(S.clients).map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
+  const s=S.settings,b=s.business,ui=s.ui,al=s.alerts;
   const typeOpts=v=>[...workplaces().map(c=>[c.id,c.name]),['free','Free day'],['off','Off']].map(([k,n])=>`<option value="${k}" ${v===k?'selected':''}>${esc(n)}</option>`).join('');
-  const hrs=(k,opts)=>`<select data-ch="mins" data-k="${k}">${opts.map(m=>`<option value="${m}" ${Number(s[k])===m?'selected':''}>${m?fmtMins(m):'None'}</option>`).join('')}</select>`;
-  let h=`<h2>Settings</h2><div class="sec-head"><span>Your usual week</span></div><div class="card"><p class="small muted" style="margin-top:4px">Used for any week you haven't planned. Each Sunday you'll be asked where you're working the next week.</p>`;
+  const sel=(ch,k,opts,val,extra='')=>`<select data-ch="${ch}" data-k="${k}" ${extra}>${opts.map(([v,l])=>`<option value="${v}" ${String(val)===String(v)?'selected':''}>${l}</option>`).join('')}</select>`;
+  const minsOpts=a=>a.map(m=>[m,m?fmtMins(m):'None']);
+  const hourOpts=(a)=>a.map(x=>[x,`${pad(x)}:00`]);
+  const segBtns=(k,opts,val)=>`<div class="segb">${opts.map(([v,l])=>`<button type="button" class="pill ${String(val)===String(v)?'on':''}" data-a="setUi" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const tgl=(k,title,sub,extra='')=>`<label class="tgl"><span class="tx"><b>${title}</b><small>${sub}</small></span><input type="checkbox" data-ch="alert" data-k="${k}" ${al[k]!==false?'checked':''}><i></i></label>${extra&&al[k]!==false?`<div class="tgl-sub">${extra}</div>`:''}`;
+  const secs=[['set-look','Appearance'],['set-areas','Areas & colours'],['set-week','Week & planning'],['set-alerts','Alerts'],['set-clients','Clients'],['set-inv','Invoices'],['set-email','Email'],['set-account','Account']];
+  let h=`<h2>Settings</h2><div class="setnav">${secs.map(([id,l])=>`<button class="pill" data-a="jump" data-id="${id}">${l}</button>`).join('')}</div>`;
+
+  // Appearance
+  h+=`<div class="sec-head" id="set-look"><span>Appearance</span></div><div class="card">
+    <label class="f">Theme</label>${segBtns('theme',[['light','Light'],['dark','Dark'],['auto','Match phone']],ui.theme)}
+    <label class="f">Background${ui.theme==='dark'?' (dark mode)':''}</label>
+    <div class="row" style="flex-wrap:wrap;gap:10px"><div class="swatches">${(ui.theme==='dark'?['#141413','#1B1D21','#1A1F1C','#211B1B','#000000']:['#EBE8E1','#F5F3EE','#F3EBDD','#E4E4E2','#E6EAE0','#EDE4EA']).map(c=>`<button type="button" class="swatch ${(ui.theme==='dark'?(ui.bgDark||'#141413'):ui.bg).toLowerCase()===c.toLowerCase()?'on':''}" style="background:${c}" data-a="setUi" data-k="${ui.theme==='dark'?'bgDark':'bg'}" data-v="${c}" title="${c}"></button>`).join('')}</div><input type="color" data-ch="ui" data-k="${ui.theme==='dark'?'bgDark':'bg'}" value="${esc(ui.theme==='dark'?(ui.bgDark||'#141413'):ui.bg)}" title="Pick any colour"></div>
+    <label class="f">Text size</label>${segBtns('scale',[[0.9,'Small'],[1,'Normal'],[1.1,'Large'],[1.2,'Extra large']],ui.scale)}
+    <label class="f">Open the app on</label>${sel('ui','startTab',TABS.map(([k,l])=>[k,l]),ui.startTab)}
+    <label class="tgl" style="margin-top:10px"><span class="tx"><b>Big date on Today</b><small>Turn off for a compact header with more room for tasks.</small></span><input type="checkbox" data-ch="uiflag" data-k="hero" ${ui.hero!==false?'checked':''}><i></i></label>
+    <label class="tgl"><span class="tx"><b>Show completed tasks in Areas</b><small>Otherwise tap "Show completed" when you need them.</small></span><input type="checkbox" data-ch="uiflag" data-k="showDone" ${ui.showDone?'checked':''}><i></i></label>
+  </div>`;
+
+  // Areas & colours
+  h+=`<div class="sec-head" id="set-areas"><span>Areas</span><button class="btn sm" data-a="addArea">+ Add area</button></div><div class="card">
+    <p class="small muted" style="margin-top:4px">Areas group your tasks and set their colour, e.g. Freelance, Photo Pronto, Clemo Books, The Pink Shop, Home.</p>
+    ${Object.entries(s.areas).map(([k,a])=>`<div class="arearow"><input type="color" data-ch="areaColor" data-id="${k}" value="${esc(a.color||'#D9D6CE')}"><input type="text" data-ch="areaName" data-id="${k}" id="area-${k}" value="${esc(a.name)}"><button class="x" data-a="delArea" data-id="${k}" title="Remove">×</button></div>`).join('')}
+  </div>
+  <div class="sec-head"><span>Day colours</span><button class="btn sm" data-a="resetColors">Reset</button></div><div class="card">
+    ${[['free','Free days (big tasks)'],['evening','Evenings (quick tasks)'],['off','Days off'],['list','Special lists']].map(([k,l])=>`<div class="colrow"><span>${l}</span><input type="color" data-ch="color" data-k="${k}" value="${esc(s.colors[k])}"></div>`).join('')}
+    ${Object.values(S.clients).map(c=>`<div class="colrow"><span>${esc(c.name)}</span><input type="color" data-ch="clientColor" data-id="${c.id}" value="${esc(clientTint(c.id))}"></div>`).join('')}
+  </div>`;
+
+  // Week & planning
+  h+=`<div class="sec-head" id="set-week"><span>Your usual week</span></div><div class="card"><p class="small muted" style="margin-top:4px">Used for any week you haven't planned on Sunday.</p>`;
   for(const d of [1,2,3,4,5,6,0])h+=`<div class="spread" style="margin:8px 0"><b>${DAYNAMES[d]}</b><select data-ch="usual" data-d="${d}" style="width:auto;min-width:170px">${typeOpts(s.usual[String(d)])}</select></div>`;
-  h+=`<div class="grid2" style="margin-top:10px"><div><label class="f">Evenings (quick tasks)</label>${hrs('eveningMins',[0,60,90,120,150,180,240])}</div><div><label class="f">Free days (big tasks)</label>${hrs('freeMins',[240,300,360,420,480])}</div></div>
-  <p class="small muted">Workplace days keep ${fmtMins(s.workMins)} for that company's own tasks only.</p>
-  <div class="actions"><button class="btn sm" data-a="replan">↻ Re-plan</button></div></div>`;
-  h+=notifCard();
-  h+=`<div class="sec-head"><span>Clients</span><button class="btn sm" data-a="editClient">+ Add client</button></div>`;
+  h+=`</div><div class="sec-head"><span>Planning</span><button class="btn sm" data-a="replan">↻ Re-plan</button></div><div class="card">
+    <div class="grid2"><div><label class="f">Evening time</label>${sel('mins','eveningMins',minsOpts([0,60,90,120,150,180,240]),s.eveningMins)}</div><div><label class="f">Free day time</label>${sel('mins','freeMins',minsOpts([240,300,360,420,480,540]),s.freeMins)}</div></div>
+    <div class="grid2"><div><label class="f">Workplace day</label>${sel('mins','workMins',minsOpts([240,360,420,480,540]),s.workMins)}</div><div><label class="f">"Big" means at least</label>${sel('mins','sizeThreshold',minsOpts([60,90,120,180,240]),s.sizeThreshold)}</div></div>
+    <div class="grid2"><div><label class="f">New task length</label>${sel('mins','defaultEstimate',minsOpts([15,30,60,120]),s.defaultEstimate)}</div><div><label class="f">"Keeps slipping" after</label>${sel('mins','slipAfter',[2,3,4,5,6].map(n=>[n,n+' moves']),s.slipAfter)}</div></div>
+    <p class="small muted">Workplace days are kept for that company's own tasks. Quick tasks go into evenings, big tasks into free days.</p>
+  </div>`;
+
+  // Alerts
+  h+=`<div class="sec-head" id="set-alerts"><span>Alerts</span></div>${pushCard()}<div class="card">
+    ${tgl('morning','Morning plan','What\'s planned today, what\'s due and anything carried over.',`<label class="small muted row" style="gap:6px">at ${sel('mins','morningHour',hourOpts([5,6,7,8,9,10,11]),s.morningHour||8)}</label>`)}
+    ${tgl('checkin','Evening check-in','Tick off what you did. Anything left moves to your next slot.',`<label class="small muted row" style="gap:6px">at ${sel('mins','checkinHour',hourOpts([15,16,17,18,19,20,21,22]),s.checkinHour)}</label>`)}
+    ${tgl('weekplan','Plan next week','Asks where you\'re working each day.',`${sel('alertv','weekPlanDay',[[5,'Friday'],[6,'Saturday'],[0,'Sunday']],al.weekPlanDay)} ${sel('mins','weekPlanHour',hourOpts([9,12,16,17,18,19,20,21]),s.weekPlanHour||18)}`)}
+    <div class="tgl" style="cursor:default"><span class="tx"><b>Deadline warnings</b><small>Included in the morning plan.</small></span>${sel('alertv','deadlines',[['off','Off'],['today','On the day'],['both','Day before + on the day']],al.deadlines,'style="width:auto"')}</div>
+    ${tgl('reminders','Task reminders','Sends the "Remind me at…" time you set on a task.')}
+    ${tgl('emailAdded','Tasks added from email','A notification when a forwarded email becomes tasks.')}
+    ${tgl('carryOver','Carry over unticked tasks','Each morning, anything you didn\'t tick moves to your next slot.')}
+    ${tgl('invoiceTasks','Month-end invoice tasks','"Send Design by Temple invoice" on the last working day of the month.')}
+    ${tgl('chase','Chase overdue invoices','Adds a "Chase…" task when an invoice is overdue.',`<label class="small muted row" style="gap:6px">once it's ${sel('alertv','chaseAfterDays',[[0,'due'],[3,'3 days late'],[7,'a week late'],[14,'2 weeks late']],al.chaseAfterDays)}</label>`)}
+  </div>`;
+
+  // Clients
+  h+=`<div class="sec-head" id="set-clients"><span>Clients</span><button class="btn sm" data-a="editClient">+ Add client</button></div>`;
   h+=Object.values(S.clients).map(c=>`<div class="scard" style="background:${clientTint(c.id)};margin-bottom:8px;cursor:pointer" data-a="editClient" data-id="${c.id}"><div class="shead" style="margin:0"><div><div class="sname">${esc(c.name)}</div><div class="bmeta" style="margin:8px 0 0">${c.workplace?`<span class="chip">Workplace${clientDays(c.id).length?' · usually '+clientDays(c.id).map(d=>DAYNAMES[d]).join(', '):''}</span>`:''}${c.email?`<span class="chip">${esc(c.email)}</span>`:''}</div></div><div class="sbig"><b>${c.dayRate?money(c.dayRate).replace('.00',''):'—'}</b><span>${c.dayRate?'per day':'no day rate'}</span></div></div></div>`).join('')||'<div class="card"><div class="empty">No clients yet</div></div>';
-  h+=`<div class="sec-head"><span>Invoice details</span></div><form class="card" data-form="business">
+
+  // Invoices
+  h+=`<div class="sec-head" id="set-inv"><span>Invoice details</span></div><form class="card" data-form="business">
     <label class="f">Your name / business name</label><input type="text" name="name" value="${esc(b.name)}">
     <label class="f">Address</label><textarea name="address" rows="3">${esc(b.address)}</textarea>
     <div class="grid2"><div><label class="f">Email</label><input type="text" name="email" value="${esc(b.email)}"></div><div><label class="f">Phone</label><input type="text" name="phone" value="${esc(b.phone)}"></div></div>
@@ -572,9 +675,15 @@ function vSettings(){
     <div class="grid2"><div><label class="f">Sort code</label><input type="text" name="sortCode" value="${esc(b.sortCode)}"></div><div><label class="f">Account number</label><input type="text" name="accountNumber" value="${esc(b.accountNumber)}"></div></div>
     <div class="grid2"><div><label class="f">Invoice prefix</label><input type="text" name="invoicePrefix" value="${esc(s.invoicePrefix)}"></div><div><label class="f">Next invoice number</label><input type="number" name="nextInvoice" value="${esc(s.nextInvoice)}"></div></div>
     <label class="f">Default payment terms (days)</label><input type="number" name="paymentDays" value="${esc(s.paymentDays)}">
-    <div class="actions"><button class="btn primary">Save details</button></div></form>
-    <div class="sec-head"><span>Email forwarding</span></div><div class="card small">${S.inbox?`<p style="margin-top:4px">Your private address for an inbound email service to post forwarded emails to. Tasks are added automatically and you get a notification.</p><div class="copybox"><code>${esc(CONFIG.SUPABASE_URL+'/functions/v1/planner-email?token='+S.inbox)}</code><button class="btn sm" data-a="copyInbox">Copy</button></div><p class="faint">Keep this private — anything sent to it becomes tasks.</p>`:'<span class="faint">Loading…</span>'}</div>
-    <div class="actions" style="justify-content:space-between"><span class="small faint">Signed in as ${esc(USER&&USER.email||'')}</span><button class="btn sm" data-a="signOut">Sign out</button></div>`;
+    <div class="actions"><button class="btn primary">Save details</button></div></form>`;
+
+  // Email
+  h+=`<div class="sec-head" id="set-email"><span>Email forwarding</span></div><div class="card small">${S.inbox?`<p style="margin-top:4px">The webhook address your inbound email service (Resend) posts forwarded emails to.</p><div class="copybox"><code>${esc(CONFIG.SUPABASE_URL+'/functions/v1/planner-email?token='+S.inbox)}</code><button class="btn sm" data-a="copyInbox">Copy</button></div><p class="faint">Keep this private — anything sent to it becomes tasks.</p>`:'<span class="faint">Loading…</span>'}</div>`;
+
+  // Account
+  h+=`<div class="sec-head" id="set-account"><span>Account</span></div><div class="card"><div class="spread"><span class="small muted">Signed in as ${esc(USER&&USER.email||'')}</span><button class="btn sm" data-a="signOut">Sign out</button></div>
+    <div class="spread" style="margin-top:10px"><span class="small muted">Reset appearance and colours to the originals</span><button class="btn sm" data-a="resetLook">Reset</button></div></div>
+    <p class="small faint" style="padding:0 4px">Only you can see this planner and its data.</p>`;
   return h;
 }
 
@@ -587,7 +696,7 @@ const seg=(name,opts,val)=>`<div class="seg">${opts.map(([v,l])=>{const id=name+
 const clientSelect=(name,val)=>`<select name="${name}"><option value="">— none —</option>${Object.values(S.clients).map(c=>`<option value="${c.id}" ${val===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`;
 
 function taskForm(t){
-  t=t||{area:S.areaFilter!=='all'?S.areaFilter:'home',estimate:30,priority:'normal'};
+  t=t||{area:S.areaFilter!=='all'?S.areaFilter:(AREA_STORE.home?'home':Object.keys(AREA_STORE)[0]),estimate:Number(S.settings.defaultEstimate)||30,priority:'normal'};
   const isNew=!t.id;
   const estOpts=[[15,'15m'],[30,'30m'],[60,'1h'],[120,'2h'],[240,'4h'],[420,'Full day']];
   const estVal=estOpts.some(o=>o[0]===Number(t.estimate))?Number(t.estimate):'custom';
@@ -938,23 +1047,46 @@ A.testPush=async d=>{
   try{const r=await fetch(CONFIG.SUPABASE_URL+'/functions/v1/planner-notify?test='+(d.k||'checkin'),{method:'POST',headers:{'Content-Type':'application/json',apikey:CONFIG.SUPABASE_ANON_KEY,Authorization:'Bearer '+session.access_token},body:'{}'});
     toast(r.ok?'Sent — it should arrive in a few seconds':'Test failed ('+r.status+')')}catch(e){toast('Test failed: '+e.message)}
 };
-function notifCard(){
-  const s=S.settings;let body='';
-  const k=PUSH.kind;
-  if(k==='ios-install')body=`<p style="margin-top:4px">On iPhone, notifications only work from the home-screen app. In Safari tap <b>Share</b> → <b>Add to Home Screen</b>, open <b>Planner</b> from your home screen, then come back here.</p>`;
-  else if(k==='ask')body=`<p style="margin-top:4px">Get your morning plan and the evening check-in on this device.</p><button class="btn primary sm" data-a="enablePush">Turn on notifications</button>`;
-  else if(k==='on')body=`<p style="margin-top:4px">On for this device ✓</p><div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn sm" data-a="testPush" data-k="checkin">Test check-in</button><button class="btn sm" data-a="testPush" data-k="week">Test Sunday prompt</button><button class="btn sm" data-a="disablePush">Turn off</button></div>`;
-  else if(k==='blocked')body=`<p style="margin-top:4px">Notifications are blocked for this site in your browser or phone settings. Allow them there, then reload.</p>`;
-  else if(k==='unsupported')body=`<p style="margin-top:4px">This browser can't receive notifications.</p>`;
-  else if(k==='error')body=`<p style="margin-top:4px;color:var(--warn)">${esc(PUSH.note||'Something went wrong')}</p><button class="btn sm" data-a="enablePush">Try again</button>`;
-  else body=`<p class="faint">Checking…</p>`;
+function pushCard(){
+  let body='';const k=PUSH.kind;
+  if(k==='ios-install')body=`On iPhone, notifications only work from the home-screen app. In Safari tap <b>Share</b> → <b>Add to Home Screen</b>, open <b>Planner</b> from your home screen, then come back here.`;
+  else if(k==='ask')body=`<div class="spread"><span>Notifications are off on this device.</span><button class="btn primary sm" data-a="enablePush">Turn on</button></div>`;
+  else if(k==='on')body=`<div class="spread"><span>On for this device ✓</span><button class="btn sm" data-a="disablePush">Turn off</button></div><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:10px"><span class="small muted">Send a test:</span><button class="btn sm" data-a="testPush" data-k="morning">Morning</button><button class="btn sm" data-a="testPush" data-k="checkin">Check-in</button><button class="btn sm" data-a="testPush" data-k="week">Plan week</button></div>`;
+  else if(k==='blocked')body=`Notifications are blocked for this site in your browser or phone settings. Allow them there, then reload.`;
+  else if(k==='unsupported')body=`This browser can't receive notifications.`;
+  else if(k==='error')body=`<span style="color:var(--warn)">${esc(PUSH.note||'Something went wrong')}</span> <button class="btn sm" data-a="enablePush">Try again</button>`;
+  else body=`<span class="faint">Checking…</span>`;
   if(PUSH.note&&k!=='error')body+=`<p class="small muted">${esc(PUSH.note)}</p>`;
-  return `<div class="sec-head"><span>Notifications</span></div><div class="card">${body}
-    <div class="grid2" style="margin-top:6px"><div><label class="f">Morning plan</label><select data-ch="morning">${[[0,'Off'],[6,'6:00'],[7,'7:00'],[8,'8:00'],[9,'9:00'],[10,'10:00']].map(([v,l])=>`<option value="${v}" ${Number(s.morningHour)===v?'selected':''}>${l}</option>`).join('')}</select></div>
-    <div><label class="f">Evening check-in</label><select data-ch="checkin">${[15,16,17,18,19,20,21].map(x=>`<option value="${x}" ${s.checkinHour===x?'selected':''}>${x}:00</option>`).join('')}</select></div></div>
-    <label class="f">Sunday "plan next week"</label><select data-ch="mins" data-k="weekPlanHour">${[[0,'Off'],[16,'16:00'],[17,'17:00'],[18,'18:00'],[19,'19:00'],[20,'20:00'],[21,'21:00']].map(([v,l])=>`<option value="${v}" ${Number(s.weekPlanHour)===v?'selected':''}>${l}</option>`).join('')}</select></div>`;
+  return `<div class="card">${body}</div>`;
 }
-document.addEventListener('change',e=>{if(e.target.dataset.ch==='morning')saveSettings({morningHour:Number(e.target.value)})});
+/* ---------- settings actions ---------- */
+A.jump=d=>{const el=document.getElementById(d.id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
+A.setUi=d=>{const v=['scale'].includes(d.k)?Number(d.v):d.v;saveSettings({ui:{...S.settings.ui,[d.k]:v}})};
+A.addArea=()=>{const areas=clone(S.settings.areas);const used=Object.values(areas).map(a=>(a.color||'').toLowerCase());const color=PALETTE.find(c=>!used.includes(c.toLowerCase()))||PALETTE[0];const id='a'+Date.now().toString(36);areas[id]={name:'New area',color};saveSettings({areas});setTimeout(()=>{const el=document.getElementById('area-'+id);if(el){el.focus();el.select()}},60)};
+A.delArea=d=>{
+  const areas=clone(S.settings.areas);if(Object.keys(areas).length<=1){toast('Keep at least one area');return}
+  const n=Object.values(S.tasks).filter(t=>t.area===d.id&&t.status!=='done').length;
+  delete areas[d.id];const to=areas.home?'home':Object.keys(areas)[0];
+  if(!confirm(`Remove "${S.settings.areas[d.id].name}"?${n?` Its ${n} open task${n>1?'s':''} will move to ${areas[to].name}.`:''}`))return;
+  for(const t of Object.values(S.tasks))if(t.area===d.id)patch('tasks',t.id,{area:to});
+  for(const p of Object.values(S.projects))if(p.area===d.id)patch('projects',p.id,{area:to});
+  for(const l of Object.values(S.lists))if(l.area===d.id)patch('lists',l.id,{area:to});
+  if(S.areaFilter===d.id)S.areaFilter='all';
+  saveSettings({areas});
+};
+A.resetColors=()=>{saveSettings({colors:clone(DEFAULT_SETTINGS.colors)});for(const c of Object.values(S.clients))if(c.color)patch('clients',c.id,{color:''})};
+A.resetLook=()=>{if(!confirm('Reset theme, background, text size and colours?'))return;saveSettings({ui:clone(DEFAULT_SETTINGS.ui),colors:clone(DEFAULT_SETTINGS.colors)})};
+document.addEventListener('change',e=>{
+  const el=e.target,ch=el.dataset&&el.dataset.ch;if(!ch)return;const k=el.dataset.k;
+  if(ch==='ui')saveSettings({ui:{...S.settings.ui,[k]:el.value}});
+  else if(ch==='uiflag'){saveSettings({ui:{...S.settings.ui,[k]:el.checked}});if(k==='showDone')S.showDone=el.checked}
+  else if(ch==='alert')saveSettings({alerts:{...S.settings.alerts,[k]:el.checked}});
+  else if(ch==='alertv')saveSettings({alerts:{...S.settings.alerts,[k]:/^-?\d+$/.test(el.value)?Number(el.value):el.value}});
+  else if(ch==='color')saveSettings({colors:{...S.settings.colors,[k]:el.value}});
+  else if(ch==='areaColor'||ch==='areaName'){const areas=clone(S.settings.areas);const a=areas[el.dataset.id];if(!a)return;if(ch==='areaColor')a.color=el.value;else a.name=el.value.trim()||a.name;saveSettings({areas})}
+  else if(ch==='clientColor')patch('clients',el.dataset.id,{color:el.value});
+});
+document.addEventListener('input',e=>{const el=e.target;if(el.type==='color'&&el.dataset.ch==='ui'){document.documentElement.style.setProperty('--bg',el.value)}});
 
 /* ---------- weekly plan ---------- */
 function weekPlanPrompt(){
@@ -1099,7 +1231,7 @@ async function afterSignIn(){
 async function start(){
   S.note='Loading your planner…';S.ready=false;render();
   try{await loadAll()}catch(e){S.note="Couldn't load your data: "+(e.message||e);render();return}
-  SAMPLE=true;S.ready=true;setStatus('Saved');
+  SAMPLE=true;S.ready=true;setStatus('Saved');applySettings();S.view=S.settings.ui.startTab||'today';S.showDone=!!S.settings.ui.showDone;
   if(!settingsExists||!S.settings.worklogFrom)saveSettings({worklogFrom:S.settings.worklogFrom||today()});
   subscribeRealtime();plan('new');render();openCheckinFromLink();
   refreshPushState();loadInbox();

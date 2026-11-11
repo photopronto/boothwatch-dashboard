@@ -42,23 +42,24 @@ async function readInbound(req: Request): Promise<string> {
   return `From: ${typeof from === "string" ? from : JSON.stringify(from)}\nSubject: ${subject}\n\n${text}`;
 }
 
-async function askClaude(email: string, clients: Record<string, string>, projects: Record<string, string>, note = false) {
+const DEFAULT_AREAS: Record<string, { name: string }> = { freelance: { name: "Freelance" }, pronto: { name: "Photo Pronto" }, home: { name: "Home" } };
+const AREA_HINTS: Record<string, string> = { freelance: "design and photography freelance work for clients", pronto: "Photo Pronto, his photobooth business (permanent installs, hello@photopronto.co.uk)", home: "personal and household" };
+
+async function askClaude(email: string, clients: Record<string, string>, projects: Record<string, string>, note = false, areaMap: Record<string, any> = DEFAULT_AREAS) {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) throw new Error("No Claude API key set yet");
   const today = londonToday();
   const weekday = new Date(today + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "long" });
   const prompt = `You turn an email into to-do tasks for Matthew, a UK freelancer. Today is ${weekday} ${today}.
-His areas:
-- "freelance": design and photography freelance work for clients
-- "pronto": Photo Pronto, his photobooth business (permanent installs, hello@photopronto.co.uk)
-- "home": personal and household
+His areas (id: name):
+${Object.entries(areaMap).map(([k, a]) => `- "${k}": ${a.name}${AREA_HINTS[k] && a.name === DEFAULT_AREAS[k]?.name ? " — " + AREA_HINTS[k] : ""}`).join("\n")}
 Known clients (id = name): ${Object.entries(clients).map(([k, v]) => `${k} = ${v}`).join("; ") || "none"}
 Active projects (id = title): ${Object.entries(projects).map(([k, v]) => `${k} = ${v}`).join("; ") || "none"}
 
 ${note ? "Below is a quick note Matthew typed himself. Turn it into one task (or a few if he clearly listed several). Keep his wording short and clear." : "The email may have been forwarded by Matthew; the real sender is usually inside the forwarded text.\nList only the concrete actions Matthew needs to take."}
 "size" is "quick" for jobs he can do in an evening (under about 2 hours) and "big" for jobs that need a proper free day (e.g. building, a full design job).
 Reply with JSON only, exactly this shape:
-{"tasks":[{"title":"short imperative task","area":"freelance|pronto|home","client":"client id or empty string","projectId":"project id or empty string","size":"quick|big","estimate":minutes (15,30,60,120,240 or 420),"deadline":"YYYY-MM-DD or empty string","priority":"high|normal|low","notes":"one short line: who it's from and the key detail"}]}
+{"tasks":[{"title":"short imperative task","area":"${Object.keys(areaMap).join("|")}","client":"client id or empty string","projectId":"project id or empty string","size":"quick|big","estimate":minutes (15,30,60,120,240 or 420),"deadline":"YYYY-MM-DD or empty string","priority":"high|normal|low","notes":"one short line: who it's from and the key detail"}]}
 Resolve relative dates ("Friday", "end of month") against today. If there is nothing to do, reply {"tasks":[]}.
 
 ${note ? "NOTE" : "EMAIL"}:
@@ -75,10 +76,10 @@ ${email.slice(0, 15000)}
   const text = (out.content || []).map((c: any) => c.text || "").join("");
   const m = text.match(/\{[\s\S]*\}/);
   const parsed = JSON.parse(m ? m[0] : text);
-  const areas = ["freelance", "pronto", "home"];
+  const areas = Object.keys(areaMap);
   return ((parsed.tasks || []) as any[]).filter((t) => t && t.title).map((t) => ({
     title: String(t.title).slice(0, 200),
-    area: areas.includes(t.area) ? t.area : "home",
+    area: areas.includes(t.area) ? t.area : (areas.includes("home") ? "home" : areas[0]),
     client: clients[t.client] ? t.client : "",
     projectId: projects[t.projectId] ? t.projectId : "",
     estimate: Number(t.estimate) || 30,
@@ -112,10 +113,12 @@ Deno.serve(async (req) => {
     }
     if (!email.trim()) return json({ tasks: [] });
 
-    const { data: docs } = await admin.from("planner_docs").select("col, id, data").eq("owner_id", owner).in("col", ["clients", "projects"]);
+    const { data: docs } = await admin.from("planner_docs").select("col, id, data").eq("owner_id", owner).in("col", ["clients", "projects", "config"]);
+    const settings = (docs || []).find((d) => d.col === "config" && d.id === "settings")?.data || {};
+    const areaMap = settings.areas && Object.keys(settings.areas).length ? settings.areas : DEFAULT_AREAS;
     const clients = Object.fromEntries((docs || []).filter((d) => d.col === "clients").map((d) => [d.id, d.data?.name || d.id]));
     const projects = Object.fromEntries((docs || []).filter((d) => d.col === "projects" && d.data?.status !== "done").map((d) => [d.id, d.data?.title || d.id]));
-    const tasks = await askClaude(email, clients, projects, noteMode);
+    const tasks = await askClaude(email, clients, projects, noteMode, areaMap);
     if (fromApp) return json({ tasks });
 
     // Forwarded email: add the tasks now (the app schedules them next time it opens)
@@ -127,7 +130,7 @@ Deno.serve(async (req) => {
     if (rows.length) await admin.from("planner_docs").insert(rows);
 
     const { data: subs } = await admin.from("planner_push_subs").select("id, endpoint, p256dh, auth").eq("owner_id", owner);
-    if (subs?.length) {
+    if (subs?.length && settings.alerts?.emailAdded !== false) {
       webpush.setVapidDetails(SITE, Deno.env.get("VAPID_PUBLIC_KEY")!, Deno.env.get("VAPID_PRIVATE_KEY")!);
       const payload = JSON.stringify({
         title: rows.length ? `Added ${rows.length} task${rows.length > 1 ? "s" : ""} from email` : "Email read: nothing to do",
