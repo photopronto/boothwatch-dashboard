@@ -42,7 +42,7 @@ async function readInbound(req: Request): Promise<string> {
   return `From: ${typeof from === "string" ? from : JSON.stringify(from)}\nSubject: ${subject}\n\n${text}`;
 }
 
-async function askClaude(email: string, clients: Record<string, string>, projects: Record<string, string>) {
+async function askClaude(email: string, clients: Record<string, string>, projects: Record<string, string>, note = false) {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) throw new Error("No Claude API key set yet");
   const today = londonToday();
@@ -55,12 +55,13 @@ His areas:
 Known clients (id = name): ${Object.entries(clients).map(([k, v]) => `${k} = ${v}`).join("; ") || "none"}
 Active projects (id = title): ${Object.entries(projects).map(([k, v]) => `${k} = ${v}`).join("; ") || "none"}
 
-The email may have been forwarded by Matthew; the real sender is usually inside the forwarded text.
-List only the concrete actions Matthew needs to take. Reply with JSON only, exactly this shape:
-{"tasks":[{"title":"short imperative task","area":"freelance|pronto|home","client":"client id or empty string","projectId":"project id or empty string","estimate":minutes (15,30,60,120,240 or 420),"deadline":"YYYY-MM-DD or empty string","priority":"high|normal|low","notes":"one short line: who it's from and the key detail"}]}
+${note ? "Below is a quick note Matthew typed himself. Turn it into one task (or a few if he clearly listed several). Keep his wording short and clear." : "The email may have been forwarded by Matthew; the real sender is usually inside the forwarded text.\nList only the concrete actions Matthew needs to take."}
+"size" is "quick" for jobs he can do in an evening (under about 2 hours) and "big" for jobs that need a proper free day (e.g. building, a full design job).
+Reply with JSON only, exactly this shape:
+{"tasks":[{"title":"short imperative task","area":"freelance|pronto|home","client":"client id or empty string","projectId":"project id or empty string","size":"quick|big","estimate":minutes (15,30,60,120,240 or 420),"deadline":"YYYY-MM-DD or empty string","priority":"high|normal|low","notes":"one short line: who it's from and the key detail"}]}
 Resolve relative dates ("Friday", "end of month") against today. If there is nothing to do, reply {"tasks":[]}.
 
-EMAIL:
+${note ? "NOTE" : "EMAIL"}:
 """
 ${email.slice(0, 15000)}
 """`;
@@ -81,6 +82,7 @@ ${email.slice(0, 15000)}
     client: clients[t.client] ? t.client : "",
     projectId: projects[t.projectId] ? t.projectId : "",
     estimate: Number(t.estimate) || 30,
+    size: ["quick", "big"].includes(t.size) ? t.size : ((Number(t.estimate) || 30) >= 120 ? "big" : "quick"),
     deadline: /^\d{4}-\d{2}-\d{2}$/.test(t.deadline || "") ? t.deadline : "",
     priority: ["high", "normal", "low"].includes(t.priority) ? t.priority : "normal",
     notes: String(t.notes || "").slice(0, 300),
@@ -93,7 +95,7 @@ Deno.serve(async (req) => {
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const token = new URL(req.url).searchParams.get("token");
 
-  let owner: string | null = null, email = "", fromApp = false;
+  let owner: string | null = null, email = "", fromApp = false, noteMode = false;
   try {
     if (token) {
       const { data } = await admin.from("planner_inbox").select("owner_id").eq("token", token).maybeSingle();
@@ -106,14 +108,14 @@ Deno.serve(async (req) => {
       if (!data?.user) return json({ error: "Please sign in" }, 401);
       owner = data.user.id; fromApp = true;
       const b = await req.json();
-      email = String(b.text || "");
+      email = String(b.text || ""); noteMode = !!b.note;
     }
     if (!email.trim()) return json({ tasks: [] });
 
     const { data: docs } = await admin.from("planner_docs").select("col, id, data").eq("owner_id", owner).in("col", ["clients", "projects"]);
     const clients = Object.fromEntries((docs || []).filter((d) => d.col === "clients").map((d) => [d.id, d.data?.name || d.id]));
     const projects = Object.fromEntries((docs || []).filter((d) => d.col === "projects" && d.data?.status !== "done").map((d) => [d.id, d.data?.title || d.id]));
-    const tasks = await askClaude(email, clients, projects);
+    const tasks = await askClaude(email, clients, projects, noteMode);
     if (fromApp) return json({ tasks });
 
     // Forwarded email: add the tasks now (the app schedules them next time it opens)

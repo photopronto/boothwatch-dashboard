@@ -189,6 +189,9 @@ table.inv .num{text-align:right;white-space:nowrap}
 .legend{display:flex;flex-wrap:wrap;gap:10px;margin:12px 4px;font-size:12px;color:var(--ink2)}
 .legend span{display:flex;align-items:center;gap:5px}.legend i{width:14px;height:14px;border-radius:4px;display:inline-block}
 .guessi{background-color:#D9D6CE}
+.quickadd{display:flex;gap:8px;margin:0 0 14px}
+.quickadd input{flex:1;border-radius:999px;padding:12px 18px;font-size:16px;background:var(--white)}
+.chip.act{border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer;font:inherit;font-size:12px;font-weight:600}
 @media(max-width:420px){.dcard{grid-template-columns:72px 1fr;gap:10px}.dnum{font-size:46px}.dmon{font-size:20px}}
 </style>
 </head>
@@ -404,6 +407,9 @@ function taskRow(t,opts={}){
     if(list&&!opts.inList)meta.push(`<span class="chip">★ ${esc(list.name)}</span>`);
     if(t.recur)meta.push(`<span class="chip">↻ ${t.recur}</span>`);
   }
+  if(t.remindAt&&!t.remindSent&&t.status!=='done')meta.push(`<span class="chip">🔔 ${relDay(t.remindAt.slice(0,10))} ${t.remindAt.slice(11,16)}</span>`);
+  if(t.carried===today()&&t.status!=='done')meta.push(`<span class="chip">↪ carried over</span>`);
+  if(t.action&&t.status!=='done')meta.push(`<button class="chip act" data-a="taskAction" data-id="${t.id}">${t.action.type==='invoice'?'Create invoice':'Open invoice'} →</button>`);
   if((t.bumps||0)>=3&&t.status!=='done')meta.push(`<span class="chip warn">pushed back ${t.bumps}×</span>`);
   else if(t.bumps&&!opts.compact)meta.push(`<span class="chip">moved ${t.bumps}×</span>`);
   return `<div class="task ${t.status==='done'?'done':''} ${opts.compact?'compact':''}" data-a="editTask" data-id="${t.id}">
@@ -439,6 +445,7 @@ function vToday(){
     const a=assignDay(t);const doneToday=a.slots.flatMap(s=>s.tasks).concat(a.other).filter(x=>x.status==='done');
     if(doneToday.length)h+=`<div class="sec-head"><span>Done today</span><span class="faint">${doneToday.length}</span></div><div class="card">${doneToday.map(x=>taskRow(x,{compact:true})).join('')}</div>`;
   }
+  h+=`<form class="quickadd" data-form="quick"><input type="text" id="quickInput" name="q" placeholder="Add a task… e.g. order DNP ribbons by Friday" autocomplete="off" enterkeyhint="done"><button class="btn primary" id="quickBtn">Add</button></form>`;
   h+=`<div class="sec-head"><span>${viewDate===t?"Today's tasks":"Tomorrow's tasks"}</span><button class="btn sm" data-a="tab" data-v="week">Week →</button></div>`;
   if(!slots.length&&!other.length)h+=`<div class="scard" style="background:${GREY_TINT}"><div class="sname">Day off</div><div class="empty">Nothing planned — enjoy it.</div></div>`;
   else h+=`<div class="stack">${slots.map(slotCard).join('')}${other.length?slotCard({label:'Other',tint:GREY_TINT,tasks:other,mins:0,used:0}):''}</div>`;
@@ -594,6 +601,7 @@ function taskForm(t){
   <input type="number" name="estimateCustom" placeholder="Minutes" value="${estVal==='custom'?esc(t.estimate):''}" style="margin-top:6px">
   <div class="grid2"><div><label class="f">Deadline</label><input type="date" name="deadline" value="${esc(t.deadline||'')}"></div>
   <div><label class="f">Must happen on (fixed)</label><input type="date" name="fixed" value="${t.pinned?esc(t.scheduled||''):''}"></div></div>
+  <label class="f">Remind me</label><input type="datetime-local" name="remindAt" value="${esc(t.remindAt||'')}">
   <div class="grid2"><div><label class="f">Don't start before</label><input type="date" name="notBefore" value="${esc(t.notBefore||'')}"></div>
   <div><label class="f">Repeats</label><select name="recur">${[['','No'],['daily','Daily'],['weekly','Weekly'],['fortnightly','Fortnightly'],['monthly','Monthly']].map(([v,l])=>`<option value="${v}" ${(t.recur||'')===v?'selected':''}>${l}</option>`).join('')}</select></div></div>
   <div class="grid2"><div><label class="f">Project</label><select name="projectId"><option value="">— none —</option>${Object.values(S.projects).filter(p=>p.status!=='done').map(p=>`<option value="${p.id}" ${t.projectId===p.id?'selected':''}>${esc(p.title)}</option>`).join('')}</select></div>
@@ -607,7 +615,7 @@ function readTaskForm(f){
   const fixed=fd.get('fixed');
   return {title:fd.get('title').trim(),size:fd.get('size')||'',area:fd.get('area')||'home',client:fd.get('client')||'',priority:fd.get('priority')||'normal',estimate:e,
     deadline:fd.get('deadline')||'',notBefore:fd.get('notBefore')||'',recur:fd.get('recur')||'',projectId:fd.get('projectId')||'',listId:fd.get('listId')||'',notes:fd.get('notes')||'',
-    pinned:!!fixed,scheduled:fixed||null};
+    pinned:!!fixed,scheduled:fixed||null,remindAt:fd.get('remindAt')||''};
 }
 
 function checkinHtml(){
@@ -680,7 +688,7 @@ const A={
   newInvoice:()=>{S.invDraft=newInvoiceDraft();openModal(invoiceEditor())},
   openInvoice:d=>openModal(invoiceView(S.invoices[d.id])),
   editInvoice:d=>{S.invDraft=clone(S.invoices[d.id]);S.invDraft.days=null;openModal(invoiceEditor())},
-  invStatus:d=>{const p={status:d.s};if(d.s==='paid')p.paidOn=today();patch('invoices',d.id,p);openModal(invoiceView(S.invoices[d.id]))},
+  invStatus:d=>{const p={status:d.s};if(d.s==='paid'){p.paidOn=today();const ct=S.tasks['chase-'+d.id];if(ct&&ct.status!=='done')patch('tasks',ct.id,{status:'done',doneAt:today()})}if(d.s==='sent'){const inv=S.invoices[d.id];const it=inv&&S.tasks[`inv-${inv.clientId}-${inv.month}`];if(it&&it.status!=='done')patch('tasks',it.id,{status:'done',doneAt:today()})}patch('invoices',d.id,p);openModal(invoiceView(S.invoices[d.id]))},
   delInvoice:d=>{del('invoices',d.id);closeModal();toast('Invoice deleted')},
   pdf:d=>downloadPdf(S.invoices[d.id]),
   invAddLine:()=>{syncInvDraft();S.invDraft.extra.push({desc:'',qty:1,rate:0});$('#modal').innerHTML=invoiceEditor()},
@@ -699,6 +707,7 @@ document.addEventListener('submit',e=>{
   const f=e.target,k=f.dataset.form;if(!k)return;e.preventDefault();const fd=new FormData(f);
   if(k==='task'){
     const data=readTaskForm(f);if(!data.title)return;const id=f.dataset.id;
+    if(id&&String(S.tasks[id].remindAt||'')!==String(data.remindAt||''))data.remindSent=false;
     if(id){const old=S.tasks[id];const changed=['size','area','client','estimate','deadline','notBefore','projectId','listId','priority'].some(x=>String(old[x]||'')!==String(data[x]||''))||old.pinned!==data.pinned||(data.pinned&&old.scheduled!==data.scheduled);
       if(!changed&&!data.pinned){delete data.scheduled;delete data.pinned}
       if(data.projectId&&old.projectId!==data.projectId)data.order=projectSteps(data.projectId).length;
@@ -875,9 +884,9 @@ async function downloadPdf(inv){
 }
 
 /* ---------- email parsing (server, via Claude) ---------- */
-async function parseEmail(text){
+async function parseEmail(text,note){
   const {data:{session}}=await SB.auth.getSession();
-  const r=await fetch(CONFIG.SUPABASE_URL+'/functions/v1/planner-email',{method:'POST',headers:{'Content-Type':'application/json',apikey:CONFIG.SUPABASE_ANON_KEY,Authorization:'Bearer '+(session&&session.access_token)},body:JSON.stringify({text})});
+  const r=await fetch(CONFIG.SUPABASE_URL+'/functions/v1/planner-email',{method:'POST',headers:{'Content-Type':'application/json',apikey:CONFIG.SUPABASE_ANON_KEY,Authorization:'Bearer '+(session&&session.access_token)},body:JSON.stringify({text,note:!!note})});
   let j={};try{j=await r.json()}catch(e){}
   if(!r.ok)throw new Error(j.error||('error '+r.status));
   return (j.tasks||[]).map(t=>({...t,order:S.projects[t.projectId]?projectSteps(t.projectId).length:0}));
@@ -1005,6 +1014,24 @@ A.calNav=d=>{const n=Number(d.n);if(!n){S.calMonth=today().slice(0,7)}else{const
 A.calDay=d=>openModal(calDayHtml(d.d));
 A.setDay=d=>{const ws=weekStart(d.d);const days=weekDraft(ws);days[String(dow(d.d))]=d.v;put('weeks',ws,{days,savedAt:new Date().toISOString()});plan('all');setTimeout(()=>{$('#modal').innerHTML=calDayHtml(d.d)},30)};
 
+/* ---------- quick add + task actions ---------- */
+async function quickAdd(text){
+  const btn=$('#quickBtn'),inp=$('#quickInput');if(btn){btn.disabled=true;btn.textContent='…'}
+  let list=[];
+  try{list=await parseEmail(text,true)}catch(e){console.error(e)}
+  if(!list.length)list=[{title:text,estimate:30,size:'quick',area:'home'}];
+  const ids=list.map(t=>newTask(t));
+  plan('new');
+  const where=ids.map(id=>{const x=S.tasks[id];return x?`${x.title} → ${x.scheduled?relDay(x.scheduled):'no slot yet'}`:''}).filter(Boolean);
+  toast('Added: '+where.join(' · '));
+  if(inp)inp.value='';if(btn){btn.disabled=false;btn.textContent='Add'}
+}
+document.addEventListener('submit',e=>{const f=e.target;if(f.dataset.form!=='quick')return;e.preventDefault();e.stopImmediatePropagation();const q=(new FormData(f).get('q')||'').trim();if(q)quickAdd(q)},true);
+A.taskAction=d=>{const t=S.tasks[d.id];if(!t||!t.action)return;
+  if(t.action.type==='invoice'){S.invDraft={...newInvoiceDraft(),clientId:t.action.client,month:t.action.month};openModal(invoiceEditor())}
+  else if(t.action.type==='chase'&&S.invoices[t.action.invoice])openModal(invoiceView(S.invoices[t.action.invoice]));
+  else toast('That invoice no longer exists');
+};
 /* ---------- sync with the database ---------- */
 async function loadAll(){
   const rows=[];let from=0;
