@@ -198,7 +198,7 @@ const AREAS = {
   pronto:{name:'Photo Pronto', color:'#E4814F'},
   home:{name:'Home', color:'#B5CBA4'}
 };
-const LIST_TINT='#EBCB72', GREY_TINT='#D9D6CE', PAPER='#F7F5F0';
+const LIST_TINT='#EBCB72', GREY_TINT='#D9D6CE', PAPER='#F7F5F0', ANY_TINT='#D6BF9C';
 const CLIENT_TINTS=['#C4BEDB','#EAC0CC','#A4C8C8','#D6BF9C','#E7B48C'];
 const DAYNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DEFAULT_SETTINGS = {
@@ -268,15 +268,21 @@ function taskArea(t){if(t.area)return t.area;const l=t.listId&&S.lists[t.listId]
 function effDeadline(t){return t.deadline||(t.projectId&&S.projects[t.projectId]&&S.projects[t.projectId].deadline)||(t.listId&&S.lists[t.listId]&&S.lists[t.listId].due)||''}
 const clientName=id=>(S.clients[id]&&S.clients[id].name)||id||'';
 function slotsFor(date){return (S.settings.days[String(dow(date))]||[]).map((s,i)=>({...s,i,left:Number(s.mins)||0,mins:Number(s.mins)||0}))}
-function slotLabel(s){return s.client?clientName(s.client):(AREAS[s.area]||{}).name||s.area}
+function slotLabel(s){return s.client?clientName(s.client):s.area==='any'?'Evening':(AREAS[s.area]||{}).name||s.area}
 function clientHasSlot(c){return Object.values(S.settings.days).some(a=>(a||[]).some(s=>s.client===c))}
+// A slot with a client (e.g. Design by Temple) is that company's time: only their tasks go there.
+// An "Evening / anything" slot takes any task that isn't tied to a client's own slot.
 function exactFit(slot,t){
-  if(slot.area!==taskArea(t))return false;
   const c=t.client||'';
-  if(c){ if(clientHasSlot(c)) return slot.client===c; return !slot.client; }
-  return !slot.client;
+  if(slot.client)return c===slot.client;
+  if(c&&clientHasSlot(c))return false;
+  if(slot.area==='any')return true;
+  return slot.area===taskArea(t);
 }
-const looseFit=(slot,t)=>slot.area===taskArea(t);
+function looseFit(slot,t){
+  if(slot.client)return (t.client||'')===slot.client;
+  return slot.area==='any'||slot.area===taskArea(t);
+}
 function planStart(){const t=today();return new Date().getHours()>=S.settings.checkinHour?addDays(t,1):t}
 const openTasks=()=>Object.values(S.tasks).filter(t=>t.status!=='done');
 
@@ -348,8 +354,8 @@ function renderSoon(){if(rq)return;rq=true;requestAnimationFrame(()=>{rq=false;r
 const TABS=[['today','Today'],['week','Week'],['areas','Areas'],['projects','Projects'],['lists','Lists'],['invoices','Invoices'],['settings','Settings']];
 const MON=s=>parseD(s).toLocaleDateString('en-GB',{month:'short'}).slice(0,3).toUpperCase();
 function clientTint(id){const ks=Object.keys(S.clients).sort();const i=ks.indexOf(id);return i<0?AREAS.freelance.color:CLIENT_TINTS[i%CLIENT_TINTS.length]}
-function slotTint(s){return s.client?clientTint(s.client):(AREAS[s.area]||{}).color||GREY_TINT}
-function dayTint(d){const sl=slotsFor(d);const main=sl.find(s=>s.area!=='home');return main?slotTint(main):sl.length?AREAS.home.color:GREY_TINT}
+function slotTint(s){return s.client?clientTint(s.client):s.area==='any'?ANY_TINT:(AREAS[s.area]||{}).color||GREY_TINT}
+function dayTint(d){const sl=slotsFor(d);const main=sl.find(s=>s.area!=='home'&&s.area!=='any');return main?slotTint(main):sl.length?AREAS.home.color:GREY_TINT}
 function moneyBig(n){const s=money(n);const i=s.lastIndexOf('.');return `${s.slice(0,i)}<span class="p">${s.slice(i)}</span>`}
 function render(){
   const cc=S.ready?checkinCount():0;
@@ -390,11 +396,11 @@ function assignDay(date){
 function slotCard(s){
   const tint=s.tint||slotTint(s),label=s.label||slotLabel(s),mins=s.mins||0,used=s.used||0;
   const n=s.tasks.filter(t=>t.status!=='done').length;
-  return `<div class="scard" style="background:${tint}"><div class="shead"><div><div class="slabel">${s.client?'Freelance':s.label?'':'&nbsp;'}</div><div class="sname">${esc(label)}</div><div class="small" style="opacity:.7;margin-top:3px">${n} task${n===1?'':'s'}</div></div>${mins?`<div class="sbig"><b>${fmtMins(used)}</b><span>of ${fmtMins(mins)}${used>mins?' · over':''}</span></div>`:''}</div>
+  return `<div class="scard" style="background:${tint}"><div class="shead"><div><div class="slabel">${s.client?'Work hours':s.area==='any'?'Your own tasks':s.label?'':'&nbsp;'}</div><div class="sname">${esc(label)}</div><div class="small" style="opacity:.7;margin-top:3px">${n} task${n===1?'':'s'}</div></div>${mins?`<div class="sbig"><b>${fmtMins(used)}</b><span>of ${fmtMins(mins)}${used>mins?' · over':''}</span></div>`:''}</div>
   ${mins?`<div class="sbar"><i style="width:${Math.min(100,Math.round(used/mins*100))}%"></i></div>`:''}
   ${s.tasks.length?s.tasks.map(t=>taskRow(t)).join(''):'<div class="empty">Nothing planned</div>'}</div>`;
 }
-function dayKind(date){const sl=slotsFor(date).filter(s=>s.area!=='home');if(!sl.length)return slotsFor(date).length?'Home day':'Day off';return sl.map(slotLabel).join(' + ')+' day'}
+function dayKind(date){const sl=slotsFor(date).filter(s=>s.area!=='home'&&s.area!=='any');if(!sl.length)return slotsFor(date).length?'Home day':'Day off';return sl.map(slotLabel).join(' + ')+' day'}
 
 function vToday(){
   const t=today(), cc=checkinCount(), viewDate=planStart()>t?addDays(t,1):t, d=parseD(viewDate);
@@ -514,12 +520,12 @@ function vInvoices(){
 function vSettings(){
   const s=S.settings,b=s.business;
   const clientOpts=sel=>`<option value="">— any —</option>`+Object.values(S.clients).map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
-  let h=`<h2>Settings</h2><div class="sec-head"><span>Your week</span></div><div class="card"><p class="small muted" style="margin-top:4px">Time available each day, by area. A slot with a client only gets that client's tasks. Hours are what the planner fills, so leave some slack.</p>`;
+  let h=`<h2>Settings</h2><div class="sec-head"><span>Your week</span></div><div class="card"><p class="small muted" style="margin-top:4px">Time available each day. A slot with a client (e.g. Design by Temple) is their time, so only their tasks go there. "Evening (anything)" takes any of your own tasks. Hours are what the planner fills, so leave some slack.</p>`;
   for(const d of [1,2,3,4,5,6,0]){
     const arr=s.days[String(d)]||[];
     h+=`<div style="margin:14px 0 6px" class="spread"><b>${DAYNAMES[d]}</b><button class="btn sm" data-a="addSlot" data-d="${d}">+ slot</button></div>`;
     if(!arr.length)h+=`<div class="small faint">Day off</div>`;
-    arr.forEach((sl,i)=>{h+=`<div class="slotrow"><select data-ch="slot" data-d="${d}" data-i="${i}" data-k="area">${Object.entries(AREAS).map(([k,v])=>`<option value="${k}" ${sl.area===k?'selected':''}>${v.name}</option>`).join('')}</select><select data-ch="slot" data-d="${d}" data-i="${i}" data-k="client">${clientOpts(sl.client)}</select><input type="number" min="0" step="0.5" value="${(Number(sl.mins)||0)/60}" data-ch="slot" data-d="${d}" data-i="${i}" data-k="hours" title="Hours"><button class="x" data-a="rmSlot" data-d="${d}" data-i="${i}">×</button></div>`});
+    arr.forEach((sl,i)=>{h+=`<div class="slotrow"><select data-ch="slot" data-d="${d}" data-i="${i}" data-k="area">${[...Object.entries(AREAS).map(([k,v])=>[k,v.name]),['any','Evening (anything)']].map(([k,n])=>`<option value="${k}" ${sl.area===k?'selected':''}>${n}</option>`).join('')}</select><select data-ch="slot" data-d="${d}" data-i="${i}" data-k="client">${clientOpts(sl.client)}</select><input type="number" min="0" step="0.5" value="${(Number(sl.mins)||0)/60}" data-ch="slot" data-d="${d}" data-i="${i}" data-k="hours" title="Hours"><button class="x" data-a="rmSlot" data-d="${d}" data-i="${i}">×</button></div>`});
   }
   h+=`<div class="actions"><button class="btn sm" data-a="replan">↻ Re-plan with this week</button></div></div>`;
   h+=notifCard();
