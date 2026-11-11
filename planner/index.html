@@ -170,6 +170,25 @@ table.inv .num{text-align:right;white-space:nowrap}
 .err{color:var(--warn);font-size:14px;min-height:18px;margin-top:8px}
 .copybox{display:flex;gap:6px;align-items:center;background:var(--white);border-radius:14px;padding:8px 8px 8px 12px;font-size:12px;word-break:break-all}
 .copybox code{flex:1}
+.pwrow{display:grid;grid-template-columns:54px 1fr;gap:10px;align-items:center;border-radius:18px;padding:10px 12px;margin-bottom:6px}
+.pwday b{display:block;font-size:13px}.pwday span{font-size:26px;font-weight:500;letter-spacing:-.04em;line-height:1}
+.pwopts{display:flex;flex-wrap:wrap;gap:5px}
+.pwopt{border:1.5px solid rgba(23,22,20,.55);background:rgba(255,255,255,.35);border-radius:999px;padding:6px 11px;font-size:13px;font-weight:500}
+.pwopt.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.chead{font-size:11px;font-weight:600;color:var(--ink2);text-align:center;padding:4px 0}
+.cday{border:0;border-radius:14px;padding:6px 6px 5px;min-height:74px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;color:var(--ink);min-width:0}
+.cday .n{font-size:20px;font-weight:500;letter-spacing:-.04em;line-height:1}
+.cday .l{font-size:9.5px;font-weight:600;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cday .cfoot{margin-top:auto;display:flex;gap:3px;align-items:center}
+.cday .c{font-size:11px;font-weight:700;background:var(--ink);color:var(--bg);border-radius:999px;padding:0 6px;line-height:16px}
+.cday .c.done{background:rgba(23,22,20,.25);color:var(--ink)}
+.due{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:#B8431F;color:#fff;font-size:10px;font-weight:700}
+.cday.out{opacity:.3}.cday.past{opacity:.6}.cday.today{box-shadow:inset 0 0 0 2px var(--ink)}
+.cday.guess,.guessi{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.45) 0 3px,transparent 3px 7px)!important}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin:12px 4px;font-size:12px;color:var(--ink2)}
+.legend span{display:flex;align-items:center;gap:5px}.legend i{width:14px;height:14px;border-radius:4px;display:inline-block}
+.guessi{background-color:#D9D6CE}
 @media(max-width:420px){.dcard{grid-template-columns:72px 1fr;gap:10px}.dnum{font-size:46px}.dmon{font-size:20px}}
 </style>
 </head>
@@ -198,20 +217,13 @@ const AREAS = {
   pronto:{name:'Photo Pronto', color:'#E4814F'},
   home:{name:'Home', color:'#B5CBA4'}
 };
-const LIST_TINT='#EBCB72', GREY_TINT='#D9D6CE', PAPER='#F7F5F0', ANY_TINT='#D6BF9C';
+const LIST_TINT='#EBCB72', GREY_TINT='#D9D6CE', PAPER='#F7F5F0', ANY_TINT='#D6BF9C', FREE_TINT='#A4C8C8';
 const CLIENT_TINTS=['#C4BEDB','#EAC0CC','#A4C8C8','#D6BF9C','#E7B48C'];
 const DAYNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DEFAULT_SETTINGS = {
   checkinHour:17, morningHour:8,
-  days:{
-    '1':[{area:'freelance',client:'dbt',mins:420},{area:'home',client:'',mins:60}],
-    '2':[{area:'freelance',client:'philema',mins:420},{area:'home',client:'',mins:60}],
-    '3':[{area:'pronto',client:'',mins:420},{area:'home',client:'',mins:60}],
-    '4':[{area:'freelance',client:'dbt',mins:420},{area:'home',client:'',mins:60}],
-    '5':[{area:'freelance',client:'dbt',mins:420},{area:'home',client:'',mins:60}],
-    '6':[{area:'pronto',client:'',mins:300},{area:'home',client:'',mins:120}],
-    '0':[]
-  },
+  usual:{'1':'dbt','2':'philema','3':'free','4':'dbt','5':'dbt','6':'free','0':'off'},
+  workMins:420, eveningMins:120, freeMins:420, weekPlanHour:18,
   business:{name:'',address:'',email:'',phone:'',bankName:'',accountName:'',sortCode:'',accountNumber:''},
   invoicePrefix:'INV-', nextInvoice:1, paymentDays:14, worklogFrom:''
 };
@@ -232,8 +244,8 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const $=s=>document.querySelector(s);
 
 /* ---------- state & storage ---------- */
-const COLS=['tasks','projects','lists','clients','worklog','invoices'];
-const S={tasks:{},projects:{},lists:{},clients:{},worklog:{},invoices:{},settings:clone(DEFAULT_SETTINGS),
+const COLS=['tasks','projects','lists','clients','worklog','invoices','weeks'];
+const S={tasks:{},projects:{},lists:{},clients:{},worklog:{},invoices:{},weeks:{},calMonth:'',settings:clone(DEFAULT_SETTINGS),
   view:'today', areaFilter:'all', ready:false, local:false, showDone:false, invDraft:null};
 let SB=null, USER=null, SAMPLE=null, DL=true, settingsExists=false;
 const PENDING={};
@@ -241,7 +253,7 @@ function clone(o){return JSON.parse(JSON.stringify(o))}
 function mergeSettings(d){
   const s=Object.assign(clone(DEFAULT_SETTINGS),d||{});
   s.business=Object.assign(clone(DEFAULT_SETTINGS.business),(d&&d.business)||{});
-  s.days=(d&&d.days)||clone(DEFAULT_SETTINGS.days);
+  s.usual=Object.assign(clone(DEFAULT_SETTINGS.usual),(d&&d.usual)||{});
   return s;
 }
 let wq=Promise.resolve();
@@ -267,21 +279,35 @@ const est=t=>Number(t.estimate)||30;
 function taskArea(t){if(t.area)return t.area;const l=t.listId&&S.lists[t.listId];return (l&&l.area)||'home'}
 function effDeadline(t){return t.deadline||(t.projectId&&S.projects[t.projectId]&&S.projects[t.projectId].deadline)||(t.listId&&S.lists[t.listId]&&S.lists[t.listId].due)||''}
 const clientName=id=>(S.clients[id]&&S.clients[id].name)||id||'';
-function slotsFor(date){return (S.settings.days[String(dow(date))]||[]).map((s,i)=>({...s,i,left:Number(s.mins)||0,mins:Number(s.mins)||0}))}
-function slotLabel(s){return s.client?clientName(s.client):s.area==='any'?'Evening':(AREAS[s.area]||{}).name||s.area}
-function clientHasSlot(c){return Object.values(S.settings.days).some(a=>(a||[]).some(s=>s.client===c))}
-// A slot with a client (e.g. Design by Temple) is that company's time: only their tasks go there.
-// An "Evening / anything" slot takes any task that isn't tied to a client's own slot.
+// Each day is a type: a workplace client (their hours, their tasks only), a free day (big tasks) or off.
+// Days you're not off also get an evening (quick tasks).
+function workplaces(){return Object.values(S.clients).filter(c=>c.workplace).sort((a,b)=>a.name.localeCompare(b.name))}
+const isWorkplace=c=>!!(c&&S.clients[c]&&S.clients[c].workplace);
+function weekStart(date){return addDays(date,-((dow(date)+6)%7))}
+function weekPlanned(date){return !!S.weeks[weekStart(date)]}
+function dayType(date){const w=S.weeks[weekStart(date)],k=String(dow(date));const v=(w&&w.days&&w.days[k])||S.settings.usual[k]||'off';return (v==='free'||v==='off'||S.clients[v])?v:'free'}
+function dayTypeLabel(v){return v==='free'?'Free day':v==='off'?'Off':clientName(v)}
+function slotsFor(date){
+  const t=dayType(date),st=S.settings,out=[];
+  if(t==='off')return out;
+  if(t==='free')out.push({kind:'free',mins:Number(st.freeMins)||0});
+  else out.push({kind:'work',client:t,mins:Number(st.workMins)||0});
+  if(Number(st.eveningMins))out.push({kind:'evening',mins:Number(st.eveningMins)});
+  return out.map((x,i)=>({...x,i,left:x.mins}));
+}
+function slotLabel(s){return s.kind==='work'?clientName(s.client):s.kind==='free'?'Free day':'Evening'}
+function taskSize(t){return t.size||(est(t)>=120?'big':'quick')}
 function exactFit(slot,t){
   const c=t.client||'';
-  if(slot.client)return c===slot.client;
-  if(c&&clientHasSlot(c))return false;
-  if(slot.area==='any')return true;
-  return slot.area===taskArea(t);
+  if(slot.kind==='work')return c===slot.client;
+  if(isWorkplace(c))return false;
+  return slot.kind==='evening'?taskSize(t)==='quick':taskSize(t)==='big';
 }
 function looseFit(slot,t){
-  if(slot.client)return (t.client||'')===slot.client;
-  return slot.area==='any'||slot.area===taskArea(t);
+  const c=t.client||'';
+  if(slot.kind==='work')return c===slot.client;
+  if(isWorkplace(c))return false;
+  return slot.kind==='free'; // quick tasks can spill into a free day; big ones never go into an evening
 }
 function planStart(){const t=today();return new Date().getHours()>=S.settings.checkinHour?addDays(t,1):t}
 const openTasks=()=>Object.values(S.tasks).filter(t=>t.status!=='done');
@@ -311,16 +337,12 @@ function computePlan(mode){
         if(o.projectId===t.projectId&&o.id!==t.id&&(o.order||0)<(t.order||0)&&o.status!=='done'){const d=sched(o);if(d&&d>min)min=d}
       }
     }
-    const m=est(t);let placed=null;
-    for(const fit of [exactFit,looseFit]){
-      for(let i=0;i<H&&!placed;i++){
-        const d=addDays(start,i); if(d<min||!cap[d])continue;
-        const s=cap[d].find(s=>fit(s,t)&&(s.left>=m||(s.left===s.mins&&s.mins>0&&m>s.mins)));
-        if(s){s.left-=m;placed=d}
-      }
-      if(placed)break;
-    }
-    result[t.id]=placed;
+    const m=est(t),dl=effDeadline(t);
+    const find=fit=>{for(let i=0;i<H;i++){const d=addDays(start,i);if(d<min||!cap[d])continue;const s=cap[d].find(s=>fit(s,t)&&(s.left>=m||(s.left===s.mins&&s.mins>0&&m>s.mins)));if(s)return {d,s}}return null};
+    let pick=find(exactFit);
+    if(!pick||(dl&&pick.d>dl)){const alt=find(looseFit);if(alt&&(!pick||alt.d<pick.d))pick=alt}
+    if(pick)pick.s.left-=m;
+    result[t.id]=pick?pick.d:null;
   }
   return result;
 }
@@ -351,18 +373,19 @@ function checkinCount(){return dueCheckins().length+dueWorklog().length}
 /* ---------- rendering ---------- */
 let rq=false;
 function renderSoon(){if(rq)return;rq=true;requestAnimationFrame(()=>{rq=false;render()})}
-const TABS=[['today','Today'],['week','Week'],['areas','Areas'],['projects','Projects'],['lists','Lists'],['invoices','Invoices'],['settings','Settings']];
+const TABS=[['today','Today'],['week','Week'],['calendar','Calendar'],['areas','Areas'],['projects','Projects'],['lists','Lists'],['invoices','Invoices'],['settings','Settings']];
 const MON=s=>parseD(s).toLocaleDateString('en-GB',{month:'short'}).slice(0,3).toUpperCase();
 function clientTint(id){const ks=Object.keys(S.clients).sort();const i=ks.indexOf(id);return i<0?AREAS.freelance.color:CLIENT_TINTS[i%CLIENT_TINTS.length]}
-function slotTint(s){return s.client?clientTint(s.client):s.area==='any'?ANY_TINT:(AREAS[s.area]||{}).color||GREY_TINT}
-function dayTint(d){const sl=slotsFor(d);const main=sl.find(s=>s.area!=='home'&&s.area!=='any');return main?slotTint(main):sl.length?AREAS.home.color:GREY_TINT}
+function slotTint(s){return s.kind==='work'?clientTint(s.client):s.kind==='free'?FREE_TINT:s.kind==='evening'?ANY_TINT:GREY_TINT}
+function typeTint(v){return v==='free'?FREE_TINT:v==='off'?GREY_TINT:clientTint(v)}
+function dayTint(d){return typeTint(dayType(d))}
 function moneyBig(n){const s=money(n);const i=s.lastIndexOf('.');return `${s.slice(0,i)}<span class="p">${s.slice(i)}</span>`}
 function render(){
   const cc=S.ready?checkinCount():0;
   $('#nav').innerHTML=`<div class="pills">${TABS.map(([k,l])=>`<button data-a="tab" data-v="${k}" class="pill ${S.view===k?'on':''}">${l}${k==='today'&&cc?`<span class="badge">${cc}</span>`:''}</button>`).join('')}</div>${SAMPLE?`<button class="round ghost" data-a="emailImport" title="Add tasks from an email" aria-label="Add from email">✉︎</button>`:''}<button class="round" data-a="newTask" aria-label="Add task">+</button>`;
   if(!S.ready){$('#view').innerHTML=`<div class="empty">${esc(S.note||'Loading your planner…')}</div>`;return}
   const ae=document.activeElement, keep=ae&&ae.id&&$('#view').contains(ae)?{id:ae.id,v:ae.value,s:ae.selectionStart}:null;
-  const fn={today:vToday,week:vWeek,areas:vAreas,projects:vProjects,lists:vLists,invoices:vInvoices,settings:vSettings}[S.view];
+  const fn={today:vToday,week:vWeek,calendar:vCalendar,areas:vAreas,projects:vProjects,lists:vLists,invoices:vInvoices,settings:vSettings}[S.view];
   $('#view').innerHTML=fn();
   if(keep){const el=document.getElementById(keep.id);if(el){el.value=keep.v;el.focus();try{el.setSelectionRange(keep.s,keep.s)}catch(e){}}}
 }
@@ -396,11 +419,11 @@ function assignDay(date){
 function slotCard(s){
   const tint=s.tint||slotTint(s),label=s.label||slotLabel(s),mins=s.mins||0,used=s.used||0;
   const n=s.tasks.filter(t=>t.status!=='done').length;
-  return `<div class="scard" style="background:${tint}"><div class="shead"><div><div class="slabel">${s.client?'Work hours':s.area==='any'?'Your own tasks':s.label?'':'&nbsp;'}</div><div class="sname">${esc(label)}</div><div class="small" style="opacity:.7;margin-top:3px">${n} task${n===1?'':'s'}</div></div>${mins?`<div class="sbig"><b>${fmtMins(used)}</b><span>of ${fmtMins(mins)}${used>mins?' · over':''}</span></div>`:''}</div>
+  return `<div class="scard" style="background:${tint}"><div class="shead"><div><div class="slabel">${s.kind==='work'?'Work hours · their tasks only':s.kind==='evening'?'Quick tasks':s.kind==='free'?'Big tasks':'&nbsp;'}</div><div class="sname">${esc(label)}</div><div class="small" style="opacity:.7;margin-top:3px">${n} task${n===1?'':'s'}</div></div>${mins?`<div class="sbig"><b>${fmtMins(used)}</b><span>of ${fmtMins(mins)}${used>mins?' · over':''}</span></div>`:''}</div>
   ${mins?`<div class="sbar"><i style="width:${Math.min(100,Math.round(used/mins*100))}%"></i></div>`:''}
   ${s.tasks.length?s.tasks.map(t=>taskRow(t)).join(''):'<div class="empty">Nothing planned</div>'}</div>`;
 }
-function dayKind(date){const sl=slotsFor(date).filter(s=>s.area!=='home'&&s.area!=='any');if(!sl.length)return slotsFor(date).length?'Home day':'Day off';return sl.map(slotLabel).join(' + ')+' day'}
+function dayKind(date){const v=dayType(date);return v==='free'?'Free day':v==='off'?'Day off':clientName(v)+' day'}
 
 function vToday(){
   const t=today(), cc=checkinCount(), viewDate=planStart()>t?addDays(t,1):t, d=parseD(viewDate);
@@ -409,6 +432,8 @@ function vToday(){
   const planned=open.reduce((s,x)=>s+est(x),0);
   const wd=d.toLocaleDateString('en-GB',{weekday:'long'});
   let h=`<section class="hero"><div class="hero-day">${viewDate===t?wd:'Tomorrow · '+wd}</div><div class="hero-row"><div class="bigdate">${pad(d.getDate())}.${pad(d.getMonth()+1)}<br>${MON(viewDate)}</div><div class="hero-side"><div class="stat"><b>${open.length}</b><span>to do</span></div><div class="stat"><b>${fmtMins(planned)}</b><span>planned</span></div><div class="kind">${esc(dayKind(viewDate))}</div></div></div></section>`;
+  const pw=weekPlanPrompt();
+  if(pw)h+=`<div class="banner" style="background:${FREE_TINT};color:var(--ink)"><div><div class="big">${pw.title}</div><div class="small" style="opacity:.75;margin-top:4px">Tap where you're working each day.</div></div><button class="btn primary" data-a="planWeek" data-w="${pw.ws}">Plan</button></div>`;
   if(cc)h+=`<div class="banner"><div><div class="big">${cc} to check in</div><div class="small" style="opacity:.7;margin-top:4px">Done, or move it?</div></div><button class="btn" data-a="checkin">Check in</button></div>`;
   if(viewDate!==t){
     const a=assignDay(t);const doneToday=a.slots.flatMap(s=>s.tasks).concat(a.other).filter(x=>x.status==='done');
@@ -420,19 +445,21 @@ function vToday(){
   const slipping=openTasks().filter(x=>(x.bumps||0)>=3);
   if(slipping.length)h+=`<div class="sec-head"><span>Keeps slipping</span><span class="faint">${slipping.length}</span></div><div class="card"><div class="small muted">Pushed back 3+ times. Tap one to split it, fix a date, or drop it.</div>${slipping.map(x=>taskRow(x,{showDate:true,showArea:true})).join('')}</div>`;
   const nos=openTasks().filter(x=>!x.scheduled);
-  if(nos.length)h+=`<div class="sec-head"><span>Couldn't fit</span><span class="faint">${nos.length}</span></div><div class="card"><div class="small muted">No matching time in your week for these. Check the area or client, or add time in Settings.</div>${nos.map(x=>taskRow(x,{showArea:true})).join('')}</div>`;
+  if(nos.length)h+=`<div class="sec-head"><span>Couldn't fit</span><span class="faint">${nos.length}</span></div><div class="card"><div class="small muted">No evening or free-day time for these yet. Plan your week, mark a day as free, or change the task's size.</div>${nos.map(x=>taskRow(x,{showArea:true})).join('')}</div>`;
   const next=addDays(viewDate,1), nt=Object.values(S.tasks).filter(x=>x.scheduled===next&&x.status!=='done');
   h+=`<div class="sec-head"><span>${relDay(next)}</span><span class="faint small">${esc(dayKind(next))}</span></div><div class="card" style="background:${dayTint(next)}">${nt.length?nt.slice(0,5).map(x=>taskRow(x,{compact:true})).join('')+(nt.length>5?`<div class="empty">+${nt.length-5} more in Week</div>`:''):'<div class="empty">Nothing yet</div>'}</div>`;
   return h;
 }
 function vWeek(){
   const start=planStart();
-  let h=`<div class="spread"><h2>Next 7 days</h2><button class="btn sm" data-a="replan">↻ Re-plan</button></div>`;
+  const tw=weekStart(today()),nw=addDays(tw,7);
+  let h=`<div class="spread"><h2>Next 7 days</h2><button class="btn sm" data-a="replan">↻ Re-plan</button></div>
+  <div class="row" style="gap:6px;margin:-4px 4px 12px;flex-wrap:wrap"><button class="btn sm ${weekPlanned(tw)?'':'primary'}" data-a="planWeek" data-w="${tw}">${weekPlanned(tw)?'Edit':'Plan'} this week</button><button class="btn sm ${weekPlanned(nw)?'':'primary'}" data-a="planWeek" data-w="${nw}">${weekPlanned(nw)?'Edit':'Plan'} next week</button></div>`;
   for(let i=0;i<7;i++){
     const d=addDays(start,i),{slots,other}=assignDay(d),pd=parseD(d);
     const ts=slots.flatMap(s=>s.tasks).concat(other);
     h+=`<div class="dcard" style="background:${dayTint(d)}"><div><div class="dname">${d===today()?'Today':d===addDays(today(),1)?'Tomorrow':pd.toLocaleDateString('en-GB',{weekday:'long'})}</div><div class="dnum">${pd.getDate()}</div><div class="dmon">${MON(d)}</div></div>
-    <div class="dright"><div class="dkind">${esc(dayKind(d))}</div><div class="dslots">${slots.map(s=>`<span class="chip">${esc(slotLabel(s))} · ${fmtMins(s.used)}/${fmtMins(s.mins)}</span>`).join('')}</div>${ts.map(t=>taskRow(t,{compact:true})).join('')||'<div class="empty">Free</div>'}</div></div>`;
+    <div class="dright"><div class="dkind">${esc(dayKind(d))}${weekPlanned(d)?'':' <span style="opacity:.55;font-weight:500">· usual</span>'}</div><div class="dslots">${slots.map(s=>`<span class="chip">${esc(slotLabel(s))} · ${fmtMins(s.used)}/${fmtMins(s.mins)}</span>`).join('')}</div>${ts.map(t=>taskRow(t,{compact:true})).join('')||'<div class="empty">Nothing planned</div>'}</div></div>`;
   }
   const later=openTasks().filter(t=>t.scheduled&&t.scheduled>=addDays(start,7)).sort((a,b)=>a.scheduled.localeCompare(b.scheduled));
   if(later.length)h+=`<div class="sec-head"><span>Later</span><span class="faint">${later.length}</span></div><div class="card">${later.slice(0,40).map(t=>taskRow(t,{showDate:true,showArea:true})).join('')}</div>`;
@@ -488,7 +515,7 @@ function vLists(){
 }
 
 /* ---------- invoices ---------- */
-function clientDays(c){return Object.entries(S.settings.days).filter(([k,a])=>(a||[]).some(s=>s.client===c)).map(([k])=>Number(k))}
+function clientDays(c){return Object.entries(S.settings.usual).filter(([k,v])=>v===c).map(([k])=>Number(k))}
 function invoicedDates(c,exceptId){const set=new Set();for(const inv of Object.values(S.invoices)){if(inv.clientId!==c||inv.id===exceptId)continue;for(const l of inv.lines||[])if(l.date)set.add(l.date)}return set}
 function invTotal(lines){return (lines||[]).reduce((s,l)=>s+(Number(l.qty)||0)*(Number(l.rate)||0),0)}
 function vInvoices(){
@@ -505,7 +532,7 @@ function vInvoices(){
   </div>`;
   const b=S.settings.business;
   if(!b.name||!b.accountNumber)h+=`<div class="card small">Add your business and bank details in <a href="#" data-a="tab" data-v="settings" style="color:inherit;font-weight:600">Settings</a> so they appear on your invoices.</div>`;
-  const noRate=Object.values(S.clients).filter(c=>clientDays(c.id).length&&!c.dayRate);
+  const noRate=workplaces().filter(c=>!c.dayRate);
   if(noRate.length)h+=`<div class="card small">Set a day rate for ${noRate.map(c=>esc(c.name)).join(' and ')} in <a href="#" data-a="tab" data-v="settings" style="color:inherit;font-weight:600">Settings</a> so monthly invoices fill in automatically.</div>`;
   h+=`<div class="sec-head"><span>All invoices</span><span class="faint">${invs.length}</span></div>`;
   if(!invs.length)h+=`<div class="card"><div class="empty">No invoices yet. "New invoice" fills in your Design by Temple and Philema days for the month automatically.</div></div>`;
@@ -520,17 +547,16 @@ function vInvoices(){
 function vSettings(){
   const s=S.settings,b=s.business;
   const clientOpts=sel=>`<option value="">— any —</option>`+Object.values(S.clients).map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
-  let h=`<h2>Settings</h2><div class="sec-head"><span>Your week</span></div><div class="card"><p class="small muted" style="margin-top:4px">Time available each day. A slot with a client (e.g. Design by Temple) is their time, so only their tasks go there. "Evening (anything)" takes any of your own tasks. Hours are what the planner fills, so leave some slack.</p>`;
-  for(const d of [1,2,3,4,5,6,0]){
-    const arr=s.days[String(d)]||[];
-    h+=`<div style="margin:14px 0 6px" class="spread"><b>${DAYNAMES[d]}</b><button class="btn sm" data-a="addSlot" data-d="${d}">+ slot</button></div>`;
-    if(!arr.length)h+=`<div class="small faint">Day off</div>`;
-    arr.forEach((sl,i)=>{h+=`<div class="slotrow"><select data-ch="slot" data-d="${d}" data-i="${i}" data-k="area">${[...Object.entries(AREAS).map(([k,v])=>[k,v.name]),['any','Evening (anything)']].map(([k,n])=>`<option value="${k}" ${sl.area===k?'selected':''}>${n}</option>`).join('')}</select><select data-ch="slot" data-d="${d}" data-i="${i}" data-k="client">${clientOpts(sl.client)}</select><input type="number" min="0" step="0.5" value="${(Number(sl.mins)||0)/60}" data-ch="slot" data-d="${d}" data-i="${i}" data-k="hours" title="Hours"><button class="x" data-a="rmSlot" data-d="${d}" data-i="${i}">×</button></div>`});
-  }
-  h+=`<div class="actions"><button class="btn sm" data-a="replan">↻ Re-plan with this week</button></div></div>`;
+  const typeOpts=v=>[...workplaces().map(c=>[c.id,c.name]),['free','Free day'],['off','Off']].map(([k,n])=>`<option value="${k}" ${v===k?'selected':''}>${esc(n)}</option>`).join('');
+  const hrs=(k,opts)=>`<select data-ch="mins" data-k="${k}">${opts.map(m=>`<option value="${m}" ${Number(s[k])===m?'selected':''}>${m?fmtMins(m):'None'}</option>`).join('')}</select>`;
+  let h=`<h2>Settings</h2><div class="sec-head"><span>Your usual week</span></div><div class="card"><p class="small muted" style="margin-top:4px">Used for any week you haven't planned. Each Sunday you'll be asked where you're working the next week.</p>`;
+  for(const d of [1,2,3,4,5,6,0])h+=`<div class="spread" style="margin:8px 0"><b>${DAYNAMES[d]}</b><select data-ch="usual" data-d="${d}" style="width:auto;min-width:170px">${typeOpts(s.usual[String(d)])}</select></div>`;
+  h+=`<div class="grid2" style="margin-top:10px"><div><label class="f">Evenings (quick tasks)</label>${hrs('eveningMins',[0,60,90,120,150,180,240])}</div><div><label class="f">Free days (big tasks)</label>${hrs('freeMins',[240,300,360,420,480])}</div></div>
+  <p class="small muted">Workplace days keep ${fmtMins(s.workMins)} for that company's own tasks only.</p>
+  <div class="actions"><button class="btn sm" data-a="replan">↻ Re-plan</button></div></div>`;
   h+=notifCard();
   h+=`<div class="sec-head"><span>Clients</span><button class="btn sm" data-a="editClient">+ Add client</button></div>`;
-  h+=Object.values(S.clients).map(c=>`<div class="scard" style="background:${clientTint(c.id)};margin-bottom:8px;cursor:pointer" data-a="editClient" data-id="${c.id}"><div class="shead" style="margin:0"><div><div class="sname">${esc(c.name)}</div><div class="bmeta" style="margin:8px 0 0">${clientDays(c.id).length?`<span class="chip">${clientDays(c.id).map(d=>DAYNAMES[d]).join(', ')}</span>`:''}${c.email?`<span class="chip">${esc(c.email)}</span>`:''}</div></div><div class="sbig"><b>${c.dayRate?money(c.dayRate).replace('.00',''):'—'}</b><span>${c.dayRate?'per day':'no day rate'}</span></div></div></div>`).join('')||'<div class="card"><div class="empty">No clients yet</div></div>';
+  h+=Object.values(S.clients).map(c=>`<div class="scard" style="background:${clientTint(c.id)};margin-bottom:8px;cursor:pointer" data-a="editClient" data-id="${c.id}"><div class="shead" style="margin:0"><div><div class="sname">${esc(c.name)}</div><div class="bmeta" style="margin:8px 0 0">${c.workplace?`<span class="chip">Workplace${clientDays(c.id).length?' · usually '+clientDays(c.id).map(d=>DAYNAMES[d]).join(', '):''}</span>`:''}${c.email?`<span class="chip">${esc(c.email)}</span>`:''}</div></div><div class="sbig"><b>${c.dayRate?money(c.dayRate).replace('.00',''):'—'}</b><span>${c.dayRate?'per day':'no day rate'}</span></div></div></div>`).join('')||'<div class="card"><div class="empty">No clients yet</div></div>';
   h+=`<div class="sec-head"><span>Invoice details</span></div><form class="card" data-form="business">
     <label class="f">Your name / business name</label><input type="text" name="name" value="${esc(b.name)}">
     <label class="f">Address</label><textarea name="address" rows="3">${esc(b.address)}</textarea>
@@ -563,6 +589,7 @@ function taskForm(t){
   <label class="f">Area</label>${seg('area',Object.entries(AREAS).map(([k,v])=>[k,v.name]),t.area||taskArea(t))}
   <div class="grid2"><div><label class="f">Client</label>${clientSelect('client',t.client||'')}</div>
   <div><label class="f">Priority</label><select name="priority">${['high','normal','low'].map(p=>`<option ${t.priority===p?'selected':''}>${p}</option>`).join('')}</select></div></div>
+  <label class="f">Size</label>${seg('size',[['quick','Quick · evenings'],['big','Big · free days']],taskSize(t))}
   <label class="f">How long will it take?</label>${seg('estimate',[...estOpts,['custom','Other']],estVal)}
   <input type="number" name="estimateCustom" placeholder="Minutes" value="${estVal==='custom'?esc(t.estimate):''}" style="margin-top:6px">
   <div class="grid2"><div><label class="f">Deadline</label><input type="date" name="deadline" value="${esc(t.deadline||'')}"></div>
@@ -578,7 +605,7 @@ function taskForm(t){
 function readTaskForm(f){
   const fd=new FormData(f);let e=fd.get('estimate');e=e==='custom'?Number(fd.get('estimateCustom'))||30:Number(e)||30;
   const fixed=fd.get('fixed');
-  return {title:fd.get('title').trim(),area:fd.get('area')||'home',client:fd.get('client')||'',priority:fd.get('priority')||'normal',estimate:e,
+  return {title:fd.get('title').trim(),size:fd.get('size')||'',area:fd.get('area')||'home',client:fd.get('client')||'',priority:fd.get('priority')||'normal',estimate:e,
     deadline:fd.get('deadline')||'',notBefore:fd.get('notBefore')||'',recur:fd.get('recur')||'',projectId:fd.get('projectId')||'',listId:fd.get('listId')||'',notes:fd.get('notes')||'',
     pinned:!!fixed,scheduled:fixed||null};
 }
@@ -648,8 +675,6 @@ const A={
   copyList:d=>{const l=S.lists[d.id];const nid=uid();const due=l.due?addMonths(l.due,12):'';put('lists',nid,{name:l.name+(l.due?' '+due.slice(0,4):' (copy)'),area:l.area||'home',due,archived:false});
     for(const t of Object.values(S.tasks).filter(t=>t.listId===l.id))newTask({title:t.title,area:t.area||'',estimate:t.estimate,priority:t.priority||'normal',listId:nid,notes:t.notes||'',notBefore:due?addDays(due,-60):''});
     toast('Copied — the new list will start being scheduled ~2 months before its date');setTimeout(()=>plan('new'),0)},
-  addSlot:d=>{const days=clone(S.settings.days);(days[d.d]=days[d.d]||[]).push({area:'home',client:'',mins:60});saveSettings({days})},
-  rmSlot:d=>{const days=clone(S.settings.days);days[d.d].splice(Number(d.i),1);saveSettings({days})},
   editClient:d=>openModal(clientForm(d.id&&S.clients[d.id])),
   delClient:d=>{del('clients',d.id);closeModal()},
   newInvoice:()=>{S.invDraft=newInvoiceDraft();openModal(invoiceEditor())},
@@ -665,15 +690,16 @@ const A={
 document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el)return;if(el.tagName==='A')e.preventDefault();const fn=A[el.dataset.a];if(fn){e.stopPropagation();fn(el.dataset,el,e)}});
 document.addEventListener('change',e=>{
   const el=e.target;
-  if(el.dataset.ch==='slot'){const days=clone(S.settings.days);const sl=days[el.dataset.d][Number(el.dataset.i)];if(el.dataset.k==='hours')sl.mins=Math.round((Number(el.value)||0)*60);else sl[el.dataset.k]=el.value;saveSettings({days});toast('Week updated — tap Re-plan to apply')}
   if(el.dataset.ch==='checkin')saveSettings({checkinHour:Number(el.value)});
+  if(el.dataset.ch==='usual'){const usual={...S.settings.usual,[el.dataset.d]:el.value};saveSettings({usual});setTimeout(()=>plan('all'),0)}
+  if(el.dataset.ch==='mins'){saveSettings({[el.dataset.k]:Number(el.value)});setTimeout(()=>plan('all'),0)}
   if(el.dataset.inv){syncInvDraft();if(el.dataset.inv==='client'||el.dataset.inv==='month'){S.invDraft.days=null}$('#modal').innerHTML=invoiceEditor()}
 });
 document.addEventListener('submit',e=>{
   const f=e.target,k=f.dataset.form;if(!k)return;e.preventDefault();const fd=new FormData(f);
   if(k==='task'){
     const data=readTaskForm(f);if(!data.title)return;const id=f.dataset.id;
-    if(id){const old=S.tasks[id];const changed=['area','client','estimate','deadline','notBefore','projectId','listId','priority'].some(x=>String(old[x]||'')!==String(data[x]||''))||old.pinned!==data.pinned||(data.pinned&&old.scheduled!==data.scheduled);
+    if(id){const old=S.tasks[id];const changed=['size','area','client','estimate','deadline','notBefore','projectId','listId','priority'].some(x=>String(old[x]||'')!==String(data[x]||''))||old.pinned!==data.pinned||(data.pinned&&old.scheduled!==data.scheduled);
       if(!changed&&!data.pinned){delete data.scheduled;delete data.pinned}
       if(data.projectId&&old.projectId!==data.projectId)data.order=projectSteps(data.projectId).length;
       patch('tasks',id,data)}
@@ -694,7 +720,7 @@ document.addEventListener('submit',e=>{
     if(f.dataset.id){const old=S.lists[id];patch('lists',id,{name:data.name,area:data.area,due:data.due});if(old.due!==data.due||old.area!==data.area){for(const t of Object.values(S.tasks))if(t.listId===id&&t.status!=='done'&&!t.pinned)patch('tasks',t.id,{scheduled:null});setTimeout(()=>plan('new'),0)}}
     else put('lists',id,data);closeModal();S.view='lists';render()}
   if(k==='client'){const id=f.dataset.id||(fd.get('name').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||uid());
-    const data={name:fd.get('name').trim(),contact:fd.get('contact')||'',address:fd.get('address')||'',email:fd.get('email')||'',dayRate:Number(fd.get('dayRate'))||0,halfDayRate:Number(fd.get('halfDayRate'))||0,workDesc:fd.get('workDesc')||'',terms:Number(fd.get('terms'))||0};
+    const data={name:fd.get('name').trim(),contact:fd.get('contact')||'',address:fd.get('address')||'',email:fd.get('email')||'',dayRate:Number(fd.get('dayRate'))||0,halfDayRate:Number(fd.get('halfDayRate'))||0,workDesc:fd.get('workDesc')||'',terms:Number(fd.get('terms'))||0,workplace:!!fd.get('workplace')};
     if(!data.name)return;put('clients',id,data);closeModal();toast('Client saved')}
   if(k==='business'){const b={};for(const x of ['name','address','email','phone','bankName','accountName','sortCode','accountNumber'])b[x]=fd.get(x)||'';
     saveSettings({business:b,invoicePrefix:fd.get('invoicePrefix')||'',nextInvoice:Number(fd.get('nextInvoice'))||1,paymentDays:Number(fd.get('paymentDays'))||14});toast('Details saved')}
@@ -720,21 +746,21 @@ function clientForm(c){c=c||{};return `<h2>${c.id?'Edit client':'New client'}</h
   <label class="f">Invoice email</label><input type="text" name="email" value="${esc(c.email)}">
   <div class="grid2"><div><label class="f">Day rate (£)</label><input type="number" step="0.01" name="dayRate" value="${esc(c.dayRate||'')}"></div><div><label class="f">Half-day rate (£)</label><input type="number" step="0.01" name="halfDayRate" value="${esc(c.halfDayRate||'')}" placeholder="half of day rate"></div></div>
   <div class="grid2"><div><label class="f">Line description</label><input type="text" name="workDesc" value="${esc(c.workDesc||'')}" placeholder="e.g. Freelance design"></div><div><label class="f">Payment terms (days)</label><input type="number" name="terms" value="${esc(c.terms||'')}" placeholder="${S.settings.paymentDays}"></div></div>
-  <p class="small muted">Which days you work for them is set in "Your week".</p>
+  <label class="row" style="margin-top:14px;gap:8px"><input type="checkbox" name="workplace" ${c.workplace?'checked':''} style="width:auto"> <span>I work for them on set days (they appear in the weekly plan)</span></label>
   <div class="actions">${c.id?`<button type="button" class="btn danger" data-a="delClient" data-id="${c.id}">Delete</button>`:''}<button type="button" class="btn" data-a="close">Cancel</button><button class="btn primary">Save</button></div></form>`}
 
 /* ---------- invoice builder ---------- */
 function newInvoiceDraft(){
   const d=new Date();const m=ymd(d).slice(0,7);
-  const withDays=Object.values(S.clients).find(c=>clientDays(c.id).length);
+  const withDays=workplaces()[0];
   return {id:'',clientId:withDays?withDays.id:(Object.keys(S.clients)[0]||''),month:m,date:today(),extra:[],notes:'',days:null};
 }
 function draftDays(dr){
   const c=S.clients[dr.clientId];if(!c||!dr.month)return [];
-  const wd=clientDays(c.id);if(!wd.length)return [];
+  if(!c.workplace)return [];
   const [y,mo]=dr.month.split('-').map(Number);const last=new Date(y,mo,0).getDate();const t=today();
   const inv=invoicedDates(c.id,dr.id);const out=[];
-  for(let i=1;i<=last;i++){const d=`${dr.month}-${pad(i)}`;if(!wd.includes(dow(d)))continue;
+  for(let i=1;i<=last;i++){const d=`${dr.month}-${pad(i)}`;if(dayType(d)!==c.id)continue;
     const w=S.worklog[`${d}_${c.id}`];let units=w?w.units:(d<=t?1:0);const already=inv.has(d);
     out.push({date:d,units:already?0:units,already,logged:!!w});}
   return out;
@@ -908,7 +934,7 @@ function notifCard(){
   const k=PUSH.kind;
   if(k==='ios-install')body=`<p style="margin-top:4px">On iPhone, notifications only work from the home-screen app. In Safari tap <b>Share</b> → <b>Add to Home Screen</b>, open <b>Planner</b> from your home screen, then come back here.</p>`;
   else if(k==='ask')body=`<p style="margin-top:4px">Get your morning plan and the evening check-in on this device.</p><button class="btn primary sm" data-a="enablePush">Turn on notifications</button>`;
-  else if(k==='on')body=`<p style="margin-top:4px">On for this device ✓</p><div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn sm" data-a="testPush" data-k="checkin">Send a test</button><button class="btn sm" data-a="disablePush">Turn off</button></div>`;
+  else if(k==='on')body=`<p style="margin-top:4px">On for this device ✓</p><div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn sm" data-a="testPush" data-k="checkin">Test check-in</button><button class="btn sm" data-a="testPush" data-k="week">Test Sunday prompt</button><button class="btn sm" data-a="disablePush">Turn off</button></div>`;
   else if(k==='blocked')body=`<p style="margin-top:4px">Notifications are blocked for this site in your browser or phone settings. Allow them there, then reload.</p>`;
   else if(k==='unsupported')body=`<p style="margin-top:4px">This browser can't receive notifications.</p>`;
   else if(k==='error')body=`<p style="margin-top:4px;color:var(--warn)">${esc(PUSH.note||'Something went wrong')}</p><button class="btn sm" data-a="enablePush">Try again</button>`;
@@ -916,9 +942,68 @@ function notifCard(){
   if(PUSH.note&&k!=='error')body+=`<p class="small muted">${esc(PUSH.note)}</p>`;
   return `<div class="sec-head"><span>Notifications</span></div><div class="card">${body}
     <div class="grid2" style="margin-top:6px"><div><label class="f">Morning plan</label><select data-ch="morning">${[[0,'Off'],[6,'6:00'],[7,'7:00'],[8,'8:00'],[9,'9:00'],[10,'10:00']].map(([v,l])=>`<option value="${v}" ${Number(s.morningHour)===v?'selected':''}>${l}</option>`).join('')}</select></div>
-    <div><label class="f">Evening check-in</label><select data-ch="checkin">${[15,16,17,18,19,20,21].map(x=>`<option value="${x}" ${s.checkinHour===x?'selected':''}>${x}:00</option>`).join('')}</select></div></div></div>`;
+    <div><label class="f">Evening check-in</label><select data-ch="checkin">${[15,16,17,18,19,20,21].map(x=>`<option value="${x}" ${s.checkinHour===x?'selected':''}>${x}:00</option>`).join('')}</select></div></div>
+    <label class="f">Sunday "plan next week"</label><select data-ch="mins" data-k="weekPlanHour">${[[0,'Off'],[16,'16:00'],[17,'17:00'],[18,'18:00'],[19,'19:00'],[20,'20:00'],[21,'21:00']].map(([v,l])=>`<option value="${v}" ${Number(s.weekPlanHour)===v?'selected':''}>${l}</option>`).join('')}</select></div>`;
 }
 document.addEventListener('change',e=>{if(e.target.dataset.ch==='morning')saveSettings({morningHour:Number(e.target.value)})});
+
+/* ---------- weekly plan ---------- */
+function weekPlanPrompt(){
+  const t=today(),d=dow(t),tw=weekStart(t),nw=addDays(tw,7);
+  if((d===0||d===6||d===5)&&!weekPlanned(nw))return {ws:nw,title:'Where are you working next week?'};
+  if(!weekPlanned(tw)&&d>=1&&d<=4)return {ws:tw,title:'Plan this week'};
+  return null;
+}
+function weekRange(ws){const a=parseD(ws),b=parseD(addDays(ws,6));return `${a.getDate()} ${a.toLocaleDateString('en-GB',{month:'short'})} – ${b.getDate()} ${b.toLocaleDateString('en-GB',{month:'short'})}`}
+function weekDraft(ws){const w=S.weeks[ws];const days={};for(let i=0;i<7;i++){const d=addDays(ws,i),k=String(dow(d));days[k]=(w&&w.days&&w.days[k])||S.settings.usual[k]||'off'}return days}
+function weekPlannerHtml(){
+  const {ws,days}=S.pwDraft;const opts=[...workplaces().map(c=>[c.id,c.name]),['free','Free'],['off','Off']];
+  let h=`<h2>Where are you working?</h2><div class="spread" style="margin-bottom:8px"><span class="muted">${weekRange(ws)}</span><div class="row" style="gap:4px"><button class="btn sm" data-a="pwNav" data-n="-7">‹</button><button class="btn sm" data-a="pwNav" data-n="7">›</button></div></div>`;
+  for(let i=0;i<7;i++){const d=addDays(ws,i),k=String(dow(d)),v=days[k],pd=parseD(d);
+    h+=`<div class="pwrow" style="background:${typeTint(v)}"><div class="pwday"><b>${DAYNAMES[pd.getDay()]}</b><span>${pd.getDate()}</span></div><div class="pwopts">${opts.map(([o,n])=>`<button type="button" class="pwopt ${v===o?'on':''}" data-a="pwSet" data-k="${k}" data-v="${o}">${esc(n)}</button>`).join('')}</div></div>`}
+  const free=Object.values(days).filter(v=>v==='free').length;
+  h+=`<p class="small muted">${free?`${free} free day${free>1?'s':''} for big tasks.`:'No free days — big tasks will wait for the next one.'} Evenings take quick tasks.</p>
+  <div class="actions"><button class="btn" data-a="close">Cancel</button><button class="btn primary" data-a="saveWeek">Save week</button></div>`;
+  return h;
+}
+A.planWeek=d=>{S.pwDraft={ws:d.w,days:weekDraft(d.w)};openModal(weekPlannerHtml())};
+A.pwNav=d=>{const ws=addDays(S.pwDraft.ws,Number(d.n));S.pwDraft={ws,days:weekDraft(ws)};$('#modal').innerHTML=weekPlannerHtml()};
+A.pwSet=d=>{S.pwDraft.days[d.k]=d.v;$('#modal').innerHTML=weekPlannerHtml()};
+A.saveWeek=()=>{const {ws,days}=S.pwDraft;put('weeks',ws,{days:{...days},savedAt:new Date().toISOString()});closeModal();setTimeout(()=>{plan('all');toast(`Week of ${weekRange(ws)} planned`)},0)};
+
+/* ---------- calendar ---------- */
+function vCalendar(){
+  const t=today();if(!S.calMonth)S.calMonth=t.slice(0,7);
+  const [y,m]=S.calMonth.split('-').map(Number);const first=`${S.calMonth}-01`;const gridStart=weekStart(first);
+  const label=parseD(first).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const byDay={},dueDay={};
+  for(const x of Object.values(S.tasks)){if(x.scheduled)(byDay[x.scheduled]=byDay[x.scheduled]||[]).push(x);const dl=effDeadline(x);if(dl&&x.status!=='done')(dueDay[dl]=dueDay[dl]||0,dueDay[dl]++)}
+  let h=`<div class="spread"><h2>${label}</h2><div class="row" style="gap:4px"><button class="btn sm" data-a="calNav" data-n="-1">‹</button><button class="btn sm" data-a="calNav" data-n="0">Today</button><button class="btn sm" data-a="calNav" data-n="1">›</button></div></div>
+  <div class="cal">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<div class="chead">${d}</div>`).join('')}`;
+  for(let i=0;i<42;i++){
+    const d=addDays(gridStart,i);if(i>=35&&d.slice(0,7)!==S.calMonth)break;
+    const v=dayType(d),ts=byDay[d]||[],open=ts.filter(x=>x.status!=='done').length,done=ts.length-open;
+    const cls=['cday',d.slice(0,7)!==S.calMonth?'out':'',d===t?'today':'',d<t?'past':'',weekPlanned(d)?'':'guess'].join(' ');
+    h+=`<button class="${cls}" style="background:${typeTint(v)}" data-a="calDay" data-d="${d}"><span class="n">${parseD(d).getDate()}</span><span class="l">${esc(v==='free'?'Free':v==='off'?'Off':clientName(v))}</span><span class="cfoot">${open?`<span class="c">${open}</span>`:done?`<span class="c done">✓${done}</span>`:''}${dueDay[d]?'<span class="due" title="Deadline">!</span>':''}</span></button>`;
+  }
+  h+=`</div><div class="legend">${[...workplaces().map(c=>[c.id,c.name]),['free','Free day'],['off','Off']].map(([k,n])=>`<span><i style="background:${typeTint(k)}"></i>${esc(n)}</span>`).join('')}<span><i class="guessi"></i>Usual pattern (not planned yet)</span><span><b class="due">!</b> Deadline</span></div>
+  <p class="small muted" style="padding:0 4px">Tap a day to see its tasks or change what kind of day it is.</p>`;
+  return h;
+}
+function calDayHtml(d){
+  const v=dayType(d),pd=parseD(d);const {slots,other}=assignDay(d);
+  const dues=Object.values(S.tasks).filter(x=>x.status!=='done'&&effDeadline(x)===d);
+  const opts=[...workplaces().map(c=>[c.id,c.name]),['free','Free'],['off','Off']];
+  let h=`<div class="spread"><div><div class="muted">${pd.toLocaleDateString('en-GB',{weekday:'long'})}</div><div class="bigdate" style="font-size:64px">${pd.getDate()} ${MON(d)}</div></div></div>
+  <label class="f">This day is</label><div class="pwopts" style="margin-bottom:8px">${opts.map(([o,n])=>`<button type="button" class="pwopt ${v===o?'on':''}" data-a="setDay" data-d="${d}" data-v="${o}">${esc(n)}</button>`).join('')}</div>`;
+  h+=`<div class="stack" style="margin-top:12px">${slots.map(slotCard).join('')}${other.length?slotCard({label:'Other',tint:GREY_TINT,tasks:other,mins:0,used:0}):''}</div>`;
+  if(!slots.length&&!other.length)h+=`<div class="empty">Day off — nothing planned.</div>`;
+  if(dues.length)h+=`<h3>Due this day</h3>${dues.map(x=>taskRow(x,{showDate:true,showArea:true})).join('')}`;
+  return h+`<div class="actions"><button class="btn" data-a="close">Close</button></div>`;
+}
+A.calNav=d=>{const n=Number(d.n);if(!n){S.calMonth=today().slice(0,7)}else{const [y,m]=S.calMonth.split('-').map(Number);const dt=new Date(y,m-1+n,1);S.calMonth=`${dt.getFullYear()}-${pad(dt.getMonth()+1)}`}render()};
+A.calDay=d=>openModal(calDayHtml(d.d));
+A.setDay=d=>{const ws=weekStart(d.d);const days=weekDraft(ws);days[String(dow(d.d))]=d.v;put('weeks',ws,{days,savedAt:new Date().toISOString()});plan('all');setTimeout(()=>{$('#modal').innerHTML=calDayHtml(d.d)},30)};
 
 /* ---------- sync with the database ---------- */
 async function loadAll(){
@@ -946,12 +1031,14 @@ async function resync(){
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.ready)resync()});
 function openCheckinFromLink(){
-  if(location.hash==='#checkin'){history.replaceState(null,'',location.pathname+location.search);S.view='today';render();openModal(checkinHtml())}
+  const h=location.hash;if(h!=='#checkin'&&h!=='#plan-week')return;
+  history.replaceState(null,'',location.pathname+location.search);S.view='today';render();
+  if(h==='#checkin')openModal(checkinHtml());else A.planWeek({w:(weekPlanPrompt()||{}).ws||addDays(weekStart(today()),7)});
 }
 window.addEventListener('hashchange',()=>{if(S.ready)openCheckinFromLink()});
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{
   const d=e.data||{};if(d.type!=='open')return;
-  resync().then(()=>{if(String(d.url||'').includes('#checkin')){S.view='today';render();openModal(checkinHtml())}});
+  resync().then(()=>{const u=String(d.url||'');if(u.includes('#checkin')){S.view='today';render();openModal(checkinHtml())}else if(u.includes('#plan-week')){A.planWeek({w:(weekPlanPrompt()||{}).ws||addDays(weekStart(today()),7)})}});
 });
 
 /* ---------- sign in ---------- */

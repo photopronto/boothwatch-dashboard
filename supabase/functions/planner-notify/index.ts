@@ -38,11 +38,16 @@ Deno.serve(async (req) => {
   const results: unknown[] = [];
 
   for (const owner of owners) {
-    const { data: docs } = await admin.from("planner_docs").select("col, id, data").eq("owner_id", owner).in("col", ["config", "tasks", "worklog", "clients"]);
+    const { data: docs } = await admin.from("planner_docs").select("col, id, data").eq("owner_id", owner).in("col", ["config", "tasks", "worklog", "clients", "weeks"]);
     const settings = (docs || []).find((d) => d.col === "config" && d.id === "settings")?.data || {};
     const tasks = (docs || []).filter((d) => d.col === "tasks").map((d) => ({ id: d.id, ...d.data }));
     const worklog = new Set((docs || []).filter((d) => d.col === "worklog").map((d) => d.id));
     const clients = Object.fromEntries((docs || []).filter((d) => d.col === "clients").map((d) => [d.id, d.data?.name || d.id]));
+    const weeks = Object.fromEntries((docs || []).filter((d) => d.col === "weeks").map((d) => [d.id, d.data]));
+    const addDays = (date: string, n: number) => { const d = new Date(date + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const monday = (date: string, dow: number) => addDays(date, -((dow + 6) % 7));
+    const dayType = (date: string, dow: number) => weeks[monday(date, dow)]?.days?.[String(dow)] || settings.usual?.[String(dow)] || "off";
+    const weekPlanHour = Number(settings.weekPlanHour ?? 18);
     const checkinHour = Number(settings.checkinHour ?? 17);
     const morningHour = Number(settings.morningHour ?? 8);
     const open = tasks.filter((t) => t.status !== "done");
@@ -52,11 +57,11 @@ Deno.serve(async (req) => {
     const messages: { kind: string; title: string; body: string; hash: string }[] = [];
 
     // Morning plan
-    if (force === "morning" || (morningHour > 0 && now.hour >= morningHour && now.hour < 12 && !sentToday.has("morning"))) {
+    if (force === "morning" || (!force && morningHour > 0 && now.hour >= morningHour && now.hour < 12 && !sentToday.has("morning"))) {
       const todays = open.filter((t) => t.scheduled === now.date);
       const waiting = open.filter((t) => t.scheduled && t.scheduled < now.date).length;
       const fresh = open.filter((t) => !t.scheduled && t.fromEmail).length;
-      if (todays.length || waiting || fresh || force) {
+      if (todays.length || waiting || fresh || force === "morning") {
         const mins = todays.reduce((s, t) => s + (Number(t.estimate) || 30), 0);
         const first = todays.slice(0, 3).map((t) => t.title).join(", ");
         const bits = [todays.length ? `${todays.length} task${todays.length > 1 ? "s" : ""} · ${fmtMins(mins)} planned${first ? ". " + first : ""}` : "Nothing planned today"];
@@ -67,16 +72,22 @@ Deno.serve(async (req) => {
     }
 
     // Evening check-in
-    if (force === "checkin" || (now.hour >= checkinHour && !sentToday.has("checkin"))) {
+    if (force === "checkin" || (!force && now.hour >= checkinHour && !sentToday.has("checkin"))) {
       const due = open.filter((t) => t.scheduled && t.scheduled <= now.date).length;
-      const slots = (settings.days?.[String(now.dow)] || []) as { client?: string }[];
-      const days = [...new Set(slots.filter((s) => s.client).map((s) => s.client as string))].filter((c) => !worklog.has(`${now.date}_${c}`));
-      if (due || days.length || force) {
+      const t = dayType(now.date, now.dow);
+      const days = (t !== "free" && t !== "off" && clients[t] && !worklog.has(`${now.date}_${t}`)) ? [t] : [];
+      if (due || days.length || force === "checkin") {
         const bits = [];
         if (due) bits.push(`${due} task${due > 1 ? "s" : ""} to confirm`);
         if (days.length) bits.push(`log your ${days.map((c) => clients[c] || c).join(" & ")} day`);
         messages.push({ kind: "checkin", title: "Check-in time", body: (bits.join(" · ") || "Nothing to confirm") + ". Done, or move it?", hash: "#checkin" });
       }
+    }
+
+    // Sunday evening: where are you working next week?
+    const nextMon = addDays(monday(now.date, now.dow), 7);
+    if (force === "week" || (!force && now.dow === 0 && weekPlanHour > 0 && now.hour >= weekPlanHour && !sentToday.has("weekplan") && !weeks[nextMon])) {
+      messages.push({ kind: "weekplan", title: "Plan next week", body: "Where are you working next week? Tap to set your days.", hash: "#plan-week" });
     }
 
     for (const m of messages) {
